@@ -129,4 +129,3 @@ Dashboard / Reports / Leads
 ### Updates
 - Manual update notification
 - Future optional auto-update
-```
