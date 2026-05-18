@@ -93,4 +93,3 @@ Executive summary generated
         ↓
 Dashboard exportable to PDF
 ```
-```
