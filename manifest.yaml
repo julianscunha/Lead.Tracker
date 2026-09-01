@@ -1,0 +1,29 @@
+id: lead_tracker
+name: Lead.Tracker
+version: 0.1.0
+
+platform_min_version: 1.0.0
+platform_max_version: 2.0.0
+
+category: Sales
+module_type: application
+vendor: Tech.Forge
+author: Tech.Forge Team
+description: >
+  Módulo de Opportunity Intelligence: transforma dados de clientes, prospects,
+  portfólio tecnológico, produtos e serviços em oportunidades comerciais
+  priorizadas (cross-sell, up-sell, modernização, otimização de custos).
+
+icon: target
+order: 10
+
+color: blue
+
+entry_backend: backend/main.py
+entry_frontend: frontend/index.js
+
+homepage: https://github.com/julianscunha/Lead.Tracker
+documentation: https://github.com/julianscunha/Lead.Tracker/tree/main/docs
+
+signature:
+checksum:
