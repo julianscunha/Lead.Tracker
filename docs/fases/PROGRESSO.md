@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 06 — Empresa/Portfólio** (ainda não iniciada)
+**Fase em andamento: 07 — Coleta/Normalização** (ainda não iniciada)
 
 > Nota: a Fase 04 foi implementada antes das Fases 02/03 por engano, quebrando
 > a ordem estrita do CLAUDE.md. Corrigido voltando e implementando 02 e 03
@@ -20,6 +20,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 02 | Modelo de Dados — `core/models.py`: `Company`, `SourceRef`, `Vendor`, `Product`, `Service`, `Opportunity` (com `OpportunityStatus`), `Portfolio`. Testes em `tests/test_models.py`. | `0f44e83` | 2026-08-31 |
 | 03 | Configuração — `.env-model` versionado, `core/config.py` (`sync_env`: adiciona chaves ausentes, nunca sobrescreve/remove), integrado a `install()`/`enable()` do módulo. Testes em `tests/test_config.py`. | `0f44e83` | 2026-08-31 |
 | 05 | Providers — `providers/base.py` (`DataProvider` ABC, `ConnectionTestResult`, `ProviderContext`, `ProviderError`), `providers/manual.py` (`ManualProvider`, referência in-memory). `core/models.py` ganhou `Contact`. Testes em `tests/test_providers.py`. | `376246a` | 2026-08-31 |
+| 06 | Empresa/Portfólio — `core/portfolio.py`: CRUD de produto/serviço + `merge_portfolio` (Adicionar/Sobrescrever, DECISOES 011). Tela Empresa (UI) e extração via website/IA ficam para Fases 10/07/09. Testes em `tests/test_portfolio.py`. | `2767ee3` | 2026-08-31 |
 
 ## Como retomar após perda de conexão
 
