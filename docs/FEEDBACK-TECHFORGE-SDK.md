@@ -21,6 +21,27 @@ Cada entrada: **Fase em que surgiu**, **o que aconteceu**, **por que importa**,
 
 ## Atritos / lacunas encontradas
 
+### Fase 14 — `/api/v1/health` não chama `health_check()` do módulo; lifecycle real fica escondido em `/marketplace/activate`
+Passei da Fase 04 até a 13 achando (e afirmando ao usuário) que os
+checkpoints contra o Core real validavam o ciclo de vida do `ModuleContract`.
+Não validavam: `/api/v1/health` é um stub — `is_healthy` vem só do status do
+registry (`entry.status == ModuleStatus.INSTALLED`), o próprio arquivo
+(`app/api/routes/health.py`) documenta isso como "Phase 5 pendente". E
+`ModuleLoader.scan_installed()` nunca chama `install()`/`enable()`/
+`health_check()` — só monta o router. O caminho real (`app/module_runtime/
+lifecycle.py`, "Fase 9 §10") existe e funciona bem — `POST /api/v1/
+marketplace/activate/{id}` e `/deactivate/{id}` chamam `enable()`/`disable()`
+de verdade — mas fica em um router (`marketplace.py`) sem nenhuma ligação
+óbvia com "isso é o jeito certo de testar o lifecycle de um módulo em dev".
+Só achei porque fui atrás de um jeito de exercitar `enable()` de verdade pra
+validar a camada de persistência nova.
+**Sugestão**: documentar explicitamente (no guia de módulos ou no próprio
+`hello_world`) que `POST /marketplace/activate|deactivate/{id}` é o caminho
+oficial pra testar lifecycle em dev sem precisar de um `.mod` empacotado —
+e, idealmente, fazer `/api/v1/health` reportar de verdade se o
+`health_check()` do módulo está acessível, não só o status do registry
+(mesmo que como fallback quando o runtime hook não puder ser carregado).
+
 ### Fase 14 — `sdk.database` ainda é só um mock in-memory
 Fui implementar persistência real pro módulo e descobri, lendo o código-fonte
 do SDK (`techforge_sdk/database/__init__.py`), que `DatabaseSDK` está marcado
