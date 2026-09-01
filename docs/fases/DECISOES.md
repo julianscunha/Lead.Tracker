@@ -101,3 +101,23 @@ O código será mantido no repositório `Lead.Tracker` e posteriormente empacota
 ## 020 — Open Source
 
 O núcleo do projeto deve permanecer genérico e não depender de informações específicas de uma empresa. Portfólio, serviços, produtos, integrações e regras comerciais devem ser configuráveis.
+
+## 021 — Camada de persistência (SQLite via SQLAlchemy async)
+
+Nenhuma das 15 fases da ordem oficial (`00-ORDEM-DESENVOLVIMENTO.md`) cobria persistência, apesar de `01-ARQUITETURA.md` já citar SQLite como stack. As Fases 02–13 foram construídas inteiramente como funções puras/determinísticas, sem banco de dados real.
+
+Alternativas: usar `sdk.database` do SDK do Tech.Forge (descartado — ainda é só um mock in-memory, "Phase 3", não uma sessão real); adiar persistência pra uma fase futura fora da numeração (descartado — usuário optou por fechar a lacuna antes do empacotamento).
+
+Escolha: SQLite via SQLAlchemy async (aiosqlite), mesmo padrão do próprio Tech.Forge Core, com `core/db.py` (engine/sessão), `core/db_models.py` (tabelas) e `core/repository.py` (ponte Pydantic↔ORM). Sem Alembic por enquanto — schema simples, local-first (DECISOES 014); migração formal fica pra quando o schema evoluir de fato. Banco vive em `data/lead_tracker.db`, criado em `install()`/`enable()`, apagado em `uninstall()`.
+
+## 022 — IA: OpenRouter como provider padrão
+
+Decisão explícita do usuário (não do modelo de IA que implementa): `AI_PROVIDER` default é `openrouter`, com `openai`, `gemini` e `claude` como alternativas diretas via `ai/factory.py`, sem custo de troca de arquitetura — todos implementam o mesmo contrato `AIProvider`.
+
+## 023 — Frontend do módulo: React/TypeScript com build próprio
+
+DECISOES 015 já definia "frontend final React/TypeScript", mas o Tech.Forge Core só serve `.js`/`.mjs` estático — nunca compila `.tsx` (`module_assets.py`, whitelist de extensão). Escolha: projeto npm dentro de `frontend/` (Vite, modo lib, saída ESM única), substituindo o esqueleto JS puro da Fase 04. `frontend/index.js` (build output) é gitignored; só o código-fonte (`frontend/src/`) é versionado.
+
+## 024 — Taxonomia de erro unificada (`DomainError`)
+
+`ProviderError` (Fase 05) e `AIProviderError` (Fase 09) nasceram como exceções independentes, cada uma com sua própria mensagem amigável. Na Fase 13, unificadas sob `core/errors.py` (`DomainError` + `ErrorCategory`, as 9 categorias de `docs/fases/13`), mantendo compatibilidade (mesmos nomes de classe, mesma assinatura posicional). Endpoints HTTP mapeiam categoria→status via uma única tabela (`backend/routes_exports.py`), não regra por rota.

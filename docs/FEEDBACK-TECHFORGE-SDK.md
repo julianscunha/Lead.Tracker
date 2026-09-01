@@ -21,6 +21,23 @@ Cada entrada: **Fase em que surgiu**, **o que aconteceu**, **por que importa**,
 
 ## Atritos / lacunas encontradas
 
+### Fase 14 — `sdk.database` ainda é só um mock in-memory
+Fui implementar persistência real pro módulo e descobri, lendo o código-fonte
+do SDK (`techforge_sdk/database/__init__.py`), que `DatabaseSDK` está marcado
+"Phase 3: in-memory mock" — `fetch_all`/`execute` não tocam banco nenhum,
+só um dict em memória que nem sobrevive a um restart. Não tem aviso nenhum
+disso na superfície da API (a assinatura dos métodos parece uma sessão real).
+Acabei implementando minha própria camada (SQLAlchemy async + aiosqlite,
+arquivo em `data/<module>.db`, mesmo padrão do próprio Core) porque não dava
+pra confiar no que existe hoje. `sdk.storage` (arquivos) já é real e funciona
+bem — só `sdk.database` que ainda não chegou na "Phase 4" mencionada no
+próprio docstring.
+**Sugestão**: ou completar a Fase 4 do SDK (sessão real scoped por módulo),
+ou pelo menos logar um warning bem visível na primeira chamada de
+`fetch_all`/`execute` avisando que é mock — hoje só se descobre lendo
+código-fonte, e um módulo em produção rodando contra o mock perderia dado
+silenciosamente.
+
 ### Fase 10 — Nenhum exemplo de módulo com framework (React/TS)
 O contrato de frontend (Core só serve `.js`/`.mjs` estático, nunca compila) é
 uma escolha de isolamento defensável, mas o único módulo de referência
