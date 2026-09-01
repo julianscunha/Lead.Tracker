@@ -70,6 +70,10 @@ Mandatory: work that requires complex reasoning (architecture, multi-file implem
 
 Mandatory: for code search/lookup tasks, use the `ast-grep` skills instead of plain text grep — pick whichever fits the situation: `ast-grep-outline` for a cheap structural map (files, imports, exports, members) before reading full source; `ast-grep` for structural/AST pattern queries (find specific language constructs, not just text matches).
 
+## Agent skill discipline
+
+Mandatory: run the `using-agent-skills` skill both before and after any coding work in this session — before, to select the right skill(s) for the task; after, to confirm nothing applicable was skipped.
+
 ## Documenting decisions
 
 Record architecturally relevant decisions in `docs/fases/DECISOES.md` using the existing numbered format (Data / Decisão / Contexto / Alternativas / Escolha / Motivo / Impacto entries, see the existing 001–020 for style).
