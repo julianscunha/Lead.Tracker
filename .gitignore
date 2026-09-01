@@ -8,3 +8,7 @@
 # Python
 __pycache__/
 *.pyc
+
+# Frontend — build output e deps, não código-fonte (rodar `npm run build` em frontend/)
+frontend/node_modules/
+frontend/index.js
