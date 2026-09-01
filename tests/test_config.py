@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.config import sync_env
+from core.config import load_env, sync_env
 
 
 def test_fresh_install_copies_all_keys_from_model():
@@ -50,8 +50,25 @@ def test_only_adds_missing_keys():
         assert "NEW_KEY=" in content
 
 
+def test_load_env_parses_key_value_pairs():
+    with tempfile.TemporaryDirectory() as tmp:
+        env = Path(tmp) / ".env"
+        env.write_text("AI_PROVIDER=openrouter\nAI_API_KEY=sk-123\n# comentário\n\n", encoding="utf-8")
+
+        result = load_env(env)
+
+        assert result == {"AI_PROVIDER": "openrouter", "AI_API_KEY": "sk-123"}
+
+
+def test_load_env_missing_file_returns_empty_dict():
+    result = load_env(Path("/nao/existe/.env"))
+    assert result == {}
+
+
 if __name__ == "__main__":
     test_fresh_install_copies_all_keys_from_model()
     test_never_overwrites_existing_value()
     test_only_adds_missing_keys()
+    test_load_env_parses_key_value_pairs()
+    test_load_env_missing_file_returns_empty_dict()
     print("OK — todos os testes de configuração passaram")

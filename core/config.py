@@ -48,3 +48,18 @@ def sync_env(env_path: Path, model_path: Path) -> list[str]:
         env_path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
     return added
+
+
+def load_env(env_path: Path) -> dict[str, str]:
+    """Lê `.env` para um dict — usado em runtime pra configurar providers
+    (ex.: AI_PROVIDER/AI_API_KEY). Chave sem valor vira string vazia, nunca None."""
+    if not env_path.exists():
+        return {}
+    result: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        result[key.strip()] = value.strip()
+    return result

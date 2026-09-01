@@ -20,12 +20,14 @@ from techforge_sdk.contracts import ModuleContract, ModuleMetadata, HealthResult
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.config import sync_env
+from backend.routes_exports import router as exports_router
 
 _MODULE_ROOT = Path(__file__).parent.parent
 
 sdk = create_sdk("lead_tracker")
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
+router.include_router(exports_router)
 
 
 @router.get("/ping")
