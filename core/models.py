@@ -43,6 +43,18 @@ class Company(BaseModel):
     updated_at: datetime = Field(default_factory=_now)
 
 
+class Contact(BaseModel):
+    """Pessoa de contato em uma empresa. Necessário pelo contrato de provider
+    (fetch_contacts) — não estava em 02-MODELO-DADOS.md, adicionado na Fase 05."""
+    id: str = Field(default_factory=_new_id)
+    company_id: str
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    role: str | None = None
+    sources: list[SourceRef] = Field(default_factory=list)
+
+
 class Vendor(BaseModel):
     id: str = Field(default_factory=_new_id)
     name: str
