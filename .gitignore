@@ -12,3 +12,7 @@ __pycache__/
 # Frontend — build output e deps, não código-fonte (rodar `npm run build` em frontend/)
 frontend/node_modules/
 frontend/index.js
+
+# Banco de dados local — dado real da instalação, nunca versionado
+data/*.db
+data/*.db-journal

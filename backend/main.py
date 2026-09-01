@@ -15,16 +15,21 @@ if _techforge_sdk_path.exists():
     sys.path.insert(0, str(_techforge_sdk_path))
 
 from fastapi import APIRouter
+from sqlalchemy import select
 from techforge_sdk import create_sdk
 from techforge_sdk.contracts import ModuleContract, ModuleMetadata, HealthResult
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.config import sync_env
+from core.db import create_engine, init_db, make_session_factory
 from backend.routes_exports import router as exports_router
 
 _MODULE_ROOT = Path(__file__).parent.parent
+_DB_PATH = _MODULE_ROOT / "data" / "lead_tracker.db"
 
 sdk = create_sdk("lead_tracker")
+_engine = create_engine(_DB_PATH)
+session_factory = make_session_factory(_engine)
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
 router.include_router(exports_router)
@@ -57,6 +62,7 @@ class LeadTrackerModule(ModuleContract):
         added = sync_env(_MODULE_ROOT / ".env", _MODULE_ROOT / ".env-model")
         if added:
             sdk.logger.info("config: added missing keys from .env-model: %s", added)
+        await init_db(_engine)
         sdk.settings.set("installed", True)
 
     async def enable(self) -> None:
@@ -64,6 +70,7 @@ class LeadTrackerModule(ModuleContract):
         added = sync_env(_MODULE_ROOT / ".env", _MODULE_ROOT / ".env-model")
         if added:
             sdk.logger.info("config: added missing keys from .env-model: %s", added)
+        await init_db(_engine)
 
     async def disable(self) -> None:
         sdk.logger.info("lead_tracker disable() called")
@@ -72,10 +79,17 @@ class LeadTrackerModule(ModuleContract):
         sdk.logger.info("lead_tracker upgrade() from %s", from_version)
 
     async def health_check(self) -> HealthResult:
+        try:
+            async with session_factory() as session:
+                await session.execute(select(1))
+        except Exception:
+            return HealthResult.fail("lead_tracker: banco de dados inacessível")
         return HealthResult.ok("lead_tracker is healthy")
 
     async def uninstall(self) -> None:
         sdk.logger.info("lead_tracker uninstall() called")
+        if _DB_PATH.exists():
+            _DB_PATH.unlink()
         sdk.settings.reset()
 
 
