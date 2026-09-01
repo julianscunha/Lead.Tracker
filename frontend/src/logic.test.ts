@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFilters, defaultFilters } from './Filters'
+import { applyFilters, defaultFilters, summarizeFilters } from './Filters'
 import { sortRows } from './OpportunityTable'
 import { sampleOpportunities } from './sampleData'
 
@@ -35,5 +35,17 @@ describe('applyFilters', () => {
   it('nunca perde oportunidade sem filtro ativo', () => {
     const result = applyFilters(sampleOpportunities, defaultFilters)
     expect(result).toHaveLength(sampleOpportunities.length)
+  })
+})
+
+describe('summarizeFilters', () => {
+  it('sem filtro ativo diz "sem filtro"', () => {
+    expect(summarizeFilters(defaultFilters)).toBe('sem filtro')
+  })
+
+  it('descreve os filtros ativos', () => {
+    const result = summarizeFilters({ ...defaultFilters, client: 'clientes', minScore: 0.5 })
+    expect(result).toContain('clientes atuais')
+    expect(result).toContain('score mínimo: 0.5')
   })
 })

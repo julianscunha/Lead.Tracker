@@ -79,6 +79,16 @@ export function Filters({
   )
 }
 
+export function summarizeFilters(filters: FilterState): string {
+  const parts: string[] = []
+  if (filters.client !== 'todos') parts.push(filters.client === 'clientes' ? 'clientes atuais' : 'prospects')
+  if (filters.product !== 'todos') parts.push(`produto: ${filters.product}`)
+  if (filters.service !== 'todos') parts.push(`serviço: ${filters.service}`)
+  if (filters.source !== 'todos') parts.push(`fonte: ${filters.source}`)
+  if (filters.minScore > 0) parts.push(`score mínimo: ${filters.minScore}`)
+  return parts.length > 0 ? parts.join(', ') : 'sem filtro'
+}
+
 export function applyFilters(rows: OpportunityRow[], filters: FilterState): OpportunityRow[] {
   return rows.filter(r => {
     if (filters.client === 'clientes' && !r.isCustomer) return false

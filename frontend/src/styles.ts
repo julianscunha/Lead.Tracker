@@ -42,6 +42,11 @@ export const styles = `
 .lt-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .lt-hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 6px; }
 
+.lt-draft { margin-top: 12px; padding: 12px; border-radius: 6px; background: hsl(var(--bg)); border: 1px solid hsl(var(--border)); font-size: 11px; }
+.lt-draft p { margin: 0 0 8px; }
+
+.lt-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+
 .lt-empty { text-align: center; padding: 48px 16px; color: hsl(var(--text-muted)); font-size: 12px; }
 
 .lt-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid hsl(var(--border)); }

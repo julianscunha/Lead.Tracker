@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react'
+import { generateEmailDraft, type EmailDraft } from './api'
 import type { OpportunityRow, SortKey } from './types'
 
 const PRIORITY_WEIGHT: Record<OpportunityRow['priority'], number> = { alta: 3, média: 2, baixa: 1 }
@@ -43,7 +44,27 @@ function SortHeader({ label, sortKey, current, direction, onSort }: {
 }
 
 function RowDetail({ row }: { row: OpportunityRow }) {
-  const [draftMessage, setDraftMessage] = useState<string | null>(null)
+  const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<EmailDraft | null>(null)
+
+  const handleGenerateDraft = async () => {
+    setDraftState('loading')
+    setDraftError(null)
+    try {
+      const result = await generateEmailDraft(row)
+      setDraft(result)
+      setDraftState('idle')
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : 'Falha ao gerar rascunho.')
+      setDraftState('error')
+    }
+  }
+
+  const copyDraft = async () => {
+    if (!draft) return
+    await navigator.clipboard.writeText(`${draft.subject}\n\n${draft.greeting}\n\n${draft.body}\n\n${draft.cta}`)
+  }
 
   const copySummary = async () => {
     const text = [
@@ -83,15 +104,21 @@ function RowDetail({ row }: { row: OpportunityRow }) {
         </dl>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
-          <button
-            type="button"
-            className="lt-btn"
-            onClick={() => setDraftMessage('Rascunho de e-mail chega na Fase 12 (Exportações/E-mail) — ainda não implementado.')}
-          >
-            Gerar rascunho
+          <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
+            {draftState === 'loading' ? 'Gerando…' : 'Gerar rascunho'}
           </button>
         </div>
-        {draftMessage && <p className="lt-hint" role="status">{draftMessage}</p>}
+        {draftState === 'error' && <p className="lt-hint" role="alert">{draftError}</p>}
+        {draft && (
+          <div className="lt-draft" role="status">
+            <p><strong>Assunto:</strong> {draft.subject}</p>
+            <p>{draft.greeting}</p>
+            <p>{draft.body}</p>
+            <p>{draft.cta}</p>
+            <button type="button" className="lt-btn" onClick={copyDraft}>Copiar rascunho</button>
+            <p className="lt-hint">Revise antes de enviar — o rascunho nunca é enviado automaticamente.</p>
+          </div>
+        )}
       </td>
     </tr>
   )
