@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 13 — Resiliência/Observabilidade** (ainda não iniciada)
+**Fase em andamento: 14 — Testes/Decisões/Documentação** (ainda não iniciada)
 
 > Nota: `frontend/index.js` agora é build output (gitignored) — rodar
 > `npm install && npm run build` dentro de `frontend/` antes de testar o
@@ -32,6 +32,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 10 | Interface Operacional — `frontend/` virou projeto npm React+TS (Vite lib mode, honra DECISOES 015), substituindo o esqueleto JS puro da Fase 04. Tela de Oportunidades: filtros, ordenação, linha expansível, ações copiar/gerar rascunho (placeholder honesto p/ Fase 12). Testes de lógica com vitest (6 passando). Validado contra o Core real (asset servido 200, registry sem warnings). | `824316c` | 2026-09-01 |
 | 11 | Dashboard Executivo — `core/dashboard_metrics.py` (KPIs, distribuição/potencial por fabricante, oportunidades por serviço, cliente×prospect, funil — nada inventado, `None` nunca vira 0). Frontend: DonutChart/BarChart/FunnelChart/StatTile com paleta categórica validada (dataviz skill). Fora de escopo: tendência temporal (sem persistência histórica) e segmentação região/segmento (sem campo no modelo). PDF fica pra Fase 12. Validado contra o Core real. | `d5a7258` | 2026-09-01 |
 | 12 | Exportações/E-mail — `exports/pdf.py` (opportunities_pdf/executive_pdf, fpdf2), `exports/excel.py` (openpyxl), `ai/email_draft.py` (rascunho via IA, nunca envia, nunca inventa campo). Endpoints reais em `backend/routes_exports.py` (POST /exports/pdf, /exports/excel, /exports/executive-pdf, /email-draft), frontend ligado de verdade (botões PDF/Excel + "Gerar rascunho" chamando a API). Guarda de segredo em `build_structured_prompt` (root-cause, cobre todo AIProvider). Bug real encontrado e corrigido: fonte core do fpdf2 só cobre latin-1, travessão/aspas curvas/emoji derrubavam a exportação — `_pdf_safe()` + teste de regressão. Validado contra o Core real (PDF `%PDF-1.3` válido, email-draft degrada com 503 amigável sem API key). | `2510bc9` | 2026-09-01 |
+| 13 | Resiliência/Observabilidade — `core/errors.py` (`DomainError`/`ErrorCategory`, 9 categorias do doc). `AIProviderError`/`ProviderError` agora herdam dele. `ai/http_base.py` mapeia cada falha HTTP pra categoria certa. `exports/errors.py` (`ExportError`/`wrap_export_errors`, rede de segurança pra falha inesperada de fpdf2/openpyxl). `backend/routes_exports.py`: tabela única categoria→status HTTP. Frontend: botões PDF/Excel com feedback "Gerando…"/disabled. Validado contra o Core real. | `9e4e913` | 2026-09-01 |
 
 ## Como retomar após perda de conexão
 
