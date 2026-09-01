@@ -1,9 +1,11 @@
 """
-Rotas de exportação e rascunho de e-mail (Fase 12).
+Rotas de exportação e rascunho de e-mail (Fase 12/13).
 
 Contrato: input validado na borda (pydantic), sem estado — o chamador manda
 os dados já filtrados/ordenados, a rota só transforma em PDF/Excel/rascunho.
-Erro técnico nunca vaza cru pro cliente (CLAUDE.md 'Error handling').
+Erro técnico nunca vaza cru pro cliente (CLAUDE.md 'Error handling'). Todo
+DomainError vira HTTPException pela mesma tabela categoria->status (Fase 13),
+não uma regra por rota.
 """
 from __future__ import annotations
 
@@ -16,11 +18,11 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai.base import AIProviderError
 from ai.email_draft import generate_email_draft
 from ai.factory import create_ai_provider
 from core.config import load_env
 from core.dashboard_metrics import DashboardKPIs
+from core.errors import DomainError, ErrorCategory
 from exports.excel import opportunities_excel
 from exports.pdf import executive_pdf, opportunities_pdf
 from exports.types import OpportunityExportRow
@@ -28,6 +30,22 @@ from exports.types import OpportunityExportRow
 _MODULE_ROOT = Path(__file__).parent.parent
 
 router = APIRouter(tags=["lead_tracker-exports"])
+
+_STATUS_BY_CATEGORY = {
+    ErrorCategory.CONFIGURATION: 503,
+    ErrorCategory.AUTHENTICATION: 502,
+    ErrorCategory.CONNECTIVITY: 502,
+    ErrorCategory.TIMEOUT: 504,
+    ErrorCategory.API_LIMIT: 429,
+    ErrorCategory.INTEGRATION: 502,
+    ErrorCategory.INVALID_DATA: 422,
+    ErrorCategory.AI: 502,
+    ErrorCategory.EXPORT: 500,
+}
+
+
+def _raise_http(exc: DomainError) -> None:
+    raise HTTPException(status_code=_STATUS_BY_CATEGORY.get(exc.category, 500), detail=str(exc)) from exc
 
 
 class OpportunityRowSchema(BaseModel):
@@ -80,14 +98,20 @@ class EmailDraftRequest(BaseModel):
 @router.post("/exports/pdf")
 async def export_opportunities_pdf(body: OpportunitiesPdfRequest) -> Response:
     rows = [r.to_export_row() for r in body.rows]
-    pdf_bytes = opportunities_pdf(rows, body.filters_summary, datetime.now(timezone.utc))
+    try:
+        pdf_bytes = opportunities_pdf(rows, body.filters_summary, datetime.now(timezone.utc))
+    except DomainError as exc:
+        _raise_http(exc)
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 
 @router.post("/exports/excel")
 async def export_opportunities_excel(body: OpportunitiesPdfRequest) -> Response:
     rows = [r.to_export_row() for r in body.rows]
-    excel_bytes = opportunities_excel(rows)
+    try:
+        excel_bytes = opportunities_excel(rows)
+    except DomainError as exc:
+        _raise_http(exc)
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -98,10 +122,13 @@ async def export_opportunities_excel(body: OpportunitiesPdfRequest) -> Response:
 async def export_executive_pdf(body: ExecutivePdfRequest) -> Response:
     kpis = DashboardKPIs(**body.kpis.model_dump())
     top = [r.to_export_row() for r in body.top_opportunities]
-    pdf_bytes = executive_pdf(
-        kpis, top, body.insights, datetime.now(timezone.utc),
-        body.period_label, body.vendor_distribution, body.funnel_counts,
-    )
+    try:
+        pdf_bytes = executive_pdf(
+            kpis, top, body.insights, datetime.now(timezone.utc),
+            body.period_label, body.vendor_distribution, body.funnel_counts,
+        )
+    except DomainError as exc:
+        _raise_http(exc)
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 
@@ -110,10 +137,11 @@ async def email_draft(body: EmailDraftRequest) -> dict:
     env = load_env(_MODULE_ROOT / ".env")
     api_key = env.get("AI_API_KEY", "")
     if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="IA não configurada — defina AI_API_KEY nas configurações do módulo para gerar rascunhos.",
-        )
+        _raise_http(DomainError(
+            ErrorCategory.CONFIGURATION,
+            "IA não configurada.",
+            "Defina AI_API_KEY nas configurações do módulo para gerar rascunhos.",
+        ))
 
     provider = create_ai_provider(env.get("AI_PROVIDER", ""), api_key)
     try:
@@ -121,7 +149,7 @@ async def email_draft(body: EmailDraftRequest) -> dict:
             provider, body.company_name, body.opportunity_type,
             body.evidence, body.justification, body.portfolio,
         )
-    except AIProviderError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except DomainError as exc:
+        _raise_http(exc)
 
     return {"subject": draft.subject, "greeting": draft.greeting, "body": draft.body, "cta": draft.cta}

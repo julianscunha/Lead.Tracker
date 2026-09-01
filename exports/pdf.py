@@ -12,6 +12,7 @@ from datetime import datetime
 from fpdf import FPDF
 
 from core.dashboard_metrics import DashboardKPIs
+from exports.errors import wrap_export_errors
 from exports.types import OpportunityExportRow
 
 METHODOLOGY_SUMMARY = (
@@ -47,6 +48,7 @@ def _format_score(value: float | None) -> str:
     return "-" if value is None else f"{value:.2f}"
 
 
+@wrap_export_errors
 def opportunities_pdf(rows: list[OpportunityExportRow], filters_summary: str, generated_at: datetime) -> bytes:
     """PDF da tabela de Oportunidades — respeita filtros/ordenação já aplicados pelo chamador."""
     pdf = FPDF(orientation="L", unit="mm", format="A4")
@@ -83,6 +85,7 @@ def opportunities_pdf(rows: list[OpportunityExportRow], filters_summary: str, ge
     return bytes(pdf.output())
 
 
+@wrap_export_errors
 def executive_pdf(
     kpis: DashboardKPIs,
     top_opportunities: list[OpportunityExportRow],

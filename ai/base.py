@@ -14,11 +14,16 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.errors import DomainError, ErrorCategory
 from providers.base import ConnectionTestResult
 
 
-class AIProviderError(Exception):
-    """Erro amigável de IA — falha de provider de IA nunca derruba o motor determinístico."""
+class AIProviderError(DomainError):
+    """Erro amigável de IA — falha de provider de IA nunca derruba o motor determinístico.
+    Categoria padrão AI; passar `category=` explícito para AUTHENTICATION/CONNECTIVITY/etc."""
+
+    def __init__(self, message: str, category: ErrorCategory = ErrorCategory.AI, recommended_action: str | None = None) -> None:
+        super().__init__(category, message, recommended_action)
 
 
 @dataclass

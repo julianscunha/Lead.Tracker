@@ -12,11 +12,16 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.errors import DomainError, ErrorCategory
 from core.models import Company, Contact
 
 
-class ProviderError(Exception):
-    """Erro amigável de provider — nunca expor stack trace/exceção técnica bruta ao usuário."""
+class ProviderError(DomainError):
+    """Erro amigável de provider — nunca expor stack trace/exceção técnica bruta ao usuário.
+    Categoria padrão INTEGRATION; passar `category=` explícito para AUTHENTICATION/CONNECTIVITY/etc."""
+
+    def __init__(self, message: str, category: ErrorCategory = ErrorCategory.INTEGRATION, recommended_action: str | None = None) -> None:
+        super().__init__(category, message, recommended_action)
 
 
 @dataclass

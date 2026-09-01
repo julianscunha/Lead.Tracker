@@ -40,6 +40,7 @@ export const styles = `
 }
 .lt-btn:hover { background: hsl(var(--bg-subtle)); }
 .lt-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .lt-hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 6px; }
 
 .lt-draft { margin-top: 12px; padding: 12px; border-radius: 6px; background: hsl(var(--bg)); border: 1px solid hsl(var(--border)); font-size: 11px; }

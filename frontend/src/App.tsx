@@ -12,16 +12,20 @@ type Tab = 'dashboard' | 'oportunidades'
 function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
   const [filters, setFilters] = useState<FilterState>(defaultFilters)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
   const filtered = applyFilters(rows, filters)
 
   const handleExport = async (kind: 'pdf' | 'excel') => {
     setExportError(null)
+    setExporting(kind)
     try {
       const summary = summarizeFilters(filters)
       if (kind === 'pdf') await exportOpportunitiesPdf(filtered, summary)
       else await exportOpportunitiesExcel(filtered)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Falha ao exportar.')
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -32,8 +36,12 @@ function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
         <p>Lead.Tracker · {filtered.length} de {rows.length} oportunidades</p>
       </div>
       <div className="lt-toolbar">
-        <button type="button" className="lt-btn" onClick={() => handleExport('pdf')}>PDF</button>
-        <button type="button" className="lt-btn" onClick={() => handleExport('excel')}>Excel</button>
+        <button type="button" className="lt-btn" onClick={() => handleExport('pdf')} disabled={exporting !== null} aria-busy={exporting === 'pdf'}>
+          {exporting === 'pdf' ? 'Gerando PDF…' : 'PDF'}
+        </button>
+        <button type="button" className="lt-btn" onClick={() => handleExport('excel')} disabled={exporting !== null} aria-busy={exporting === 'excel'}>
+          {exporting === 'excel' ? 'Gerando Excel…' : 'Excel'}
+        </button>
       </div>
       {exportError && <p className="lt-hint" role="alert">{exportError}</p>}
       <Filters rows={rows} value={filters} onChange={setFilters} />

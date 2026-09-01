@@ -5,11 +5,13 @@ from io import BytesIO
 
 from openpyxl import Workbook
 
+from exports.errors import wrap_export_errors
 from exports.types import OpportunityExportRow
 
 _HEADERS = ["Empresa", "Cliente", "Score", "Potencial", "Produto", "Serviço", "Prioridade", "Fontes"]
 
 
+@wrap_export_errors
 def opportunities_excel(rows: list[OpportunityExportRow]) -> bytes:
     wb = Workbook()
     ws = wb.active
