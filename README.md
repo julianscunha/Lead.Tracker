@@ -6,101 +6,66 @@
 [![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
 [![React](https://img.shields.io/badge/frontend-React%2FTypeScript-61DAFB?logo=react&logoColor=white)](frontend/package.json)
 
-## Módulo de Opportunity Intelligence para o Tech.Forge
+## Suas melhores oportunidades de venda já estão no seu CRM — só ninguém olhou
 
-Lead.Tracker é um módulo de Opportunity Intelligence para o Tech.Forge.
+Lead.Tracker cruza o que você já sabe sobre seus clientes (CRM, website,
+portfólio técnico) com o que você vende, e aponta onde tem dinheiro na mesa:
+cliente com Veeam mas sem DR, prospect crescendo sem produto X, conta que
+vale reavaliação de preço. Tudo com evidência, nunca um palpite.
 
-Seu objetivo é transformar dados de clientes, prospects, portfólio tecnológico, produtos, serviços e fontes externas em oportunidades comerciais priorizadas.
+Regras determinísticas fazem o trabalho pesado; IA é opcional e só entra
+pra interpretar, correlacionar e redigir — nunca decide sozinha, nunca
+inventa produto fora do seu portfólio.
 
-## Capacidades
+Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 
-- identificação de clientes e prospects;
-- análise de portfólio;
-- cross-sell;
-- up-sell;
-- oportunidades de serviços;
-- otimização de custos;
-- modernização tecnológica;
-- correlação técnica;
-- scoring;
-- potencial financeiro;
-- IA contextual;
-- dashboard executivo;
-- PDF;
-- exportação tabular;
-- rascunhos de e-mail.
+## O que ele faz
+
+- **Encontra oportunidades de verdade** — cross-sell, up-sell, serviços,
+  otimização de custo e modernização, cada uma com motivo e evidência.
+- **Prioriza por impacto** — score de aderência, potencial financeiro e
+  confiança são números separados, nunca misturados num só.
+- **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
+  vindo de dado real.
+- **Poupa seu tempo** — exporta PDF/Excel com um clique e gera rascunho de
+  e-mail comercial pronto pra revisar e enviar.
+- **Funciona com ou sem IA** — o motor de oportunidades roda inteiro sem
+  nenhuma chave de API configurada.
 
 ## Arquitetura
 
-- Python/FastAPI no backend;
-- React/TypeScript no frontend;
-- SQLite local;
-- providers desacoplados;
-- IA por provider;
-- empacotamento `.mod`.
+Backend em Python/FastAPI, frontend em React/TypeScript, persistência em
+SQLite local, providers desacoplados de fonte de dado, IA plugável por
+provider, empacotado como `.mod` do Tech.Forge.
 
-## Fontes
+## De onde vêm os dados
 
-A plataforma não é acoplada ao Salesforce.
+Lead.Tracker não é preso a nenhuma fonte específica — Salesforce é só uma
+integração opcional entre várias.
 
-Iniciais:
-- Salesforce;
-- website;
-- importação manual.
-
-Futuras:
-- HubSpot;
-- Pipedrive;
-- LinkedIn;
-- Google Maps;
-- CSV;
-- outros conectores de API.
-
-Salesforce é uma integração opcional.
+Hoje: Salesforce, website da empresa, importação manual.
+No radar: HubSpot, Pipedrive, LinkedIn, Google Maps, CSV e outros conectores.
 
 ## Portfólio
 
-Cada empresa usuária informa seu website na tela Empresa.
+Você informa o website da sua empresa uma vez, e o Lead.Tracker monta a
+partir dele um portfólio estruturado — fabricantes, produtos, subprodutos,
+serviços e as relações entre eles. Você revisa e ajusta o resultado antes
+de valer pra qualquer oportunidade.
 
-O sistema utiliza o website para construir um portfólio estruturado de:
-- fabricantes;
-- produtos;
-- subprodutos;
-- serviços;
-- relações.
+## A tela de Oportunidades
 
-O usuário pode editar o resultado.
+Uma planilha viva: filtre por cliente ou prospect, por produto ou serviço,
+ordene por score ou potencial financeiro, expanda qualquer empresa pra ver
+as fontes por trás do número. Copie o que precisar ou gere um rascunho de
+e-mail comercial direto dali.
 
-## Oportunidades
+## Papel da IA
 
-A tela principal utiliza uma apresentação semelhante a uma planilha.
-
-Permite:
-- filtrar somente clientes;
-- filtrar prospects;
-- filtrar produtos;
-- filtrar serviços;
-- ordenar por score;
-- ordenar por potencial financeiro;
-- expandir empresas;
-- visualizar fontes;
-- copiar informações;
-- gerar rascunho de e-mail.
-
-## IA
-
-A IA é complementar.
-
-Regras e dados determinísticos são a base.
-
-A IA:
-- interpreta;
-- correlaciona;
-- enriquece;
-- resume;
-- gera textos.
-
-Não decide sozinha e não inventa portfólio.
+Regras determinísticas são a base — a IA entra depois, só pra interpretar
+contexto, correlacionar sinais, enriquecer justificativa e redigir texto.
+Ela nunca decide sozinha que uma oportunidade existe, e nunca inventa
+produto ou serviço fora do portfólio configurado.
 
 ## Desenvolvimento
 
