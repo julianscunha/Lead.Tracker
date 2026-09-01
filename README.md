@@ -96,6 +96,10 @@ A IA:
 
 Não decide sozinha e não inventa portfólio.
 
+## Status
+
+Veja `docs/fases/PROGRESSO.md` para a fase atual e o histórico de fases concluídas.
+
 ## Desenvolvimento
 
 A implementação deve seguir estritamente os arquivos numerados em `docs/fases/`.
@@ -107,6 +111,50 @@ Começar em:
 e terminar em:
 
 `15-EMPACOTAMENTO-RELEASE.md`
+
+### Comandos
+
+```bash
+# Backend — testes (scripts standalone, sem pytest instalado no projeto)
+python tests/test_models.py
+python tests/test_config.py
+python tests/test_providers.py
+python tests/test_portfolio.py
+python tests/test_normalization.py
+python tests/test_opportunity_engine.py
+python tests/test_ai.py
+python tests/test_dashboard_metrics.py
+python tests/test_exports.py
+python tests/test_email_draft.py
+python tests/test_routes_exports.py
+python tests/test_errors.py
+python tests/test_export_errors.py
+python tests/test_persistence.py
+python tests/test_db_table_registration.py
+pip install -r backend/requirements.txt   # antes de rodar os testes
+
+# Frontend
+cd frontend
+npm install
+npm run build   # gera frontend/index.js (build output, gitignored)
+npm run test    # vitest — lógica pura (filtros/ordenação/paleta)
+```
+
+### Testar contra o Tech.Forge Core de verdade
+
+Não faz parte do projeto (é uma dependência de desenvolvimento, gitignored):
+
+```bash
+git clone https://github.com/julianscunha/Tech.Forge .techforge-dev
+# copiar manifest.yaml, backend/, frontend/index.js, core/, providers/, exports/, ai/,
+# assets/, docs/fases/ e tests/ para .techforge-dev/modules/installed/lead_tracker/
+cd .techforge-dev/core/backend && python run.py   # sobe o Core em :8000
+```
+
+`install()`/`enable()`/`health_check()` do módulo só são chamados de verdade
+via `POST /api/v1/marketplace/activate/{id}` e `/deactivate/{id}` — o
+endpoint `/api/v1/health` é um stub do Core que não invoca o `ModuleContract`
+(ver `docs/FEEDBACK-TECHFORGE-SDK.md`).
 
 ## Tech.Forge
 
