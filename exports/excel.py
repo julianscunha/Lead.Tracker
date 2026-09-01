@@ -1,0 +1,33 @@
+"""Exportação em Excel (Fase 12) — mesma regra: só dados já resolvidos, nunca segredo."""
+from __future__ import annotations
+
+from io import BytesIO
+
+from openpyxl import Workbook
+
+from exports.types import OpportunityExportRow
+
+_HEADERS = ["Empresa", "Cliente", "Score", "Potencial", "Produto", "Serviço", "Prioridade", "Fontes"]
+
+
+def opportunities_excel(rows: list[OpportunityExportRow]) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Oportunidades"
+    ws.append(_HEADERS)
+
+    for row in rows:
+        ws.append([
+            row.company_name,
+            "Cliente" if row.is_customer else "Prospect",
+            row.opportunity_score,
+            row.financial_potential,
+            row.product,
+            row.service,
+            row.priority,
+            ", ".join(row.sources),
+        ])
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

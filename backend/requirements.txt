@@ -1,3 +1,5 @@
 fastapi
 pydantic
 httpx
+fpdf2
+openpyxl
