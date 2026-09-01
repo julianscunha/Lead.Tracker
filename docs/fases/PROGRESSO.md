@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 05 — Providers** (ainda não iniciada)
+**Fase em andamento: 06 — Empresa/Portfólio** (ainda não iniciada)
 
 > Nota: a Fase 04 foi implementada antes das Fases 02/03 por engano, quebrando
 > a ordem estrita do CLAUDE.md. Corrigido voltando e implementando 02 e 03
@@ -19,6 +19,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 04 | Esqueleto do Módulo Tech.Forge — `manifest.yaml`, `backend/main.py` (ModuleContract), `frontend/index.js`, diretórios `core/providers/ai/exports/data/tests/`. Ciclo de vida (install/enable/health_check/disable/uninstall) validado contra o SDK real do Tech.Forge Core (`.techforge-dev/`, não versionado). | `8e52989` | 2026-08-31 |
 | 02 | Modelo de Dados — `core/models.py`: `Company`, `SourceRef`, `Vendor`, `Product`, `Service`, `Opportunity` (com `OpportunityStatus`), `Portfolio`. Testes em `tests/test_models.py`. | `0f44e83` | 2026-08-31 |
 | 03 | Configuração — `.env-model` versionado, `core/config.py` (`sync_env`: adiciona chaves ausentes, nunca sobrescreve/remove), integrado a `install()`/`enable()` do módulo. Testes em `tests/test_config.py`. | `0f44e83` | 2026-08-31 |
+| 05 | Providers — `providers/base.py` (`DataProvider` ABC, `ConnectionTestResult`, `ProviderContext`, `ProviderError`), `providers/manual.py` (`ManualProvider`, referência in-memory). `core/models.py` ganhou `Contact`. Testes em `tests/test_providers.py`. | `376246a` | 2026-08-31 |
 
 ## Como retomar após perda de conexão
 
