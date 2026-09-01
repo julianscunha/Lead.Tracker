@@ -22,6 +22,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 05 | Providers — `providers/base.py` (`DataProvider` ABC, `ConnectionTestResult`, `ProviderContext`, `ProviderError`), `providers/manual.py` (`ManualProvider`, referência in-memory). `core/models.py` ganhou `Contact`. Testes em `tests/test_providers.py`. | `376246a` | 2026-08-31 |
 | 06 | Empresa/Portfólio — `core/portfolio.py`: CRUD de produto/serviço + `merge_portfolio` (Adicionar/Sobrescrever, DECISOES 011). Tela Empresa (UI) e extração via website/IA ficam para Fases 10/07/09. Testes em `tests/test_portfolio.py`. | `2767ee3` | 2026-08-31 |
 | 07 | Coleta/Normalização — `core/normalization.py`: `normalize_domain`, `normalize_name`, `merge_companies` (dedup por domínio/nome, preserva proveniência das fontes). Fora de escopo: providers concretos (Salesforce/website reais) e sinais de enriquecimento externo. Testes em `tests/test_normalization.py`. | `10af916` | 2026-08-31 |
+| — | Checkpoint de integração real: subi o Tech.Forge Core (uvicorn + SQLite + Alembic) e instalei o Lead.Tracker em `modules/installed/` de verdade — registry `INSTALLED`/`is_active`/`warnings: []`, router `/api/v1/modules/lead_tracker/ping` OK, `health_check()` chamado pelo monitor real (`is_healthy: true`). Fechou a lacuna aberta desde a Fase 04 (que só tinha testado o `ModuleContract` isolado, sem passar pelo Core). Adicionado `assets/` (subpasta opcional que faltava). | `6f89516` | 2026-09-01 |
 
 ## Como retomar após perda de conexão
 
