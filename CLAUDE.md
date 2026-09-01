@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 
-This repository currently contains **only planning documentation** (`docs/fases/`) — no backend, frontend, or module code has been implemented yet. Any future work starts from `docs/fases/00-ORDEM-DESENVOLVIMENTO.md`.
+See `docs/fases/PROGRESSO.md` for the authoritative current phase and completed-phase log — read it first when resuming work or starting a fresh session.
 
 ## What this is
 
