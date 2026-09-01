@@ -33,6 +33,17 @@ def test_build_structured_prompt_never_invents_outside_portfolio_instruction():
     assert "correlacionar" in prompt
 
 
+def test_build_structured_prompt_strips_secret_like_keys():
+    req = AIRequest(
+        instruction="x",
+        company_context={"name": "Acme", "api_key": "sk-super-secret", "nested": {"client_secret": "xyz"}},
+    )
+    prompt = build_structured_prompt(req)
+    assert "sk-super-secret" not in prompt
+    assert "xyz" not in prompt
+    assert "Acme" in prompt
+
+
 def test_parse_structured_response_valid_json():
     resp = parse_structured_response(STRUCTURED_JSON)
     assert resp.content == "há oportunidade de cross-sell"

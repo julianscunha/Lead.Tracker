@@ -68,15 +68,34 @@ _JSON_INSTRUCTION = (
 )
 
 
+_SECRET_KEY_PATTERN = ("key", "token", "secret", "password", "credential")
+
+
+def _strip_secrets(value: Any) -> Any:
+    """Remove chaves que parecem segredo de qualquer dict aninhado antes de ir pro
+    prompt — secrets nunca podem aparecer em prompt de IA (CLAUDE.md 'Configuration';
+    docs/fases/12 'Segurança'). Aplicado aqui porque toda chamada de IA passa por
+    build_structured_prompt — corrigir num lugar só cobre todo mundo."""
+    if isinstance(value, dict):
+        return {
+            k: _strip_secrets(v)
+            for k, v in value.items()
+            if not any(pat in k.lower() for pat in _SECRET_KEY_PATTERN)
+        }
+    if isinstance(value, list):
+        return [_strip_secrets(v) for v in value]
+    return value
+
+
 def build_structured_prompt(request: AIRequest) -> str:
     """Monta o prompt textual a partir do AIRequest, exigindo saída JSON estruturada
     (docs/fases/09 'Saída estruturada')."""
-    context = {
+    context = _strip_secrets({
         "empresa": request.company_context,
         "portfolio": request.portfolio,
         "regras_de_correlacao": request.correlation_rules,
         "dados_providers": request.provider_data,
-    }
+    })
     return (
         f"{_JSON_INSTRUCTION}\n\n"
         f"Instrução: {request.instruction}\n\n"
