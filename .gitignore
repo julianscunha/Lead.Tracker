@@ -18,6 +18,3 @@ data/*.db-journal
 
 # Artefato de release (.mod) — anexado ao GitHub Release, não versionado
 dist/
-
-# Claude Code — config local por máquina/sessão, nunca compartilhada
-.claude/settings.local.json
