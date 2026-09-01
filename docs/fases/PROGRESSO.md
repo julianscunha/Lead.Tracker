@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase 15 (última da ordem oficial) implementada — falta só a decisão do usuário sobre publicar release pública (tag + GitHub Release).**
+**Ordem oficial completa (Fases 01-15).** Release pública `v0.1.0` publicada: https://github.com/julianscunha/Lead.Tracker/releases/tag/v0.1.0
 
 > Nota: `frontend/index.js` agora é build output (gitignored) — rodar
 > `npm install && npm run build` dentro de `frontend/` antes de testar o
