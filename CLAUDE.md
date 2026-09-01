@@ -64,7 +64,15 @@ Unit tests cover models, normalization, dedup, filters, scoring, correlation, po
 
 ## Model routing
 
-Mandatory: work that requires complex reasoning (architecture, multi-file implementation, debugging non-trivial bugs, design tradeoffs) MUST use Sonnet 5. Simple/mechanical work (formatting, boilerplate, trivial lookups, one-line fixes, repetitive edits) MUST use Haiku 4.5 — pass `model: "haiku"` when delegating via the Agent tool, or switch session model for direct simple work. No project-specific subagents exist yet to hardcode this in frontmatter; apply it manually until agents are added under `.claude/agents`.
+Mandatory, two-phase per task:
+1. **Planning phase** (deciding approach, architecture, breaking down the task, non-trivial debugging root-causing, design tradeoffs) — ALWAYS Sonnet 5, regardless of how simple the eventual execution turns out to be.
+2. **Execution phase** (writing the planned code/edits, boilerplate, mechanical multi-file changes, formatting, repetitive edits) — hand off to Haiku 4.5 once the plan is decided, unless the execution itself keeps requiring judgment calls (then stay on Sonnet 5).
+
+Pass `model: "haiku"` when delegating execution via the Agent tool, or switch session model for direct simple execution. No project-specific subagents exist yet to hardcode this in frontmatter; apply it manually until agents are added under `.claude/agents`.
+
+## Token economy
+
+Mandatory, aggressive optimization: prefer `ast-grep`/`ast-grep-outline` over reading whole files; don't re-read a file just edited (Edit/Write already confirm success); keep responses terse, no recapping what's already in CLAUDE.md/DECISOES.md; avoid spawning subagents/forks unless they yield a real context-size win (each cold start re-derives context).
 
 ## Search tooling
 
