@@ -17,6 +17,7 @@ Cada entrada: **Fase em que surgiu**, **o que aconteceu**, **por que importa**,
 - **Endpoint de assets restritivo por padrão (Fase 04/10)**: whitelist de extensão + guarda de path traversal já vêm prontos — não precisei pensar em segurança nesse ponto.
 - **Módulo de referência `hello_world` (Fase 04)**: molde genuinamente útil pra copiar/adaptar backend e frontend na primeira tentativa.
 - **Tokens de tema via CSS custom properties (Fase 10)** (`--text`, `--bg`, `--accent`, `--success`, etc.): convenção leve — dark/light automático sem nenhuma lógica de tema no módulo.
+- **Proxy de `/api` já configurado no Vite dev do Core (Fase 12)**: o frontend do módulo pôde usar `fetch('/api/v1/modules/lead_tracker/...')` relativo, sem CORS nem config extra — funcionou igual em dev (`:5173` com proxy) e via Core servindo tudo direto. Não precisei descobrir isso lendo código-fonte, só testei e funcionou — mas só percebi que existia por acaso; um comentário no `manifest.example.yaml` ou no guia de módulos citando "use fetch relativo, o Core já resolve" pouparia essa dúvida em quem for escrever o primeiro fetch de um módulo novo.
 
 ## Atritos / lacunas encontradas
 
