@@ -6,6 +6,35 @@ Formato livre por fase — o projeto ainda não teve release pública (ver
 
 ## Não lançado
 
+### Fase 15 — Empacotamento/Release
+- `.mod` gerado via `techforge package-module` + `scripts/package_mod.py`
+  (correção de um bug sério do builder oficial — ver abaixo).
+- Ciclo completo validado contra o Core real: `.mod` → `PackageManager.
+  install()` real → `ModuleContract.install()`/`enable()`/`health_check()`
+  reais → banco com as 7 tabelas criadas.
+- Documentação obrigatória do validador Tech.Forge (`docs/overview.md`,
+  `docs/examples/basic.md`) criada — módulo passa 26/27 checks (o único
+  restante é falso-positivo do validador em módulo bundlado, documentado
+  em `docs/FEEDBACK-TECHFORGE-SDK.md`).
+- **Bug sério encontrado no Tech.Forge, não no nosso código**: o builder
+  oficial exclui qualquer arquivo começando com ponto, incluindo
+  `.env-model` (exigido pela Fase 03) — instalação real quebrava com
+  `FileNotFoundError`. Contornado sem alterar o formato `.mod`.
+
+#### Plano de rollback
+Sem servidor de produção compartilhado (módulo local-first) — rollback é
+reinstalar a versão anterior do `.mod`:
+1. Manter o `.mod` da versão anterior guardado (não é sobrescrito pelo build).
+2. `PackageManager.remove()`/desinstalar a versão nova.
+3. `PackageManager.install()` com o `.mod` anterior.
+4. `.env` do usuário nunca é tocado por instalar/desinstalar — só `sync_env()`
+   adiciona chave nova, nunca remove (Fase 03) — dado de configuração
+   sobrevive ao rollback.
+5. Banco (`data/lead_tracker.db`) não é apagado em `disable()`, só em
+   `uninstall()` explícito — um rollback via reinstalação da versão anterior
+   preserva os dados já persistidos, contanto que o schema seja compatível
+   (sem migração formal ainda — DECISOES 021).
+
 ### Fase 14 — Testes/Decisões/Documentação
 - Camada de persistência real: SQLite via SQLAlchemy async (`core/db.py`,
   `core/db_models.py`, `core/repository.py`) — lacuna da ordem oficial,
