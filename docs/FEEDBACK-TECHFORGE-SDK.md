@@ -21,6 +21,36 @@ Cada entrada: **Fase em que surgiu**, **o que aconteceu**, **por que importa**,
 
 ## Atritos / lacunas encontradas
 
+### Fase 15 — 🔴 BUG SÉRIO: `.mod` empacotado nunca contém dotfiles — `.env-model` fica de fora e quebra `install()` de verdade
+`app/package_manager/builder.py` (`PackageBuilder`, usado tanto por
+`techforge package-module` quanto pelo `CustomCatalogProvider`) exclui todo
+arquivo/pasta cujo nome comece com `.` (`EXCLUDE_PATTERNS`, `name.startswith(".")`
+— junto com `node_modules`, `.git`, `dist`). Isso inclui `.env-model`, que é
+**exigido pelo próprio contrato documentado do Tech.Forge**
+(`docs/fases/03-CONFIGURACAO.md` do nosso módulo, mas o padrão `.env`/
+`.env-model` é genérico o suficiente pra valer pra qualquer módulo que siga
+a mesma convenção de configuração).
+
+Confirmei o bug de ponta a ponta, não é teórico: empacotei o Lead.Tracker
+com `techforge package-module`, instalei o `.mod` resultante via
+`PackageManager.install()` real, e chamei `ModuleContract.install()` do
+jeito que o Core chamaria — **`FileNotFoundError` na hora**, porque
+`.env-model` nunca chegou no disco. Qualquer módulo que declare um arquivo
+de configuração começando com ponto (convenção comum: `.env`, `.env-model`,
+`.eslintrc`, etc.) quebra silenciosamente na primeira instalação real a
+partir de um `.mod` — o build **não avisa** que descartou o arquivo.
+
+Contornei escrevendo `scripts/package_mod.py`, que roda o build oficial e
+depois reabre o `.mod` (é só um zip) pra injetar `.env-model` e regenerar o
+checksum sha256 — sem tocar no formato `.mod` em si.
+
+**Sugestão**: `EXCLUDE_PATTERNS` deveria ter uma exceção explícita pra
+`.env-model` (e provavelmente qualquer outro dotfile que o próprio manifest
+referencie, se algum dia existir esse caso) — ou, no mínimo, o
+`package-module`/`validate-module` deveria **avisar** quando um arquivo
+referenciado pelo módulo (ex.: citado em `docs/`) está sendo excluído do
+pacote por bater num padrão de exclusão, em vez de descartar silenciosamente.
+
 ### Fase 15 — `techforge validate-module` falso-positivo em módulo bundlado (Vite/Rollup)
 `ModuleCLIValidator._check` faz busca textual ingênua por `"export default"`
 literal no `entry_frontend` (`module_validator.py`, seção 11). Um módulo

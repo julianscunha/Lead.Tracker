@@ -16,3 +16,6 @@ frontend/index.js
 # Banco de dados local — dado real da instalação, nunca versionado
 data/*.db
 data/*.db-journal
+
+# Artefato de release (.mod) — gerado via scripts/package_mod.py, anexado ao GitHub Release, não versionado
+dist/
