@@ -21,6 +21,36 @@ Cada entrada: **Fase em que surgiu**, **o que aconteceu**, **por que importa**,
 
 ## Atritos / lacunas encontradas
 
+### Fase 15 — `techforge validate-module` falso-positivo em módulo bundlado (Vite/Rollup)
+`ModuleCLIValidator._check` faz busca textual ingênua por `"export default"`
+literal no `entry_frontend` (`module_validator.py`, seção 11). Um módulo
+React empacotado via Vite/Rollup em modo `lib` com mais de um export (nosso
+caso: `default` + `moduleConfig`) sai como `export { lD as default,
+iD as moduleConfig }` — semanticamente idêntico, mas sem a substring
+contígua `"export default"`. `hello_world` passa porque é JS puro, sem
+bundler, então a string aparece literal no source. Confirmei que o módulo
+funciona de verdade (import via Node, `render()` executando no navegador
+via demo real, Core servindo o asset) — é falso-positivo do validador, não
+defeito real. Usei `--skip-validation` pra empacotar, depois de checar
+manualmente os outros 26 checks.
+**Sugestão**: trocar a busca textual por um parse real (AST via `esprima`/
+`ast` de JS, ou até uma checagem mais tolerante tipo regex por
+`export\s*\{[^}]*\bas\s+default\b` OU `export\s+default\b`) — qualquer
+módulo com mais de um export e um bundler minimamente comum (Vite, esbuild,
+webpack) vai cair nesse mesmo falso-positivo.
+
+### Fase 15 — CLI do Tech.Forge quebra no console padrão do Windows (cp1252)
+`techforge validate-module`/`package-module` usam `rich` pra formatar saída,
+que tenta imprimir glifos Unicode (`❯`, `✓`, `✗`) direto no console. No
+Windows com codepage padrão (cp1252, não UTF-8), isso derruba o comando com
+`UnicodeEncodeError` antes de mostrar qualquer coisa útil. Contorno:
+`PYTHONIOENCODING=utf-8` antes de rodar. Não é um problema de lógica, só de
+saída — mas quebra a primeira experiência de quem roda o CLI no Windows sem
+saber desse detalhe.
+**Sugestão**: o `rich.Console` do CLI detectar/forçar UTF-8 (ou cair pra
+ASCII puro) quando `sys.stdout.encoding` não suportar os glifos, em vez de
+deixar estourar.
+
 ### Fase 14 — `/api/v1/health` não chama `health_check()` do módulo; lifecycle real fica escondido em `/marketplace/activate`
 Passei da Fase 04 até a 13 achando (e afirmando ao usuário) que os
 checkpoints contra o Core real validavam o ciclo de vida do `ModuleContract`.
