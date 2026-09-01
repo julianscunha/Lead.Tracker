@@ -1,5 +1,11 @@
 # Lead.Tracker
 
+[![Release](https://img.shields.io/github/v/release/julianscunha/Lead.Tracker)](https://github.com/julianscunha/Lead.Tracker/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Tech.Forge module](https://img.shields.io/badge/Tech.Forge-module-6366f1)](https://github.com/julianscunha/Tech.Forge)
+[![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
+[![React](https://img.shields.io/badge/frontend-React%2FTypeScript-61DAFB?logo=react&logoColor=white)](frontend/package.json)
+
 ## Módulo de Opportunity Intelligence para o Tech.Forge
 
 Lead.Tracker é um módulo de Opportunity Intelligence para o Tech.Forge.
@@ -160,6 +166,15 @@ endpoint `/api/v1/health` é um stub do Core que não invoca o `ModuleContract`
 
 O Lead.Tracker é um módulo do ecossistema Tech.Forge e deve respeitar seu contrato de módulo, SDK, frontend host e empacotamento.
 
+- Core da plataforma: [`Tech.Forge`](https://github.com/julianscunha/Tech.Forge)
+- Catálogo oficial de módulos: [`Tech.Forge.Modules`](https://github.com/julianscunha/Tech.Forge.Modules)
+
+Este repositório é o desenvolvimento do módulo — a distribuição pro catálogo oficial acontece a partir do `.mod` publicado em cada [release](https://github.com/julianscunha/Lead.Tracker/releases).
+
+## Contribuindo
+
+Contribuições são bem-vindas. Veja [`CONTRIBUTING.md`](CONTRIBUTING.md) para as regras de domínio que todo PR precisa respeitar, como rodar o projeto localmente e o fluxo de contribuição.
+
 ## Licença
 
-A licença definitiva deve ser definida antes da primeira release pública.
+[MIT](LICENSE).
