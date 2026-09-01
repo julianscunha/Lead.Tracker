@@ -1,4 +1,4 @@
-"""Fase 12 — smoke tests de geração de rascunho de e-mail. Provider de IA
+"""Smoke tests de geração de rascunho de e-mail. Provider de IA
 mockado com httpx.MockTransport, zero chamada de rede real."""
 import asyncio
 import json

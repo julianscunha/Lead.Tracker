@@ -1,4 +1,4 @@
-"""Exportação em Excel (Fase 12) — mesma regra: só dados já resolvidos, nunca segredo."""
+"""Exportação em Excel — mesma regra: só dados já resolvidos, nunca segredo."""
 from __future__ import annotations
 
 from io import BytesIO

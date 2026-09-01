@@ -1,4 +1,4 @@
-"""Fase 03 — smoke tests da sincronização .env / .env-model."""
+"""Smoke tests da sincronização .env / .env-model."""
 import sys
 import tempfile
 from pathlib import Path

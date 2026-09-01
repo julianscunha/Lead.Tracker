@@ -1,4 +1,4 @@
-"""Fase 06 — smoke tests do CRUD e merge de portfólio."""
+"""Smoke tests do CRUD e merge de portfólio."""
 import sys
 from pathlib import Path
 

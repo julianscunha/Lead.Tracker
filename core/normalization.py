@@ -1,9 +1,9 @@
 """
-Coleta e normalização (Fase 07).
+Coleta e normalização.
 
-Recebe Company vindas de providers (modelo comum, Fase 05) e as consolida em
+Recebe Company vindas de providers (modelo comum) e as consolida em
 uma única empresa por domínio/nome — nunca duplica por ter aparecido em fontes
-diferentes (docs/fases/02 'Regra', docs/fases/07 'Deduplicação').
+diferentes.
 """
 from __future__ import annotations
 

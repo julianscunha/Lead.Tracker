@@ -1,7 +1,7 @@
 import { FUNNEL_STAGES } from './types'
 
 // Fictício, só pra exercitar a UI — espelha a forma de core/dashboard_metrics.py.
-// Sem API real ainda (sem persistência no backend), igual ao padrão da Fase 10.
+// Dashboard ainda não busca dado real via API (endpoint de métricas fica pra depois).
 export const sampleKpis = {
   opportunitiesIdentified: 3,
   customersAnalyzed: 2,

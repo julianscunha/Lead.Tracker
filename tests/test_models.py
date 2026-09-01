@@ -1,4 +1,4 @@
-"""Fase 02 — smoke tests dos modelos de domínio."""
+"""Smoke tests dos modelos de domínio."""
 import sys
 from pathlib import Path
 

@@ -1,8 +1,8 @@
 """
-Rascunho de e-mail (Fase 12).
+Rascunho de e-mail.
 
 Fluxo: Oportunidade -> contexto -> portfólio -> evidências -> IA -> rascunho ->
-revisão do usuário (docs/fases/12). Nunca envia — não existe função de envio
+revisão do usuário. Nunca envia — não existe função de envio
 aqui, só geração de texto pra revisão humana.
 """
 from __future__ import annotations

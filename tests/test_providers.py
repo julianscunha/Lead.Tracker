@@ -1,4 +1,4 @@
-"""Fase 05 — smoke tests do contrato DataProvider via ManualProvider."""
+"""Smoke tests do contrato DataProvider via ManualProvider."""
 import asyncio
 import sys
 from pathlib import Path

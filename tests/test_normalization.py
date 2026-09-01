@@ -1,4 +1,4 @@
-"""Fase 07 — smoke tests de normalização e deduplicação de empresas."""
+"""Smoke tests de normalização e deduplicação de empresas."""
 import sys
 from pathlib import Path
 

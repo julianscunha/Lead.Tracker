@@ -1,10 +1,10 @@
 """
-Empacotamento do .mod (Fase 15).
+Empacotamento do .mod.
 
 `techforge package-module` (CLI oficial) exclui qualquer arquivo/pasta que
 comece com ponto (EXCLUDE_PATTERNS, app/package_manager/builder.py) —
-incluindo `.env-model`, que é obrigatório (docs/fases/03-CONFIGURACAO.md,
-`sync_env()` em backend/main.py). Sem isso, install()/enable() quebram de
+incluindo `.env-model`, que é obrigatório (ver `sync_env()` em
+backend/main.py). Sem isso, install()/enable() quebram de
 verdade num módulo instalado a partir do .mod (confirmado: FileNotFoundError).
 
 Este script roda o build oficial e depois injeta `.env-model` no zip

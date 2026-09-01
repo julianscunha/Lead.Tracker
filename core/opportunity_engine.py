@@ -1,10 +1,10 @@
 """
-Motor de Oportunidades (Fase 08) — regras determinísticas.
+Motor de Oportunidades — regras determinísticas.
 
-Regras vêm antes da IA (docs/fases/08 'Regras'; CLAUDE.md 'Deterministic
-rules come before AI'). Sem IA aqui — Fase 09. `financial_potential` e
-`strategic_score` ficam `None`: não há dado real pra sustentá-los ainda,
-e nunca inventamos número (DECISOES 020, núcleo genérico).
+Regras vêm antes da IA (CLAUDE.md 'Deterministic rules come before AI').
+Sem IA aqui. `financial_potential` e `strategic_score` ficam `None`: não há
+dado real pra sustentá-los ainda, e nunca inventamos número — núcleo genérico,
+sem depender de informação específica de uma empresa ou fabricante.
 
 Regras não são hardcoded no core — são dados, configuráveis pelo portfólio
 (fabricante/produto específico é decisão do usuário, não do código).

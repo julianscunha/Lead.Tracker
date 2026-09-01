@@ -1,5 +1,5 @@
 """
-Fase 14 — regressão: init_db() precisa criar tabela mesmo quando o chamador
+regressão: init_db() precisa criar tabela mesmo quando o chamador
 só importa core.db (nunca core.db_models/core.repository diretamente).
 
 Bug real: backend/main.py só importava core.db, nunca core.db_models — as

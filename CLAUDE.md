@@ -2,25 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status
-
-See `docs/fases/PROGRESSO.md` for the authoritative current phase and completed-phase log — read it first when resuming work or starting a fresh session.
-
 ## What this is
 
 Lead.Tracker is an **Opportunity Intelligence module for Tech.Forge**. It turns customer/prospect data, technology portfolio, products, services, and external sources into prioritized commercial opportunities. It is not a standalone app in its final form — it's an installable Tech.Forge module (`.mod` package) with a manifest, health check, and lifecycle (install/enable/disable/uninstall).
 
-## Mandatory development order
+## Architecture
 
-Implementation MUST follow `docs/fases/01-ARQUITETURA.md` through `docs/fases/15-EMPACOTAMENTO-RELEASE.md` **in strict numeric sequence** (see `docs/fases/00-ORDEM-DESENVOLVIMENTO.md`). A later step must never introduce architecture that contradicts an earlier decision; if it must, the change requires justification, tests, and a new entry in `docs/fases/DECISOES.md`.
-
-Order: 01 Arquitetura → 02 Modelo de Dados → 03 Configuração → 04 Esqueleto do Módulo → 05 Providers → 06 Empresa/Portfólio → 07 Coleta/Normalização → 08 Motor de Oportunidades → 09 Camada de IA → 10 Interface Operacional → 11 Dashboard → 12 Exportações/E-mail → 13 Resiliência/Observabilidade → 14 Testes/Decisões → 15 Empacotamento/Release.
-
-Do not start with AI, scraping, or real Salesforce integration — build contracts, models, and the deterministic flow first (step 04's empty-but-installable module skeleton must work end-to-end before step 05+).
-
-## Architecture (planned)
-
-Stack: Python/FastAPI backend, React/TypeScript frontend (Tech.Forge Module Host-compatible), SQLite local persistence, `.env`/`.env-model` config, `.mod` packaging.
+Stack: Python/FastAPI backend, React/TypeScript frontend (Tech.Forge Module Host-compatible), SQLite local persistence (SQLAlchemy async), `.env`/`.env-model` config, `.mod` packaging.
 
 Dependency direction (interface must never reach past its layer, e.g. no direct Salesforce/Maps/AI calls from the UI):
 
@@ -36,9 +24,9 @@ Provider interfaces
 External systems
 ```
 
-Providers (Salesforce, Website, Google Maps, CSV, Manual, ...) collect and normalize data only — they never compute scores, generate emails, run AI prompts, or touch the UI. Salesforce is one optional provider among others, not a first-class domain concept (see DECISOES 002–005).
+Providers (Salesforce, Website, Google Maps, CSV, Manual, ...) collect and normalize data only — they never compute scores, generate emails, run AI prompts, or touch the UI. Salesforce is one optional provider among others, not a first-class domain concept.
 
-## Core domain rules (from `docs/fases/DECISOES.md` and `02-MODELO-DADOS.md`)
+## Core domain rules
 
 - **Company** is the unified entity; `is_customer`/`customer_status` is an attribute of Company, never a Salesforce-specific concept. Multiple sources (`sources: [{type, confidence}]`) attach to one Company — never duplicate a company because it appeared in two sources; normalization must consolidate.
 - **Product vs Service**: separate models, can generate independent opportunities.
@@ -48,7 +36,7 @@ Providers (Salesforce, Website, Google Maps, CSV, Manual, ...) collect and norma
 - **No opportunity without sufficient evidence** — every opportunity needs motivo/evidências/fontes/nível de confiança.
 - **Opportunity status flow**: detected → qualified → reviewed → contacted → opportunity → dismissed.
 - Portfolio sync never silently overwrites existing data — user explicitly chooses **Adicionar** (merge) or **Sobrescrever** (replace).
-- The core must stay generic/open-source: no hardcoded vendors, portfolio, or business rules for any specific company (DECISOES 020).
+- The core must stay generic/open-source: no hardcoded vendors, portfolio, or business rules for any specific company.
 
 ## Configuration
 
@@ -72,11 +60,7 @@ Pass `model: "haiku"` when delegating execution via the Agent tool, or switch se
 
 ## Token economy
 
-Mandatory, aggressive optimization: prefer `ast-grep`/`ast-grep-outline` over reading whole files; don't re-read a file just edited (Edit/Write already confirm success); keep responses terse, no recapping what's already in CLAUDE.md/DECISOES.md; avoid spawning subagents/forks unless they yield a real context-size win (each cold start re-derives context).
-
-## Tech.Forge SDK feedback
-
-Mandatory: whenever a phase surfaces friction, a gap, or something notably good about the Tech.Forge SDK/module contract/conventions (not about Lead.Tracker's own code), append an entry to `docs/FEEDBACK-TECHFORGE-SDK.md` — what happened, why it matters, suggestion if any. Do this as it happens, not retroactively at the end of a phase.
+Mandatory, aggressive optimization: prefer `ast-grep`/`ast-grep-outline` over reading whole files; don't re-read a file just edited (Edit/Write already confirm success); keep responses terse, no recapping what's already in CLAUDE.md; avoid spawning subagents/forks unless they yield a real context-size win (each cold start re-derives context).
 
 ## Search tooling
 
@@ -85,7 +69,3 @@ Mandatory: for code search/lookup tasks, use the `ast-grep` skills instead of pl
 ## Agent skill discipline
 
 Mandatory: run the `using-agent-skills` skill both before and after any coding work in this session — before, to select the right skill(s) for the task; after, to confirm nothing applicable was skipped.
-
-## Documenting decisions
-
-Record architecturally relevant decisions in `docs/fases/DECISOES.md` using the existing numbered format (Data / Decisão / Contexto / Alternativas / Escolha / Motivo / Impacto entries, see the existing 001–020 for style).

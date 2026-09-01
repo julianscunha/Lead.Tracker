@@ -102,21 +102,7 @@ A IA:
 
 Não decide sozinha e não inventa portfólio.
 
-## Status
-
-Veja `docs/fases/PROGRESSO.md` para a fase atual e o histórico de fases concluídas.
-
 ## Desenvolvimento
-
-A implementação deve seguir estritamente os arquivos numerados em `docs/fases/`.
-
-Começar em:
-
-`01-ARQUITETURA.md`
-
-e terminar em:
-
-`15-EMPACOTAMENTO-RELEASE.md`
 
 ### Comandos
 
@@ -153,14 +139,14 @@ Não faz parte do projeto (é uma dependência de desenvolvimento, gitignored):
 ```bash
 git clone https://github.com/julianscunha/Tech.Forge .techforge-dev
 # copiar manifest.yaml, backend/, frontend/index.js, core/, providers/, exports/, ai/,
-# assets/, docs/fases/ e tests/ para .techforge-dev/modules/installed/lead_tracker/
+# assets/, docs/ e tests/ para .techforge-dev/modules/installed/lead_tracker/
 cd .techforge-dev/core/backend && python run.py   # sobe o Core em :8000
 ```
 
 `install()`/`enable()`/`health_check()` do módulo só são chamados de verdade
 via `POST /api/v1/marketplace/activate/{id}` e `/deactivate/{id}` — o
 endpoint `/api/v1/health` é um stub do Core que não invoca o `ModuleContract`
-(ver `docs/FEEDBACK-TECHFORGE-SDK.md`).
+diretamente, só reflete o status do registry.
 
 ## Tech.Forge
 

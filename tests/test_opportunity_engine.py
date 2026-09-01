@@ -1,4 +1,4 @@
-"""Fase 08 — smoke tests do motor de regras determinísticas."""
+"""Smoke tests do motor de regras determinísticas."""
 import sys
 from pathlib import Path
 

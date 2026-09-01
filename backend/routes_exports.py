@@ -1,10 +1,10 @@
 """
-Rotas de exportação e rascunho de e-mail (Fase 12/13).
+Rotas de exportação e rascunho de e-mail.
 
 Contrato: input validado na borda (pydantic), sem estado — o chamador manda
 os dados já filtrados/ordenados, a rota só transforma em PDF/Excel/rascunho.
 Erro técnico nunca vaza cru pro cliente (CLAUDE.md 'Error handling'). Todo
-DomainError vira HTTPException pela mesma tabela categoria->status (Fase 13),
+DomainError vira HTTPException pela mesma tabela categoria->status,
 não uma regra por rota.
 """
 from __future__ import annotations

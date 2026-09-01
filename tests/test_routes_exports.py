@@ -1,4 +1,4 @@
-"""Fase 12 — smoke tests HTTP das rotas de exportação/rascunho, via FastAPI TestClient
+"""Smoke tests HTTP das rotas de exportação/rascunho, via FastAPI TestClient
 (sem subir uvicorn nem chamar rede real — IA mockada via monkeypatch do factory)."""
 import sys
 from pathlib import Path

@@ -1,10 +1,10 @@
 """
-Contrato de Providers (Fase 05).
+Contrato de Providers.
 
 Provider coleta e normaliza dados de uma fonte externa (ou manual) — nunca
-calcula score, gera e-mail, executa prompts de IA ou controla a interface
-(docs/fases/05-PROVIDERS.md, regra). Erros técnicos nunca vazam brutos para
-quem chama: toda falha vira ProviderError com mensagem acionável.
+calcula score, gera e-mail, executa prompts de IA ou controla a interface.
+Erros técnicos nunca vazam brutos para quem chama: toda falha vira
+ProviderError com mensagem acionável.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class ConnectionTestResult:
 @dataclass
 class ProviderContext:
     """Contexto bruto coletado por um provider (ex.: texto de website), consumido
-    depois pela camada de normalização/portfólio (Fases 06/07) — não pela IA direto."""
+    depois pela camada de normalização/portfólio — não pela IA direto."""
     company_id: str
     raw_text: str = ""
     pages: list[str] = field(default_factory=list)

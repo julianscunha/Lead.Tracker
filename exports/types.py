@@ -1,4 +1,4 @@
-"""Tipos de exportação (Fase 12) — linha já resolvida (nomes, não IDs), pronta
+"""Tipos de exportação — linha já resolvida (nomes, não IDs), pronta
 para PDF/Excel. Desacoplado de core.models pra exports não depender de como o
 domínio guarda vendor_id/product_id (resolução é responsabilidade de quem chama)."""
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Tabelas SQLAlchemy — espelham core/models.py (Fase 02/05). Listas/dicts
+"""Tabelas SQLAlchemy — espelham core/models.py. Listas/dicts
 (sources, evidence, aliases, relations) viram JSON — SQLite/SQLAlchemy serializa
 automaticamente, sem precisar de tabela associativa pra isso aqui."""
 from __future__ import annotations

@@ -1,9 +1,9 @@
 /**
- * lead_tracker — Frontend Entry Point (Fase 10)
+ * lead_tracker — Frontend Entry Point
  * ================================================
  * Contrato do Module Host: default export com render(container).
  * React/TypeScript compilado via Vite (lib mode, ESM único) — o Core só
- * serve .js estático, não compila .tsx (ver docs/fases/PROGRESSO.md).
+ * serve .js estático, não compila .tsx.
  *
  * moduleConfig fica aninhado no default export (não como export nomeado
  * separado) de propósito: ModuleHost.tsx só lê mod.default.render em
@@ -12,8 +12,7 @@
  * `export { x as default, y }` no fim do bundle, sem a substring literal
  * "export default" que o validador oficial (`techforge validate-module`)
  * procura via busca textual. Com um export só, o Rollup emite
- * `export default X` de verdade — mesmo dado, sem o falso-positivo
- * (ver docs/FEEDBACK-TECHFORGE-SDK.md).
+ * `export default X` de verdade — mesmo dado, sem o falso-positivo.
  */
 import { createRoot, type Root } from 'react-dom/client'
 import { App } from './App'

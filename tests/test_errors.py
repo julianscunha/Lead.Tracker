@@ -1,4 +1,4 @@
-"""Fase 13 — smoke tests da taxonomia de erro de domínio."""
+"""Smoke tests da taxonomia de erro de domínio."""
 import sys
 from pathlib import Path
 

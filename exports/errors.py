@@ -1,4 +1,4 @@
-"""Erro de domínio de exportação (Fase 13) — mesmo padrão de ProviderError/AIProviderError."""
+"""Erro de domínio de exportação — mesmo padrão de ProviderError/AIProviderError."""
 from __future__ import annotations
 
 import functools

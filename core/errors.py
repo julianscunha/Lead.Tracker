@@ -1,9 +1,8 @@
 """
-Taxonomia de erro de domínio (Fase 13).
+Taxonomia de erro de domínio.
 
 Toda exceção técnica vira um destes — nunca vaza stack trace/exceção bruta
-pro usuário leigo (docs/fases/13; CLAUDE.md 'Error handling & resilience').
-Categorias fixas conforme docs/fases/13 'Categorias'.
+pro usuário leigo (CLAUDE.md 'Error handling & resilience').
 """
 from __future__ import annotations
 

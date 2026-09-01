@@ -1,11 +1,11 @@
 """
-Base HTTP para providers de IA reais (Fase 09/13).
+Base HTTP para providers de IA reais.
 
 Timeout explícito e retry só em erro transitório (5xx/timeout) — nunca em
 credencial/requisição inválida (CLAUDE.md 'Error handling & resilience').
 `client` é injetável para permitir teste com `httpx.MockTransport`, sem
 chamada de rede real (CLAUDE.md 'Testing': providers de IA sempre mockados).
-Cada falha vira AIProviderError com a categoria certa (docs/fases/13).
+Cada falha vira AIProviderError com a categoria certa.
 """
 from __future__ import annotations
 

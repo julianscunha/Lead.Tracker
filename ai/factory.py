@@ -1,5 +1,5 @@
 """
-Resolve o provider de IA configurado (Fase 09).
+Resolve o provider de IA configurado.
 
 `openrouter` é o padrão (dá acesso a vários modelos por uma única API/key).
 `openai`, `gemini` e `claude` ficam disponíveis como alternativa direta,

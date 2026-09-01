@@ -1,11 +1,10 @@
 """
-Métricas do Dashboard Executivo (Fase 11).
+Métricas do Dashboard Executivo.
 
-Tudo aqui é derivado dos dados recebidos — nenhum número é inventado
-(docs/fases/11 'Regra': gráficos derivados de dados persistidos, IA não
-pode inventar métrica). Sem persistência real ainda no projeto, então
-"tendência" (série histórica) e "segmentação por região/segmento" (sem
-campo correspondente em Company) ficam fora — não há dado pra sustentá-las.
+Tudo aqui é derivado dos dados recebidos — nenhum número é inventado, gráficos
+são sempre derivados de dado real, IA não pode inventar métrica. "Tendência"
+(série histórica) e "segmentação por região/segmento" (sem campo
+correspondente em Company) ficam fora — não há dado pra sustentá-las.
 """
 from __future__ import annotations
 
@@ -95,8 +94,8 @@ def customer_vs_prospect(companies: list[Company]) -> dict[str, int]:
 
 
 def funnel_counts(opportunities: list[Opportunity]) -> dict[str, int]:
-    """Conta oportunidades por estágio de funil (docs/fases/11). Status sem
-    estágio correspondente (reviewed, dismissed) não entram no funil."""
+    """Conta oportunidades por estágio de funil. Status sem estágio
+    correspondente (reviewed, dismissed) não entram no funil."""
     counts = {stage: 0 for stage in FUNNEL_STAGES}
     for o in opportunities:
         stage = _FUNNEL_MAP.get(o.status)

@@ -1,8 +1,8 @@
 """
-Configuração e segredos (Fase 03).
+Configuração e segredos.
 
 Sincroniza `.env` com `.env-model`: adiciona apenas chaves ausentes, nunca
-sobrescreve ou remove valores existentes — ver docs/fases/03-CONFIGURACAO.md.
+sobrescreve ou remove valores existentes.
 """
 from __future__ import annotations
 

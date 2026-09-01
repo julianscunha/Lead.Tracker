@@ -4,9 +4,9 @@ import react from '@vitejs/plugin-react'
 // Rollup sempre emite `export { x as default }` no modo lib deste build,
 // nunca a substring literal `export default` — e o validador oficial do
 // Tech.Forge (`techforge validate-module`) checa essa substring via busca
-// textual ingênua (ver docs/FEEDBACK-TECHFORGE-SDK.md). `rollupOptions.
-// output.banner` deveria resolver isso mas o Vite (5.4.21) não o aplica no
-// modo lib — via generateBundle direto no bundle final, então.
+// textual ingênua. `rollupOptions.output.banner` deveria resolver isso mas
+// o Vite (5.4.21) não o aplica no modo lib — via generateBundle direto no
+// bundle final, então.
 function exportDefaultBannerPlugin(): Plugin {
   return {
     name: 'export-default-banner',
@@ -42,7 +42,7 @@ export default defineConfig({
         // do Tech.Forge (`techforge validate-module`) checa essa substring
         // via busca textual ingênua. Banner sobrevive à minificação (é
         // inserido depois) e documenta o contrato de verdade, então dobra
-        // como o texto que o validador procura (ver docs/FEEDBACK-TECHFORGE-SDK.md).
+        // como o texto que o validador procura.
         banner: '// Tech.Forge Module Host contract: this bundle\'s `export default` is the render() entry point.',
       },
     },

@@ -1,12 +1,12 @@
 """
-Modelos de domínio (Fase 02).
+Modelos de domínio.
 
 Entidades internas do Lead.Tracker, independentes de qualquer provider ou
-integração externa (Salesforce, website, etc.) — ver docs/fases/02-MODELO-DADOS.md.
+integração externa (Salesforce, website, etc.).
 
 Vendor/Source/tipo de oportunidade ficam como `str` livre (não Enum fechado):
 o núcleo deve permanecer genérico e não travar em fabricantes ou fontes
-específicas (DECISOES 020).
+específicas.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class Company(BaseModel):
 
 class Contact(BaseModel):
     """Pessoa de contato em uma empresa. Necessário pelo contrato de provider
-    (fetch_contacts) — não estava em 02-MODELO-DADOS.md, adicionado na Fase 05."""
+    (fetch_contacts)."""
     id: str = Field(default_factory=_new_id)
     company_id: str
     name: str

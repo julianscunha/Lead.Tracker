@@ -2,14 +2,14 @@
 
 Guia rápido pra quem está desenvolvendo/testando o Lead.Tracker localmente.
 Erros de usuário final (não-técnico) já viram mensagem amigável — ver
-`core/errors.py` e `docs/fases/13-RESILIENCIA-OBSERVABILIDADE.md`. Este
-documento é sobre os erros que aparecem *durante o desenvolvimento*.
+`core/errors.py`. Este documento é sobre os erros que aparecem *durante o
+desenvolvimento*.
 
 ## "IA não configurada" / rascunho de e-mail retorna 503
 
 `AI_API_KEY` está vazia no `.env`. Configure a chave do provider escolhido
-em `AI_PROVIDER` (`openrouter`, `openai`, `gemini` ou `claude` — ver
-`docs/fases/09-CAMADA-IA.md`). O módulo funciona normalmente sem isso —
+em `AI_PROVIDER` (`openrouter`, `openai`, `gemini` ou `claude`). O módulo
+funciona normalmente sem isso —
 só a geração de rascunho de e-mail fica indisponível (IA é opcional, ver
 `core/opportunity_engine.py`: o motor de oportunidades não depende de IA).
 
@@ -22,7 +22,7 @@ um `db_path` absoluto pra `create_engine()` em vez de confiar no path default.
 
 ## Tabelas não existem depois de rodar `init_db()`
 
-Isso já foi um bug real (Fase 14, corrigido): `init_db()` precisa que
+Isso já foi um bug real, corrigido: `init_db()` precisa que
 `core.db_models` esteja importado antes de `Base.metadata.create_all()`
 rodar, senão as classes ORM nunca se registram e o `create_all` roda vazio
 — sem erro nenhum, só sem criar tabela. `core/db.py` já importa
@@ -44,8 +44,7 @@ curl http://127.0.0.1:8000/api/v1/modules/lead_tracker/diagnostics
 ```
 
 O último endpoint mostra o `RuntimeState` real (`READY`/`FAILED`/`DEGRADED`)
-e o `last_error`, se houver. Ver `docs/FEEDBACK-TECHFORGE-SDK.md` pro
-detalhe completo dessa descoberta.
+e o `last_error`, se houver.
 
 ## Processo do Core (`uvicorn --reload`) não morre com `taskkill`
 
@@ -60,7 +59,7 @@ tasklist /FI "IMAGENAME eq python.exe"
 
 ## Exportação PDF quebra com caractere estranho no nome da empresa
 
-Também já foi um bug real (Fase 12, corrigido): a fonte core do fpdf2
+Também já foi um bug real, corrigido: a fonte core do fpdf2
 (`Helvetica`) só cobre latin-1 — travessão (`—`), aspas curvas e emoji
 derrubavam a exportação. `exports/pdf.py` tem `_pdf_safe()` pra isso; use-o
 em qualquer texto dinâmico novo que for pra dentro de um PDF.

@@ -1,7 +1,7 @@
 """
 lead_tracker — Backend Entry Point
 ====================================
-Esqueleto instalável do módulo (Fase 04). Sem lógica de negócio ainda —
+Esqueleto instalável do módulo. Sem lógica de negócio ainda —
 só o contrato Tech.Forge (install/enable/disable/upgrade/health_check/uninstall)
 e o router mínimo para o Plugin Loader montar.
 """
@@ -52,7 +52,7 @@ class LeadTrackerModule(ModuleContract):
             category="Sales",
             vendor="TechForge",
             author="TechForge Team",
-            description="Opportunity Intelligence — esqueleto do módulo (Fase 04).",
+            description="Opportunity Intelligence — esqueleto do módulo.",
             platform_min_version="1.0.0",
             platform_max_version="2.0.0",
         )

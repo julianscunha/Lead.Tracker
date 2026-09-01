@@ -1,9 +1,9 @@
 """
-Contrato da camada de IA (Fase 09).
+Contrato da camada de IA.
 
 IA é complementar — nunca decide sozinha, nunca inventa produto/serviço fora
 do portfólio, nunca edita dado de origem, nunca envia e-mail automaticamente
-(docs/fases/09-CAMADA-IA.md 'A IA não pode'; CLAUDE.md 'AI is complementary').
+(CLAUDE.md 'AI is complementary').
 Toda resposta é estruturada, com evidência e confiança — nunca texto livre
 sem rastreabilidade.
 """
@@ -29,8 +29,8 @@ class AIProviderError(DomainError):
 @dataclass
 class AIRequest:
     """
-    Contexto enviado à IA (docs/fases/09 'Contexto enviado à IA'):
-    empresa + portfólio + produtos + serviços + regras de correlação + dados dos providers.
+    Contexto enviado à IA: empresa + portfólio + produtos + serviços +
+    regras de correlação + dados dos providers.
     """
     instruction: str
     company_context: dict[str, Any] = field(default_factory=dict)
@@ -41,7 +41,7 @@ class AIRequest:
 
 @dataclass
 class AIResponse:
-    """Saída estruturada e obrigatória (docs/fases/09 'Saída estruturada')."""
+    """Saída estruturada e obrigatória (saída estruturada)."""
     content: str
     evidence: list[str] = field(default_factory=list)
     confidence: float = 0.0
@@ -78,8 +78,8 @@ _SECRET_KEY_PATTERN = ("key", "token", "secret", "password", "credential")
 
 def _strip_secrets(value: Any) -> Any:
     """Remove chaves que parecem segredo de qualquer dict aninhado antes de ir pro
-    prompt — secrets nunca podem aparecer em prompt de IA (CLAUDE.md 'Configuration';
-    docs/fases/12 'Segurança'). Aplicado aqui porque toda chamada de IA passa por
+    prompt — secrets nunca podem aparecer em prompt de IA (CLAUDE.md 'Configuration').
+    Aplicado aqui porque toda chamada de IA passa por
     build_structured_prompt — corrigir num lugar só cobre todo mundo."""
     if isinstance(value, dict):
         return {
@@ -94,7 +94,7 @@ def _strip_secrets(value: Any) -> Any:
 
 def build_structured_prompt(request: AIRequest) -> str:
     """Monta o prompt textual a partir do AIRequest, exigindo saída JSON estruturada
-    (docs/fases/09 'Saída estruturada')."""
+    (saída estruturada)."""
     context = _strip_secrets({
         "empresa": request.company_context,
         "portfolio": request.portfolio,

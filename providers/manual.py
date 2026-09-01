@@ -1,10 +1,10 @@
 """
-ManualProvider (Fase 05) — referência de arquitetura.
+ManualProvider — referência de arquitetura.
 
-Permite dados adicionados manualmente pelo usuário (docs/fases/05-PROVIDERS.md).
-Sem chamada externa, sem timeout/retry necessário: valida que o contrato
-DataProvider funciona ponta a ponta antes de qualquer integração real
-(Salesforce/Website ficam para fases seguintes).
+Permite dados adicionados manualmente pelo usuário. Sem chamada externa, sem
+timeout/retry necessário: valida que o contrato DataProvider funciona ponta a
+ponta antes de qualquer integração real (Salesforce/Website ainda não
+implementados).
 """
 from __future__ import annotations
 

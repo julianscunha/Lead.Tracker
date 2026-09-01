@@ -1,4 +1,4 @@
-"""Fase 14 — testes de integração de persistência (SQLite real via aiosqlite,
+"""Testes de integração de persistência (SQLite real via aiosqlite,
 arquivo temporário — nunca o banco real do módulo)."""
 import asyncio
 import sys
@@ -95,7 +95,7 @@ def test_portfolio_round_trip_by_company_id():
 
 def test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity():
     """Fluxo completo: salva empresa+portfólio real, roda o motor de regras
-    (Fase 08) sobre o portfólio carregado do banco, persiste a oportunidade
+    sobre o portfólio carregado do banco, persiste a oportunidade
     resultante e recarrega — prova que a lacuna de persistência fechou de
     ponta a ponta, não só por tabela isolada."""
     async def run():

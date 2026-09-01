@@ -1,9 +1,9 @@
 """
-Exportação em PDF (Fase 12).
+Exportação em PDF.
 
 Nunca recebe segredo/config — só dados já resolvidos pra exibição. Isso é
 estrutural: as funções aqui não sabem nada sobre .env/AI_API_KEY/tokens,
-então não há como vazar nada (docs/fases/12 'Segurança').
+então não há como vazar nada.
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def executive_pdf(
     funnel_counts: dict[str, int],
 ) -> bytes:
     """
-    PDF executivo. 'Graficos' (docs/fases/12) viram tabelas de apoio aqui —
+    PDF executivo. 'Graficos' viram tabelas de apoio aqui —
     ponytail: rasterizar SVG/gerar imagem de grafico pediria uma dependencia
     nova (matplotlib) so pra isso; se vier a ser pedido de verdade, trocar por
     imagem renderizada a partir do mesmo dado.

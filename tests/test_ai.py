@@ -1,4 +1,4 @@
-"""Fase 09 — smoke tests da camada de IA. Nenhuma chamada de rede real:
+"""Smoke tests da camada de IA. Nenhuma chamada de rede real:
 httpx.MockTransport injeta as respostas (CLAUDE.md: IA sempre mockada em teste)."""
 import asyncio
 import json

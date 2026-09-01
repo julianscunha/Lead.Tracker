@@ -1,4 +1,4 @@
-"""ClaudeProvider (Anthropic) — opção alternativa de IA (Fase 09)."""
+"""ClaudeProvider (Anthropic) — opção alternativa de IA."""
 from __future__ import annotations
 
 from ai.base import AIProvider, AIRequest, AIResponse, build_structured_prompt, parse_structured_response

@@ -1,4 +1,4 @@
-"""OpenRouterProvider — provider de IA padrão (Fase 09)."""
+"""OpenRouterProvider — provider de IA padrão."""
 from __future__ import annotations
 
 from ai.base import AIProvider, AIRequest, AIResponse, build_structured_prompt, parse_structured_response

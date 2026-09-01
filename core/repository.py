@@ -1,5 +1,5 @@
 """
-Repositório (Fase 14) — ponte entre os modelos de domínio (Pydantic,
+Repositório — ponte entre os modelos de domínio (Pydantic,
 core/models.py) e as tabelas (SQLAlchemy, core/db_models.py).
 
 Upsert via session.merge() (insere ou atualiza pela PK, sem exists-check

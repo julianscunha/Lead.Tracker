@@ -1,4 +1,4 @@
-"""Fase 11 — smoke tests das métricas do dashboard."""
+"""Smoke tests das métricas do dashboard."""
 import sys
 from pathlib import Path
 

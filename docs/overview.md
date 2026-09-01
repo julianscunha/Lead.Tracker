@@ -33,6 +33,5 @@ Ver tela de Configurações do módulo (ou `.env` durante desenvolvimento) para
 
 ## Documentação completa
 
-Ver `docs/fases/` neste repositório de desenvolvimento para o histórico
-completo de decisões arquiteturais (`DECISOES.md`) e progresso por fase
-(`PROGRESSO.md`).
+Ver `README.md` e `CONTRIBUTING.md` neste repositório para arquitetura,
+comandos de desenvolvimento e regras de domínio.

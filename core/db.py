@@ -1,5 +1,5 @@
 """
-Persistência (Fase 14 — lacuna da ordem oficial, ver docs/fases/DECISOES.md 021).
+Persistência.
 
 SQLite via SQLAlchemy async (aiosqlite) — mesmo padrão do Tech.Forge Core.
 `sdk.database` do SDK ainda é só um mock in-memory ("Phase 3"), por isso o
@@ -28,12 +28,12 @@ def make_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession
 
 async def init_db(engine: AsyncEngine) -> None:
     """Cria as tabelas se não existirem. Sem Alembic aqui — schema simples,
-    local-first (DECISOES 014); migração formal só se/quando o schema evoluir.
+    local-first; migração formal só se/quando o schema evoluir.
 
     Import tardio e aparentemente não-usado é proposital: as classes ORM só
     se registram em Base.metadata quando o módulo que as define é importado.
     Sem isso, create_all roda contra metadata vazio e não cria tabela nenhuma
-    — sem erro, sem aviso (bug real encontrado na Fase 14: backend/main.py
+    — sem erro, sem aviso (bug real encontrado na backend/main.py
     nunca importava core.db_models, então nenhuma tabela era criada em produção)."""
     import core.db_models  # noqa: F401
 

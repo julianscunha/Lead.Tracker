@@ -1,4 +1,4 @@
-"""Fase 13 — smoke test do wrapper de erro de exportação."""
+"""Smoke test do wrapper de erro de exportação."""
 import sys
 from pathlib import Path
 

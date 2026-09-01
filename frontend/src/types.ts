@@ -1,7 +1,7 @@
 // Espelha core/models.py (Company + Opportunity) — só os campos que a
-// tela de Oportunidades (Fase 10) usa. Sem endpoint real ainda: a
+// tela de Oportunidades usa. Sem endpoint real ainda: a
 // persistência/API de listagem não existe até a integração ser fiada
-// (Fase 12+). Por ora a tela recebe os dados prontos via prop.
+//. Por ora a tela recebe os dados prontos via prop.
 
 export type OpportunityStatus =
   | 'detected' | 'qualified' | 'reviewed' | 'contacted' | 'opportunity' | 'dismissed'

@@ -1,10 +1,10 @@
 """
-Portfólio da empresa usuária (Fase 06).
+Portfólio da empresa usuária.
 
 Regras determinísticas de CRUD e sincronização de portfólio — a extração via
-website/IA (docs/fases/06 'Sincronização') fica para as Fases 07 (Coleta) e
-09 (IA); aqui só o resultado validado é aplicado. Nunca altera o portfólio
-existente sem uma escolha explícita de modo (DECISOES 011).
+website/IA é feita em outra camada (coleta/normalização e IA); aqui só o
+resultado validado é aplicado. Nunca altera o portfólio existente sem uma
+escolha explícita de modo (Adicionar/Sobrescrever).
 """
 from __future__ import annotations
 

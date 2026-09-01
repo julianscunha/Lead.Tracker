@@ -1,4 +1,4 @@
-"""Fase 12 — smoke tests de exportação PDF/Excel."""
+"""Smoke tests de exportação PDF/Excel."""
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
