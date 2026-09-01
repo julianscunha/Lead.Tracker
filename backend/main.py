@@ -38,7 +38,7 @@ router.include_router(exports_router)
 @router.get("/ping")
 async def ping():
     sdk.logger.info("ping called")
-    return {"module": "lead_tracker", "status": "ok", "version": "0.1.0"}
+    return {"module": "lead_tracker", "status": "ok", "version": "0.1.1"}
 
 
 class LeadTrackerModule(ModuleContract):
@@ -48,7 +48,7 @@ class LeadTrackerModule(ModuleContract):
         return ModuleMetadata(
             id="lead_tracker",
             name="Lead.Tracker",
-            version="0.1.0",
+            version="0.1.1",
             category="Sales",
             vendor="TechForge",
             author="TechForge Team",

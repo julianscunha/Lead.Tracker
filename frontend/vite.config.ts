@@ -25,6 +25,12 @@ function exportDefaultBannerPlugin(): Plugin {
 // sem code-splitting, sem CSS externo: injetado via <style> no próprio JS).
 export default defineConfig({
   plugins: [react(), exportDefaultBannerPlugin()],
+  // O bundle é importado diretamente pelo navegador, sem o polyfill de
+  // `process` do Node. React ainda usa esta expressão nos builds CommonJS;
+  // substituí-la na compilação impede `process is not defined` em runtime.
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+  },
   build: {
     outDir: '.',
     emptyOutDir: false,
