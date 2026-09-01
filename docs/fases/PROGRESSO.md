@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 11 — Dashboard Executivo** (ainda não iniciada)
+**Fase em andamento: 12 — Exportações/E-mail** (ainda não iniciada)
 
 > Nota: `frontend/index.js` agora é build output (gitignored) — rodar
 > `npm install && npm run build` dentro de `frontend/` antes de testar o
@@ -30,6 +30,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 08 | Motor de Oportunidades — `core/opportunity_engine.py`: `CorrelationRule` (dados, não hardcoded) + `evaluate_rules` (presença/ausência → `Opportunity` com evidência obrigatória). `financial_potential`/`strategic_score` ficam `None` (sem dado real/IA ainda). Testes em `tests/test_opportunity_engine.py`. | `203a115` | 2026-09-01 |
 | 09 | Camada de IA — `ai/base.py` (`AIProvider` ABC, prompt/resposta estruturada JSON obrigatória), `ai/http_base.py` (timeout + retry só em erro transitório), providers `openrouter` (padrão)/`openai`/`gemini`/`claude`, `ai/factory.py`. `.env-model` documenta `AI_PROVIDER`. `backend/requirements.txt` criado (fastapi/pydantic/httpx). Testes com `httpx.MockTransport`, zero chamada de rede real, em `tests/test_ai.py`. | `15d8820` | 2026-09-01 |
 | 10 | Interface Operacional — `frontend/` virou projeto npm React+TS (Vite lib mode, honra DECISOES 015), substituindo o esqueleto JS puro da Fase 04. Tela de Oportunidades: filtros, ordenação, linha expansível, ações copiar/gerar rascunho (placeholder honesto p/ Fase 12). Testes de lógica com vitest (6 passando). Validado contra o Core real (asset servido 200, registry sem warnings). | `824316c` | 2026-09-01 |
+| 11 | Dashboard Executivo — `core/dashboard_metrics.py` (KPIs, distribuição/potencial por fabricante, oportunidades por serviço, cliente×prospect, funil — nada inventado, `None` nunca vira 0). Frontend: DonutChart/BarChart/FunnelChart/StatTile com paleta categórica validada (dataviz skill). Fora de escopo: tendência temporal (sem persistência histórica) e segmentação região/segmento (sem campo no modelo). PDF fica pra Fase 12. Validado contra o Core real. | `d5a7258` | 2026-09-01 |
 
 ## Como retomar após perda de conexão
 
