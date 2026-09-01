@@ -13,7 +13,7 @@ export const moduleConfig = {
   title: 'Lead.Tracker',
   icon: 'target',
   category: 'Sales',
-  vendor: 'Tech.Forge',
+  vendor: 'TechForge',
   route: '/modules/lead_tracker',
   description: 'Opportunity Intelligence — tela de oportunidades.',
 }
