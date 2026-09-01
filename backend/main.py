@@ -18,6 +18,11 @@ from fastapi import APIRouter
 from techforge_sdk import create_sdk
 from techforge_sdk.contracts import ModuleContract, ModuleMetadata, HealthResult
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.config import sync_env
+
+_MODULE_ROOT = Path(__file__).parent.parent
+
 sdk = create_sdk("lead_tracker")
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
@@ -47,10 +52,16 @@ class LeadTrackerModule(ModuleContract):
 
     async def install(self) -> None:
         sdk.logger.info("lead_tracker install() called")
+        added = sync_env(_MODULE_ROOT / ".env", _MODULE_ROOT / ".env-model")
+        if added:
+            sdk.logger.info("config: added missing keys from .env-model: %s", added)
         sdk.settings.set("installed", True)
 
     async def enable(self) -> None:
         sdk.logger.info("lead_tracker enable() called")
+        added = sync_env(_MODULE_ROOT / ".env", _MODULE_ROOT / ".env-model")
+        if added:
+            sdk.logger.info("config: added missing keys from .env-model: %s", added)
 
     async def disable(self) -> None:
         sdk.logger.info("lead_tracker disable() called")

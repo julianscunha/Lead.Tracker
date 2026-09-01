@@ -1,3 +1,10 @@
 
+# Real install config — never versioned (docs/fases/03-CONFIGURACAO.md)
+.env
+
 # Tech.Forge Core clone for local module testing (not part of Lead.Tracker)
 .techforge-dev/
+
+# Python
+__pycache__/
+*.pyc
