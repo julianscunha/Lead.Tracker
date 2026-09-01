@@ -5,7 +5,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 07 — Coleta/Normalização** (ainda não iniciada)
+**Fase em andamento: 08 — Motor de Oportunidades** (ainda não iniciada)
 
 > Nota: a Fase 04 foi implementada antes das Fases 02/03 por engano, quebrando
 > a ordem estrita do CLAUDE.md. Corrigido voltando e implementando 02 e 03
@@ -21,6 +21,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | 03 | Configuração — `.env-model` versionado, `core/config.py` (`sync_env`: adiciona chaves ausentes, nunca sobrescreve/remove), integrado a `install()`/`enable()` do módulo. Testes em `tests/test_config.py`. | `0f44e83` | 2026-08-31 |
 | 05 | Providers — `providers/base.py` (`DataProvider` ABC, `ConnectionTestResult`, `ProviderContext`, `ProviderError`), `providers/manual.py` (`ManualProvider`, referência in-memory). `core/models.py` ganhou `Contact`. Testes em `tests/test_providers.py`. | `376246a` | 2026-08-31 |
 | 06 | Empresa/Portfólio — `core/portfolio.py`: CRUD de produto/serviço + `merge_portfolio` (Adicionar/Sobrescrever, DECISOES 011). Tela Empresa (UI) e extração via website/IA ficam para Fases 10/07/09. Testes em `tests/test_portfolio.py`. | `2767ee3` | 2026-08-31 |
+| 07 | Coleta/Normalização — `core/normalization.py`: `normalize_domain`, `normalize_name`, `merge_companies` (dedup por domínio/nome, preserva proveniência das fontes). Fora de escopo: providers concretos (Salesforce/website reais) e sinais de enriquecimento externo. Testes em `tests/test_normalization.py`. | `10af916` | 2026-08-31 |
 
 ## Como retomar após perda de conexão
 
