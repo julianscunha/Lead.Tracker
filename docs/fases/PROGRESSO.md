@@ -5,7 +5,11 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 
 ## Status atual
 
-**Fase em andamento: 10 — Interface Operacional** (ainda não iniciada)
+**Fase em andamento: 11 — Dashboard Executivo** (ainda não iniciada)
+
+> Nota: `frontend/index.js` agora é build output (gitignored) — rodar
+> `npm install && npm run build` dentro de `frontend/` antes de testar o
+> módulo contra o Core. `npm run test` roda os testes de lógica (vitest).
 
 > Nota: a Fase 04 foi implementada antes das Fases 02/03 por engano, quebrando
 > a ordem estrita do CLAUDE.md. Corrigido voltando e implementando 02 e 03
@@ -25,6 +29,7 @@ fase concluída — se a sessão cair, é este arquivo que diz de onde continuar
 | — | Checkpoint de integração real: subi o Tech.Forge Core (uvicorn + SQLite + Alembic) e instalei o Lead.Tracker em `modules/installed/` de verdade — registry `INSTALLED`/`is_active`/`warnings: []`, router `/api/v1/modules/lead_tracker/ping` OK, `health_check()` chamado pelo monitor real (`is_healthy: true`). Fechou a lacuna aberta desde a Fase 04 (que só tinha testado o `ModuleContract` isolado, sem passar pelo Core). Adicionado `assets/` (subpasta opcional que faltava). | `6f89516` | 2026-09-01 |
 | 08 | Motor de Oportunidades — `core/opportunity_engine.py`: `CorrelationRule` (dados, não hardcoded) + `evaluate_rules` (presença/ausência → `Opportunity` com evidência obrigatória). `financial_potential`/`strategic_score` ficam `None` (sem dado real/IA ainda). Testes em `tests/test_opportunity_engine.py`. | `203a115` | 2026-09-01 |
 | 09 | Camada de IA — `ai/base.py` (`AIProvider` ABC, prompt/resposta estruturada JSON obrigatória), `ai/http_base.py` (timeout + retry só em erro transitório), providers `openrouter` (padrão)/`openai`/`gemini`/`claude`, `ai/factory.py`. `.env-model` documenta `AI_PROVIDER`. `backend/requirements.txt` criado (fastapi/pydantic/httpx). Testes com `httpx.MockTransport`, zero chamada de rede real, em `tests/test_ai.py`. | `15d8820` | 2026-09-01 |
+| 10 | Interface Operacional — `frontend/` virou projeto npm React+TS (Vite lib mode, honra DECISOES 015), substituindo o esqueleto JS puro da Fase 04. Tela de Oportunidades: filtros, ordenação, linha expansível, ações copiar/gerar rascunho (placeholder honesto p/ Fase 12). Testes de lógica com vitest (6 passando). Validado contra o Core real (asset servido 200, registry sem warnings). | `824316c` | 2026-09-01 |
 
 ## Como retomar após perda de conexão
 
