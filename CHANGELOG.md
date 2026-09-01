@@ -8,7 +8,7 @@ Primeira release.
 
 - Modelos de domínio (Pydantic): `Company`, `Vendor`, `Product`, `Service`,
   `Contact`, `Opportunity`, `Portfolio`.
-- Sincronização `.env`/`.env-model`: adiciona chaves ausentes, nunca
+- Sincronização `.env`/`env-model`: adiciona chaves ausentes, nunca
   sobrescreve ou remove valores existentes.
 - Contrato `DataProvider` + `ManualProvider` de referência (in-memory, sem
   chamada externa).
@@ -43,8 +43,8 @@ Primeira release.
   registradas antes do `create_all()`).
 - SQLite descartava o timezone dos campos de data/hora na leitura.
 - O builder de pacotes do Tech.Forge exclui todo arquivo começando com
-  ponto, o que descartava `.env-model` do `.mod` e quebrava a instalação —
-  contornado sem alterar o formato `.mod`.
+  ponto — o arquivo de configuração modelo foi renomeado de `.env-model`
+  para `env-model` para sobreviver ao empacotamento.
 
 ### Plano de rollback
 

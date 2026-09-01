@@ -1,4 +1,4 @@
-"""Smoke tests da sincronização .env / .env-model."""
+"""Smoke tests da sincronização .env / env-model."""
 import sys
 import tempfile
 from pathlib import Path
@@ -10,7 +10,7 @@ from core.config import load_env, sync_env
 
 def test_fresh_install_copies_all_keys_from_model():
     with tempfile.TemporaryDirectory() as tmp:
-        model = Path(tmp) / ".env-model"
+        model = Path(tmp) / "env-model"
         model.write_text("APP_ENV=local\nAI_API_KEY=\n", encoding="utf-8")
         env = Path(tmp) / ".env"
 
@@ -22,7 +22,7 @@ def test_fresh_install_copies_all_keys_from_model():
 
 def test_never_overwrites_existing_value():
     with tempfile.TemporaryDirectory() as tmp:
-        model = Path(tmp) / ".env-model"
+        model = Path(tmp) / "env-model"
         model.write_text("APP_ENV=local\n", encoding="utf-8")
         env = Path(tmp) / ".env"
         env.write_text("APP_ENV=production\n", encoding="utf-8")
@@ -36,7 +36,7 @@ def test_never_overwrites_existing_value():
 
 def test_only_adds_missing_keys():
     with tempfile.TemporaryDirectory() as tmp:
-        model = Path(tmp) / ".env-model"
+        model = Path(tmp) / "env-model"
         model.write_text("APP_ENV=local\nNEW_KEY=\n", encoding="utf-8")
         env = Path(tmp) / ".env"
         env.write_text("APP_ENV=production\nCUSTOM=1\n", encoding="utf-8")

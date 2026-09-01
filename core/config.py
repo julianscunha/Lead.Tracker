@@ -1,8 +1,10 @@
 """
 Configuração e segredos.
 
-Sincroniza `.env` com `.env-model`: adiciona apenas chaves ausentes, nunca
-sobrescreve ou remove valores existentes.
+Sincroniza `.env` com `env-model`: adiciona apenas chaves ausentes, nunca
+sobrescreve ou remove valores existentes. `env-model` não leva ponto no nome
+de propósito — o builder de pacotes do Tech.Forge exclui todo arquivo
+começando com ponto, e esse arquivo precisa sobreviver ao empacotamento.
 """
 from __future__ import annotations
 
@@ -44,7 +46,7 @@ def sync_env(env_path: Path, model_path: Path) -> list[str]:
             added.append(key)
 
     if added:
-        content = env_lines + (["", "# Adicionado automaticamente a partir de .env-model"] if env_lines else []) + new_lines
+        content = env_lines + (["", "# Adicionado automaticamente a partir de env-model"] if env_lines else []) + new_lines
         env_path.write_text("\n".join(content) + "\n", encoding="utf-8")
 
     return added
