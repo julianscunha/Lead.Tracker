@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Formato de evidência rico** (Fase C do roadmap, terceira fatia):
+  toda oportunidade gerada pelo motor agora traz `evidence_summary` —
+  frase montada automaticamente no formato "fato → oportunidade/risco →
+  fonte, sincronizado em" (princípio 2 do roadmap), nunca mais só uma
+  lista de ids crus. Regra ganha `discovery_prompt` opcional (a pergunta
+  que o vendedor deveria fazer pra confirmar a causa raiz, nunca a
+  resposta), propagada pra `Opportunity.discovery_prompt`. Campos
+  existentes (`evidence`, `justification`, `sources`) continuam intactos
+  — só ganham uma camada de leitura pronta em cima.
+
 - **Sinais de expansão no motor de regras** (Fase C do roadmap, segunda
   fatia): `CompanySignal` aberto (`status="open"`) agora entra no mesmo
   mecanismo de presença/ausência já existente — `signal_type` conta como

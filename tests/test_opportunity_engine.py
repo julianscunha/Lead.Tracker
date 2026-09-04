@@ -194,6 +194,59 @@ def test_evaluate_rules_without_signals_still_works_retrocompat():
     assert len(result) == 1
 
 
+# ── Formato de evidência rico (Fase C, Fatia 3) ───────────────────────────────
+
+def test_evidence_summary_follows_fato_oportunidade_fonte_format():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [VDC365_RULE])
+    summary = result[0].evidence_summary
+    assert "[FATO]" in summary
+    assert "[OPORTUNIDADE]" in summary
+    assert "[FONTE]" in summary
+    assert "sincronizado em" in summary
+
+
+def test_evidence_summary_uses_risco_label_for_prerequisite_rule():
+    product = Product(
+        id="vdc365", vendor_id="v1", name="VDC365",
+        related_services=[ProductRelation(service_id="assessment", relation_type="prerequisite")],
+    )
+    rule = CorrelationRule(
+        id="prereq_assessment", opportunity_type="risk", relation_type="prerequisite",
+        justification="VDC365 requer assessment prévio.",
+    )
+    pf = Portfolio(company_id="c1", product_ids=["vdc365"])
+    result = evaluate_rules(pf, [rule], products=[product])
+    assert "[RISCO]" in result[0].evidence_summary
+    assert "[OPORTUNIDADE]" not in result[0].evidence_summary
+
+
+def test_discovery_prompt_propagates_from_rule_to_opportunity():
+    rule = VDC365_RULE.model_copy(update={"discovery_prompt": "Por que o backup nunca virou protegido de fato?"})
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [rule])
+    assert result[0].discovery_prompt == "Por que o backup nunca virou protegido de fato?"
+
+
+def test_evidence_summary_never_blank_for_absent_only_rule():
+    """`requires=[]`/`absent=[...]` é mecanismo válido (CorrelationRule só
+    exige 'requires OU absent') — evidence fica vazio, [FATO] não pode."""
+    rule = CorrelationRule(
+        id="sem_legado", opportunity_type="cross-sell", absent=["produto_legado"],
+        justification="Sem produto legado nenhum concorrente ocupa o espaço.",
+    )
+    pf = Portfolio(company_id="c1")
+    result = evaluate_rules(pf, [rule])
+    assert len(result) == 1
+    assert "[FATO] ausência de produto_legado" in result[0].evidence_summary
+
+
+def test_discovery_prompt_defaults_to_none_without_breaking():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [VDC365_RULE])
+    assert result[0].discovery_prompt is None
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -210,4 +263,9 @@ if __name__ == "__main__":
     test_open_signal_triggers_rule_via_requires()
     test_resolved_signal_never_triggers_rule()
     test_evaluate_rules_without_signals_still_works_retrocompat()
+    test_evidence_summary_follows_fato_oportunidade_fonte_format()
+    test_evidence_summary_uses_risco_label_for_prerequisite_rule()
+    test_evidence_summary_never_blank_for_absent_only_rule()
+    test_discovery_prompt_propagates_from_rule_to_opportunity()
+    test_discovery_prompt_defaults_to_none_without_breaking()
     print("OK — todos os testes do motor de oportunidades passaram")

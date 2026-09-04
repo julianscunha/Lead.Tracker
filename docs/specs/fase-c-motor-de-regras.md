@@ -198,7 +198,66 @@ nova — só uma fonte a mais de "item presente".
 
 ### Critério de sucesso
 
-- [ ] Sinal aberto dispara regra simples via `requires`.
-- [ ] Sinal resolvido/descartado nunca dispara.
-- [ ] Retrocompat total (chamada sem `signals` continua igual).
-- [ ] Suíte completa passa.
+- [x] Sinal aberto dispara regra simples via `requires`.
+- [x] Sinal resolvido/descartado nunca dispara.
+- [x] Retrocompat total (chamada sem `signals` continua igual).
+- [x] Suíte completa passa.
+
+---
+
+## Fatia 3 — Formato de evidência rico
+
+### Objetivo
+
+Princípio 2 do roadmap: evidência é sempre "fato + implicação de negócio +
+fonte + data", nunca um log técnico cru. Hoje `Opportunity.evidence` é só
+`list[str]` de ids que dispararam a regra (fica) — falta compor a frase
+legível e a `discovery_prompt` opcional.
+
+### Design
+
+- `CorrelationRule` ganha `discovery_prompt: str | None = None` — pergunta
+  que o vendedor deveria fazer pra confirmar a causa raiz (nunca a
+  resposta). Configurável por regra, não hardcoded.
+- `Opportunity` ganha 3 campos novos, nunca substituindo os que já existem
+  (evidência bruta e rastreável continua em `evidence`/`sources`):
+  - `evidence_summary: str | None` — frase montada pelo motor no formato
+    `"[FATO] ... → [OPORTUNIDADE|RISCO] ... → [FONTE] ..., sincronizado em ..."`.
+    `[RISCO]` quando a regra gera `risk_flag` (prerequisite), `[OPORTUNIDADE]`
+    nos demais casos.
+  - `discovery_prompt: str | None` — copiado da regra que gerou a
+    oportunidade.
+  - `synced_at: datetime` — timestamp de quando o motor avaliou (o "data"
+    do formato). Não é "primeira detecção" (isso é Fase D/histórico de
+    status) — é literalmente a data da última sincronização que confirmou
+    a evidência, exatamente o que o formato de referência pede.
+- `core/opportunity_engine.py::_build_opportunity` monta `evidence_summary`
+  a partir de `evidence`, `rule.justification`, `sources[0].type` e
+  `synced_at` — sem IA, string formatada por código determinístico.
+- Persistência: `OpportunityORM` ganha as 3 colunas; `core/repository.py`
+  atualizado nos dois sentidos (leitura/escrita).
+
+### Não objetivo
+
+- Não altera `evidence`/`justification`/`sources` existentes — só adiciona.
+- Não resolve id de item pra nome legível (ex.: `veeam_vbr` → "Veeam VBR")
+  — isso é responsabilidade do frontend, que já tem o catálogo carregado.
+
+### Teste
+
+- `evaluate_rules`: `evidence_summary` contém `[FATO]`, `[OPORTUNIDADE]` (ou
+  `[RISCO]` no caso prerequisite) e `[FONTE]`.
+- `discovery_prompt` da regra aparece na oportunidade gerada; regra sem
+  `discovery_prompt` gera oportunidade com o campo `None` (não quebra).
+- Round-trip de persistência (`core/repository.py`) preserva os 3 campos
+  novos.
+
+### Critério de sucesso
+
+- [x] `evidence_summary` presente e no formato de referência em toda
+      oportunidade gerada pelo motor (inclusive regra só-de-ausência,
+      achado de revisão corrigido — `_fact_description` nunca deixa
+      `[FATO]` em branco).
+- [x] `discovery_prompt` propagado da regra pra oportunidade.
+- [x] Retrocompat: regra sem `discovery_prompt` não quebra nada.
+- [x] Suíte completa passa.

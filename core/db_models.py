@@ -86,6 +86,9 @@ class OpportunityORM(Base):
     sources: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String)
     risk_flag: Mapped[str | None] = mapped_column(String, nullable=True)
+    evidence_summary: Mapped[str | None] = mapped_column(String, nullable=True)
+    discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
+    synced_at: Mapped[datetime] = mapped_column()
 
 
 class PortfolioORM(Base):
@@ -133,3 +136,4 @@ class CorrelationRuleORM(Base):
     opportunity_score: Mapped[float] = mapped_column(Float)
     confidence_score: Mapped[float] = mapped_column(Float)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)

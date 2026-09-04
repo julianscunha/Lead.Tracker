@@ -135,6 +135,12 @@ class Opportunity(BaseModel):
     # produto vendido sem o pré-requisito é risco técnico, não oportunidade
     # de venda — string livre descrevendo o risco, nunca um novo Opportunity.
     risk_flag: str | None = None
+    # Fase C, Fatia 3 — princípio 2 (evidência = fato + implicação + fonte +
+    # data). Nunca substitui evidence/justification/sources, só compõe uma
+    # frase legível a partir deles.
+    evidence_summary: str | None = None
+    discovery_prompt: str | None = None
+    synced_at: datetime = Field(default_factory=_now)
 
 
 class Portfolio(BaseModel):
@@ -204,6 +210,9 @@ class CorrelationRule(BaseModel):
     opportunity_score: float = 1.0
     confidence_score: float = 1.0
     active: bool = True
+    # Pergunta que o vendedor deveria fazer pra confirmar a causa raiz —
+    # nunca a resposta (princípio 2 do roadmap). Opcional, por regra.
+    discovery_prompt: str | None = None
 
     @model_validator(mode="after")
     def _requires_exactly_one_evidence_mechanism(self) -> "CorrelationRule":

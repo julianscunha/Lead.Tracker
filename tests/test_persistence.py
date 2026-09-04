@@ -140,6 +140,38 @@ def test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity():
     asyncio.run(run())
 
 
+def test_opportunity_rich_evidence_fields_round_trip():
+    """Fase C, Fatia 3 — evidence_summary/discovery_prompt/synced_at
+    persistem e voltam intactos."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            portfolio = Portfolio(company_id=company.id, product_ids=["veeam_vbr", "m365"])
+            rule = CorrelationRule(
+                id="veeam_m365_sem_vdc365", opportunity_type="cross-sell",
+                requires=["veeam_vbr", "m365"], absent=["vdc365"],
+                justification="Tem Veeam VBR e M365, sem VDC365.",
+                discovery_prompt="Por que a proteção VDC365 nunca foi priorizada?",
+            )
+            opportunities = evaluate_rules(portfolio, [rule])
+
+            async with session_factory() as session:
+                await save_opportunity(session, opportunities[0])
+
+            async with session_factory() as session:
+                persisted = await list_opportunities(session, company_id=company.id)
+
+            assert persisted[0].evidence_summary == opportunities[0].evidence_summary
+            assert "[FATO]" in persisted[0].evidence_summary
+            assert "[OPORTUNIDADE]" in persisted[0].evidence_summary
+            assert "[FONTE]" in persisted[0].evidence_summary
+            assert persisted[0].discovery_prompt == "Por que a proteção VDC365 nunca foi priorizada?"
+            assert persisted[0].synced_at == opportunities[0].synced_at
+
+    asyncio.run(run())
+
+
 def test_company_fase_b_fields_round_trip():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:

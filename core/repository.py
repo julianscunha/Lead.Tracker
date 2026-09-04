@@ -179,7 +179,8 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         financial_potential=row.financial_potential, strategic_score=row.strategic_score,
         confidence_score=row.confidence_score, evidence=row.evidence, justification=row.justification,
         sources=_sources_from_json(row.sources), status=OpportunityStatus(row.status),
-        risk_flag=row.risk_flag,
+        risk_flag=row.risk_flag, evidence_summary=row.evidence_summary,
+        discovery_prompt=row.discovery_prompt, synced_at=_ensure_utc(row.synced_at),
     )
 
 
@@ -191,7 +192,8 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
         strategic_score=opportunity.strategic_score, confidence_score=opportunity.confidence_score,
         evidence=opportunity.evidence, justification=opportunity.justification,
         sources=_sources_to_json(opportunity.sources), status=opportunity.status.value,
-        risk_flag=opportunity.risk_flag,
+        risk_flag=opportunity.risk_flag, evidence_summary=opportunity.evidence_summary,
+        discovery_prompt=opportunity.discovery_prompt, synced_at=opportunity.synced_at,
     ))
 
 
@@ -272,6 +274,7 @@ async def save_rule(session: AsyncSession, rule: CorrelationRule) -> None:
         requires_category=rule.requires_category, absent_category=rule.absent_category,
         relation_type=rule.relation_type, opportunity_score=rule.opportunity_score,
         confidence_score=rule.confidence_score, active=rule.active,
+        discovery_prompt=rule.discovery_prompt,
     ))
 
 
@@ -282,6 +285,7 @@ def _rule_from_row(row: CorrelationRuleORM) -> CorrelationRule:
         requires_category=row.requires_category, absent_category=row.absent_category,
         relation_type=row.relation_type, opportunity_score=row.opportunity_score,
         confidence_score=row.confidence_score, active=row.active,
+        discovery_prompt=row.discovery_prompt,
     )
 
 

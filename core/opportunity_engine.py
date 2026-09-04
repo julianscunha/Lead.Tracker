@@ -15,6 +15,7 @@ daqui pra quem já importava deste módulo continuar funcionando.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
@@ -52,9 +53,35 @@ def _categories_present(items: set[str], products: list[Product], services: list
     return categories
 
 
+def _fact_description(rule: CorrelationRule, evidence: list[str]) -> str:
+    """`evidence` fica vazio numa regra só-de-ausência (`absent`/
+    `absent_category` sem `requires`, mecanismo válido pra `CorrelationRule`)
+    — sem isso o [FATO] sairia em branco, exatamente o log técnico cru que
+    o princípio 2 proíbe."""
+    if evidence:
+        return ", ".join(evidence)
+    ausencia = rule.absent or rule.absent_category
+    return f"ausência de {', '.join(ausencia)}" if ausencia else "condição da regra satisfeita"
+
+
+def _evidence_summary(
+    rule: CorrelationRule, evidence: list[str], source_type: str, risk_flag: str | None, synced_at: datetime,
+) -> str:
+    """Princípio 2 do roadmap: fato + implicação de negócio + fonte + data,
+    nunca um log técnico cru. `[RISCO]` quando a regra sinaliza risco
+    técnico (prerequisite), `[OPORTUNIDADE]` nos demais casos."""
+    label = "RISCO" if risk_flag else "OPORTUNIDADE"
+    return (
+        f"[FATO] {_fact_description(rule, evidence)} → [{label}] {rule.justification} → "
+        f"[FONTE] {source_type}, sincronizado em {synced_at:%d/%m/%Y}"
+    )
+
+
 def _build_opportunity(
     rule: CorrelationRule, portfolio: Portfolio, evidence: list[str], risk_flag: str | None = None,
 ) -> Opportunity:
+    source_type = "rule_engine"
+    synced_at = datetime.now(timezone.utc)
     return Opportunity(
         id=_deterministic_opportunity_id(portfolio.company_id, rule.id, evidence),
         company_id=portfolio.company_id,
@@ -65,9 +92,12 @@ def _build_opportunity(
         confidence_score=rule.confidence_score,
         evidence=evidence,
         justification=rule.justification,
-        sources=[SourceRef(type="rule_engine", confidence=rule.confidence_score)],
+        sources=[SourceRef(type=source_type, confidence=rule.confidence_score)],
         status=OpportunityStatus.DETECTED,
         risk_flag=risk_flag,
+        evidence_summary=_evidence_summary(rule, evidence, source_type, risk_flag, synced_at),
+        discovery_prompt=rule.discovery_prompt,
+        synced_at=synced_at,
     )
 
 
