@@ -126,6 +126,7 @@ def _company_from_row(row: CompanyORM) -> Company:
         trigger_event=_note_from_json(row.trigger_event),
         attempted_solutions=_notes_from_json(row.attempted_solutions),
         strategic_context=_note_from_json(row.strategic_context),
+        last_activity_at=_ensure_utc(row.last_activity_at) if row.last_activity_at else None,
     )
 
 
@@ -138,6 +139,7 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         trigger_event=_note_to_json(company.trigger_event),
         attempted_solutions=_notes_to_json(company.attempted_solutions),
         strategic_context=_note_to_json(company.strategic_context),
+        last_activity_at=company.last_activity_at,
     ))
 
 
@@ -158,6 +160,7 @@ async def save_contact(session: AsyncSession, contact: Contact) -> None:
         id=contact.id, company_id=contact.company_id, name=contact.name,
         email=contact.email, phone=contact.phone, role=contact.role,
         sources=_sources_to_json(contact.sources), impacted_area=contact.impacted_area,
+        seniority_tier=contact.seniority_tier,
     ))
 
 
@@ -166,7 +169,7 @@ async def list_contacts(session: AsyncSession, company_id: str) -> list[Contact]
     return [Contact(
         id=r.id, company_id=r.company_id, name=r.name, email=r.email,
         role=r.role, phone=r.phone, sources=_sources_from_json(r.sources),
-        impacted_area=r.impacted_area,
+        impacted_area=r.impacted_area, seniority_tier=r.seniority_tier,
     ) for r in rows]
 
 

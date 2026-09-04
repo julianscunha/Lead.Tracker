@@ -59,6 +59,11 @@ def merge_pair(base: Company, other: Company) -> Company:
         "is_customer": base.is_customer or other.is_customer,
         "customer_status": base.customer_status or other.customer_status,
         "sources": _merge_sources(base.sources, other.sources),
+        # last_activity_at é um sinal de recência (Fase C, Fatia 4a) — ao
+        # contrário dos campos acima, precisa refletir o fetch mais recente,
+        # nunca congelar no primeiro sync (senão o sinal de "momentum" nunca
+        # se move).
+        "last_activity_at": other.last_activity_at or base.last_activity_at,
     })
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from datetime import datetime, timezone
 
 import httpx
 
@@ -28,6 +29,34 @@ _MAX_PAGES = 1000  # guarda contra nextRecordsUrl em loop (bug do Salesforce ou 
 # aqui fecha a fronteira de confiança antes de interpolar em SOQL (nunca
 # confiar em company_id vindo do chamador para montar a query).
 _SALESFORCE_ID_RE = re.compile(r"^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$")
+
+# Fase C, Fatia 4a — mapeamento determinístico de Title -> nível hierárquico
+# (proxy de autoridade). Ordem importa: checado de cima pra baixo, primeiro
+# match vence (ex.: "diretor técnico" cai em decisor, não operacional).
+_SENIORITY_KEYWORDS: list[tuple[str, list[str]]] = [
+    ("decisor", ["gestor", "diretor", "gerente", "head", "ceo", "cto", "cio"]),
+    ("influenciador_tecnico", ["arquiteto", "especialista"]),
+    ("operacional", ["técnico", "tecnico", "analista", "suporte"]),
+]
+
+
+def _parse_salesforce_date(value: str | None) -> datetime | None:
+    """`LastActivityDate` é campo `Date` do Salesforce ("YYYY-MM-DD"),
+    sem hora — vira meia-noite UTC do dia, consistente com o padrão UTC-aware
+    do resto do projeto (core/models.py `_now()`)."""
+    if not value:
+        return None
+    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+
+
+def _infer_seniority_tier(title: str | None) -> str | None:
+    if not title:
+        return None
+    lowered = title.lower()
+    for tier, keywords in _SENIORITY_KEYWORDS:
+        if any(keyword in lowered for keyword in keywords):
+            return tier
+    return None
 
 
 class SalesforceProvider(DataProvider):
@@ -165,13 +194,14 @@ class SalesforceProvider(DataProvider):
             return ConnectionTestResult.fail(str(exc))
 
     async def fetch_companies(self) -> list[Company]:
-        records = await self._query("SELECT Id, Name, Website FROM Account")
+        records = await self._query("SELECT Id, Name, Website, LastActivityDate FROM Account")
         return [
             Company(
                 id=record["Id"],
                 name=record["Name"],
                 website=record.get("Website"),
                 sources=[SourceRef(type="salesforce")],
+                last_activity_at=_parse_salesforce_date(record.get("LastActivityDate")),
             )
             for record in records
         ]
@@ -190,6 +220,7 @@ class SalesforceProvider(DataProvider):
                 phone=record.get("Phone"),
                 role=record.get("Title"),
                 sources=[SourceRef(type="salesforce")],
+                seniority_tier=_infer_seniority_tier(record.get("Title")),
             )
             for record in records
         ]

@@ -111,7 +111,9 @@ async def _evaluate_rules_for_synced_companies(
             if portfolio is None:
                 continue
             signals = await list_company_signals(session, company.id)
-            opportunities = evaluate_rules(portfolio, rules, products=products, services=services, signals=signals)
+            opportunities = evaluate_rules(
+                portfolio, rules, products=products, services=services, signals=signals, company=company,
+            )
             for opportunity in opportunities:
                 await save_opportunity(session, opportunity)
                 generated += 1

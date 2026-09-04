@@ -55,6 +55,7 @@ class CompanyORM(Base):
     trigger_event: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     attempted_solutions: Mapped[list] = mapped_column(JSON, default=list)
     strategic_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    last_activity_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class ContactORM(Base):
@@ -67,6 +68,7 @@ class ContactORM(Base):
     role: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     impacted_area: Mapped[str | None] = mapped_column(String, nullable=True)
+    seniority_tier: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OpportunityORM(Base):

@@ -4,6 +4,21 @@
 
 ### Adicionado
 
+- **Sinais granulares de qualificação** (Fase C do roadmap, quarta fatia
+  — parte 1, campos automáticos): `Company.last_activity_at`, mapeado do
+  `LastActivityDate` do Salesforce, alimenta um multiplicador de
+  `confidence_score` na geração de oportunidade — empresa com atividade
+  nos últimos 90 dias mantém o score cheio, sem atividade recente (ou
+  nunca registrada) reduz em 30%. `Contact.seniority_tier` é inferido
+  automaticamente por palavra-chave do cargo (`decisor`/
+  `influenciador_tecnico`/`operacional`), sem correspondência fica vazio
+  — nunca inventa classificação. Edição manual do nível hierárquico fica
+  pra uma fatia futura (ainda não existe rota de edição de contato no
+  projeto). Corrigido de quebra um bug real descoberto nesta fatia:
+  `merge_pair` (reconciliação entre fontes) congelava todo campo já
+  preenchido no primeiro sync — `last_activity_at` nunca se atualizaria
+  depois disso; agora prefere sempre o valor mais recente do fetch.
+
 - **Formato de evidência rico** (Fase C do roadmap, terceira fatia):
   toda oportunidade gerada pelo motor agora traz `evidence_summary` —
   frase montada automaticamente no formato "fato → oportunidade/risco →

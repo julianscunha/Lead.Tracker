@@ -19,9 +19,12 @@ from datetime import datetime, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, Portfolio, Product, RuleError,
-    Service, SourceRef,
+    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, Portfolio, Product,
+    RuleError, Service, SourceRef,
 )
+
+_WARM_WINDOW_DAYS = 90
+_COLD_MULTIPLIER = 0.7
 
 __all__ = ["CorrelationRule", "RuleError", "evaluate_rules"]
 
@@ -77,11 +80,33 @@ def _evidence_summary(
     )
 
 
+def _warmth_multiplier(company: Company | None) -> float:
+    """Fase C, Fatia 4a — proxy de momentum. `company` não passado
+    (retrocompat) não penaliza; passado sem `last_activity_at` ou fora da
+    janela de 90 dias é fria (ausência já é o sinal, nunca um terceiro
+    estado "desconhecido") e reduz a confiança.
+
+    `last_activity_at` sempre chega UTC-aware por quem já persistiu/mapeou
+    (core/repository.py `_ensure_utc`, providers/salesforce.py), mas essa
+    função é chamada com um `Company` vindo de fora — reanexa UTC se algum
+    dia vier naive, em vez de deixar `TypeError` explodir cru até o sync
+    (CLAUDE.md: nunca vazar exceção técnica pro usuário)."""
+    if company is None or company.last_activity_at is None:
+        return 1.0 if company is None else _COLD_MULTIPLIER
+    last_activity_at = company.last_activity_at
+    if last_activity_at.tzinfo is None:
+        last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
+    age_days = (datetime.now(timezone.utc) - last_activity_at).days
+    return 1.0 if age_days <= _WARM_WINDOW_DAYS else _COLD_MULTIPLIER
+
+
 def _build_opportunity(
-    rule: CorrelationRule, portfolio: Portfolio, evidence: list[str], risk_flag: str | None = None,
+    rule: CorrelationRule, portfolio: Portfolio, evidence: list[str],
+    risk_flag: str | None = None, company: Company | None = None,
 ) -> Opportunity:
     source_type = "rule_engine"
     synced_at = datetime.now(timezone.utc)
+    confidence_score = rule.confidence_score * _warmth_multiplier(company)
     return Opportunity(
         id=_deterministic_opportunity_id(portfolio.company_id, rule.id, evidence),
         company_id=portfolio.company_id,
@@ -89,7 +114,7 @@ def _build_opportunity(
         opportunity_score=rule.opportunity_score,
         financial_potential=None,
         strategic_score=None,
-        confidence_score=rule.confidence_score,
+        confidence_score=confidence_score,
         evidence=evidence,
         justification=rule.justification,
         sources=[SourceRef(type=source_type, confidence=rule.confidence_score)],
@@ -117,6 +142,7 @@ def _evaluate_category_rule(rule: CorrelationRule, categories: set[str]) -> list
 
 def _evaluate_relation_rule(
     rule: CorrelationRule, portfolio: Portfolio, items: set[str], products: list[Product],
+    company: Company | None,
 ) -> list[Opportunity]:
     """`prerequisite`: produto presente sem o serviço-pré-requisito vira
     `risk_flag` (nunca uma oportunidade de venda fake). `substitute`:
@@ -132,11 +158,13 @@ def _evaluate_relation_rule(
             service_present = relation.service_id in items
             if rule.relation_type == "prerequisite" and not service_present:
                 results.append(_build_opportunity(
-                    rule, portfolio, evidence=[product.id],
+                    rule, portfolio, evidence=[product.id], company=company,
                     risk_flag=f"{product.id} vendido sem o pré-requisito {relation.service_id}.",
                 ))
             elif rule.relation_type == "substitute" and service_present:
-                results.append(_build_opportunity(rule, portfolio, evidence=[product.id, relation.service_id]))
+                results.append(_build_opportunity(
+                    rule, portfolio, evidence=[product.id, relation.service_id], company=company,
+                ))
     return results
 
 
@@ -146,6 +174,7 @@ def evaluate_rules(
     products: list[Product] | None = None,
     services: list[Service] | None = None,
     signals: list[CompanySignal] | None = None,
+    company: Company | None = None,
 ) -> list[Opportunity]:
     """
     Avalia cada regra ativa contra o portfólio da empresa. Uma regra usa só
@@ -156,7 +185,9 @@ def evaluate_rules(
     retrocompatível com quem só usa regra simples). `signals` (sinal de
     expansão/risco, Fase B) entra como item a mais na regra simples —
     `requires=["renewal_upcoming"]` dispara se a empresa tiver um
-    `CompanySignal` aberto desse tipo, mesmo mecanismo de sempre.
+    `CompanySignal` aberto desse tipo, mesmo mecanismo de sempre. `company`
+    (Fase C, Fatia 4a) alimenta o multiplicador de `confidence_score` por
+    recência de atividade — omitido (retrocompat) não penaliza.
     """
     products = products or []
     services = services or []
@@ -170,13 +201,15 @@ def evaluate_rules(
             continue
 
         if rule.relation_type:
-            opportunities.extend(_evaluate_relation_rule(rule, portfolio, items, products))
+            opportunities.extend(_evaluate_relation_rule(rule, portfolio, items, products, company))
         elif rule.requires_category or rule.absent_category:
             evidence = _evaluate_category_rule(rule, categories)
             if evidence is not None:
-                opportunities.append(_build_opportunity(rule, portfolio, evidence=evidence))
+                opportunities.append(_build_opportunity(rule, portfolio, evidence=evidence, company=company))
         else:
             if _evaluate_simple_rule(rule, items) is not None:
-                opportunities.append(_build_opportunity(rule, portfolio, evidence=list(rule.requires)))
+                opportunities.append(_build_opportunity(
+                    rule, portfolio, evidence=list(rule.requires), company=company,
+                ))
 
     return opportunities

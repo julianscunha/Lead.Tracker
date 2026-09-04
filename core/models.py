@@ -58,6 +58,9 @@ class Company(BaseModel):
     trigger_event: ContextNote | None = None
     attempted_solutions: list[ContextNote] = Field(default_factory=list)
     strategic_context: ContextNote | None = None
+    # Fase C, Fatia 4a — proxy de momentum (recência de atividade no CRM).
+    # Ausente = fria, nunca um terceiro estado "desconhecido".
+    last_activity_at: datetime | None = None
 
 
 class Contact(BaseModel):
@@ -73,6 +76,12 @@ class Contact(BaseModel):
     # Quem sente o impacto de um gap detectado — string livre (ex.:
     # "operações/TI", "compliance/risco"), distinto do cargo formal (`role`).
     impacted_area: str | None = None
+    # Fase C, Fatia 4a — proxy de autoridade (Economic Buyer vs.
+    # influenciador), inferido por palavra-chave de `role`. String aberta,
+    # não enum fechado (núcleo genérico) — "decisor" / "influenciador_tecnico"
+    # / "operacional" são só os valores de referência do mapeamento
+    # automático. Sem match fica None — nunca inventa classificação.
+    seniority_tier: str | None = None
 
 
 class Vendor(BaseModel):

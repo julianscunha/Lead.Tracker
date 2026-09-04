@@ -261,3 +261,82 @@ legível e a `discovery_prompt` opcional.
 - [x] `discovery_prompt` propagado da regra pra oportunidade.
 - [x] Retrocompat: regra sem `discovery_prompt` não quebra nada.
 - [x] Suíte completa passa.
+
+---
+
+## Fatia 4a — Sinais granulares de qualificação (campos automáticos)
+
+Decisões tomadas com o usuário antes desta fatia:
+- Janela de recência: **90 dias**. Existe atividade recente → quente.
+  Não existe (nunca registrada ou expirou) → fria — nunca um terceiro
+  estado "desconhecido", a ausência já é o sinal.
+- Multiplicador de `confidence_score`: quente `×1.0`, fria `×0.7`.
+- Nível hierárquico: mapeamento automático por palavra-chave a partir do
+  `Title`/`role` que o Salesforce já traz; sem correspondência fica
+  `None` — nunca inventa classificação.
+- **Fatiado deliberadamente**: esta fatia só cobre campo + mapeamento
+  automático + exposição via API já existente. Edição manual do nível
+  hierárquico (rota `PATCH` nova + UI nova, porque hoje não existe
+  nenhum endpoint de edição de contato) fica pra **Fatia 4b**, separada.
+
+### Design
+
+- `core/models.py`:
+  - `Company.last_activity_at: datetime | None = None`.
+  - `Contact.seniority_tier: str | None = None` — string aberta (núcleo
+    genérico, não é enum fechado), valores de referência do mapeamento:
+    `"decisor"` / `"influenciador_tecnico"` / `"operacional"`.
+- `providers/salesforce.py`:
+  - `fetch_companies`: SOQL ganha `LastActivityDate`; parse pra
+    `datetime` UTC-aware (campo é `Date` no Salesforce — vira meia-noite
+    UTC do dia).
+  - `fetch_contacts`: nova função `_infer_seniority_tier(title)` —
+    dicionário de palavras-chave em português (`gestor`/`diretor`/`head`
+    → decisor; `arquiteto`/`especialista` → influenciador técnico;
+    `técnico`/`analista`/`suporte` → operacional), case-insensitive,
+    substring match. Sem match → `None`.
+- `core/opportunity_engine.py`:
+  - `_warmth_multiplier(company: Company | None) -> float` — `company`
+    não passado (retrocompat) → `1.0` sem penalidade; `company` passado
+    sem `last_activity_at` ou fora da janela de 90 dias → `0.7`; dentro
+    da janela → `1.0`.
+  - `evaluate_rules` ganha `company: Company | None = None`; `confidence_score`
+    de toda oportunidade gerada é `rule.confidence_score * _warmth_multiplier(company)`.
+- `backend/sync.py`: passa `company=company` (já disponível no loop) pra
+  `evaluate_rules`.
+- Persistência: `CompanyORM.last_activity_at`, `ContactORM.seniority_tier`
+  novas colunas; `core/repository.py` atualizado nos dois sentidos.
+- Exposição: `GET /companies` já serializa `Company` inteiro (sem mudança
+  de rota) — `last_activity_at` aparece automaticamente. `seniority_tier`
+  fica disponível via `list_contacts`/`Contact` pra quando a Fatia 4b
+  expuser rota/tela de contato.
+
+### Não objetivo desta fatia
+
+- Nenhuma UI nova, nenhuma rota de edição manual (Fatia 4b).
+- Contagem de contatos distintos (multi-threading) — sinal separado,
+  puramente derivado (sem campo novo), fica como fatia própria mínima
+  se/quando a tela de oportunidade for exibir isso.
+
+### Teste
+
+- `_infer_seniority_tier`: reconhece cada categoria de palavra-chave,
+  `None` pra título sem match, `None` pra título vazio/ausente.
+- `SalesforceProvider.fetch_companies`: mapeia `LastActivityDate` pra
+  `last_activity_at`.
+- `evaluate_rules`: `company` quente → confidence_score cheio; `company`
+  frio (sem `last_activity_at` ou > 90 dias) → confidence_score ×0.7;
+  sem `company` (retrocompat) → confidence_score cheio, sem penalidade.
+- Persistência: round-trip dos dois campos novos.
+
+### Critério de sucesso
+
+- [x] `last_activity_at` mapeado do Salesforce, alimenta o multiplicador
+      de `confidence_score` na geração de oportunidade.
+- [x] `seniority_tier` mapeado automaticamente por palavra-chave, `None`
+      quando não reconhece.
+- [x] Retrocompat total: chamada sem `company` não muda comportamento
+      hoje existente.
+- [x] Suíte completa passa (achado de revisão corrigido:
+      `_warmth_multiplier` reanexa UTC se `last_activity_at` vier naive,
+      em vez de deixar `TypeError` explodir cru até o sync).

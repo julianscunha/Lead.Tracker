@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.models import CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
+from datetime import datetime, timedelta, timezone
+
+from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import CorrelationRule, RuleError, evaluate_rules
 
 
@@ -247,6 +249,49 @@ def test_discovery_prompt_defaults_to_none_without_breaking():
     assert result[0].discovery_prompt is None
 
 
+# ── Multiplicador de confiança por recência de atividade (Fase C, Fatia 4a) ──
+
+def _company(last_activity_at=None) -> Company:
+    return Company(name="Aurora Sistemas", last_activity_at=last_activity_at)
+
+
+def test_warm_company_keeps_full_confidence_score():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    recent = datetime.now(timezone.utc) - timedelta(days=10)
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(recent))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score
+
+
+def test_cold_company_beyond_90_days_gets_penalized_confidence_score():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    old = datetime.now(timezone.utc) - timedelta(days=200)
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(old))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.7
+
+
+def test_company_without_last_activity_at_is_treated_as_cold():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(None))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.7
+
+
+def test_evaluate_rules_without_company_never_penalizes_retrocompat():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [VDC365_RULE])
+    assert result[0].confidence_score == VDC365_RULE.confidence_score
+
+
+def test_naive_last_activity_at_never_crashes_the_engine():
+    """CLAUDE.md: nunca vazar exceção técnica crua — company.last_activity_at
+    sempre chega UTC-aware hoje (repository/provider garantem isso), mas o
+    motor não pode confiar cegamente nisso e quebrar com TypeError se algum
+    dia vier naive."""
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    naive = datetime.now() - timedelta(days=10)
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(naive))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -268,4 +313,9 @@ if __name__ == "__main__":
     test_evidence_summary_never_blank_for_absent_only_rule()
     test_discovery_prompt_propagates_from_rule_to_opportunity()
     test_discovery_prompt_defaults_to_none_without_breaking()
+    test_warm_company_keeps_full_confidence_score()
+    test_cold_company_beyond_90_days_gets_penalized_confidence_score()
+    test_company_without_last_activity_at_is_treated_as_cold()
+    test_evaluate_rules_without_company_never_penalizes_retrocompat()
+    test_naive_last_activity_at_never_crashes_the_engine()
     print("OK — todos os testes do motor de oportunidades passaram")

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.errors import ErrorCategory
 from providers.base import DataProvider, ProviderError
-from providers.salesforce import SalesforceProvider
+from providers.salesforce import SalesforceProvider, _infer_seniority_tier
 
 _TOKEN_BODY = {"access_token": "tok-123", "instance_url": "https://example.my.salesforce.com"}
 _VALID_ACCOUNT_ID = "001XX000003DHPh"  # 15 chars, formato válido de ID do Salesforce
@@ -251,6 +251,69 @@ def test_pagination_follows_next_records_url():
     asyncio.run(run())
 
 
+def test_fetch_companies_maps_last_activity_date():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        assert "LastActivityDate" in unquote(str(request.url))
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{"Id": _VALID_ACCOUNT_ID, "Name": "Acme", "Website": None, "LastActivityDate": "2026-08-01"}],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        companies = await provider.fetch_companies()
+        assert companies[0].last_activity_at is not None
+        assert companies[0].last_activity_at.year == 2026
+        assert companies[0].last_activity_at.month == 8
+
+    asyncio.run(run())
+
+
+def test_fetch_companies_without_last_activity_date_leaves_it_none():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{"Id": _VALID_ACCOUNT_ID, "Name": "Acme", "Website": None, "LastActivityDate": None}],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        companies = await provider.fetch_companies()
+        assert companies[0].last_activity_at is None
+
+    asyncio.run(run())
+
+
+def test_fetch_contacts_infers_seniority_tier_from_title():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{"Id": "003XX0004TQhPh", "Name": "Fulano", "Email": None, "Phone": None, "Title": "Diretor de TI"}],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        contacts = await provider.fetch_contacts(_VALID_ACCOUNT_ID)
+        assert contacts[0].seniority_tier == "decisor"
+
+    asyncio.run(run())
+
+
+def test_infer_seniority_tier_covers_each_category_and_defaults_to_none():
+    assert _infer_seniority_tier("Gerente de Infraestrutura") == "decisor"
+    assert _infer_seniority_tier("Arquiteto de Soluções") == "influenciador_tecnico"
+    assert _infer_seniority_tier("Analista de Suporte") == "operacional"
+    assert _infer_seniority_tier("Estagiário de Marketing") is None
+    assert _infer_seniority_tier(None) is None
+    assert _infer_seniority_tier("") is None
+
+
 def test_connection_ok_when_authentication_succeeds():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_TOKEN_BODY)
@@ -290,6 +353,10 @@ if __name__ == "__main__":
     test_expired_session_reauthenticates_once_then_succeeds()
     test_expired_session_reauth_still_failing_raises_authentication_once()
     test_pagination_follows_next_records_url()
+    test_fetch_companies_maps_last_activity_date()
+    test_fetch_companies_without_last_activity_date_leaves_it_none()
+    test_fetch_contacts_infers_seniority_tier_from_title()
+    test_infer_seniority_tier_covers_each_category_and_defaults_to_none()
     test_connection_ok_when_authentication_succeeds()
     test_connection_fails_with_friendly_message_on_bad_credentials()
     print("OK — todos os testes do provider Salesforce passaram")

@@ -8,15 +8,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.db import create_engine, init_db, make_session_factory
+from datetime import datetime, timezone
+
 from core.models import (
-    Company, CompanySignal, ContextNote, Opportunity, OpportunityStatus,
+    Company, CompanySignal, Contact, ContextNote, Opportunity, OpportunityStatus,
     OpportunityStatusChange, Portfolio, SourceRef, Vendor,
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
     get_company, get_portfolio_by_company, list_active_rules, list_companies,
-    list_company_signals, list_opportunities, list_opportunity_status_changes,
-    list_rules, list_vendors, save_company, save_company_signal, save_opportunity,
+    list_company_signals, list_contacts, list_opportunities, list_opportunity_status_changes,
+    list_rules, list_vendors, save_company, save_company_signal, save_contact, save_opportunity,
     save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
 )
 
@@ -136,6 +138,43 @@ def test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity():
             assert len(persisted) == 1
             assert persisted[0].status == OpportunityStatus.DETECTED
             assert persisted[0].evidence == ["veeam_vbr", "m365"]
+
+    asyncio.run(run())
+
+
+def test_company_last_activity_at_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            when = datetime(2026, 8, 1, tzinfo=timezone.utc)
+            company = Company(name="Aurora Sistemas", last_activity_at=when)
+
+            async with session_factory() as session:
+                await save_company(session, company)
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+
+            assert loaded.last_activity_at == when
+
+    asyncio.run(run())
+
+
+def test_contact_seniority_tier_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            contact = Contact(company_id=company.id, name="Fulano", seniority_tier="decisor")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+
+            async with session_factory() as session:
+                contacts = await list_contacts(session, company.id)
+
+            assert contacts[0].seniority_tier == "decisor"
 
     asyncio.run(run())
 
@@ -324,4 +363,7 @@ if __name__ == "__main__":
     test_correlation_rule_round_trip()
     test_list_active_rules_filters_inactive()
     test_opportunity_risk_flag_round_trips()
+    test_opportunity_rich_evidence_fields_round_trip()
+    test_company_last_activity_at_round_trip()
+    test_contact_seniority_tier_round_trip()
     print("OK — todos os testes de persistência passaram")
