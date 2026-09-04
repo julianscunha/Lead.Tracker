@@ -1,20 +1,28 @@
-import { useState } from 'react'
-import { exportOpportunitiesExcel, exportOpportunitiesPdf } from './api'
+import { useEffect, useState } from 'react'
+import { exportOpportunitiesExcel, exportOpportunitiesPdf, listOpportunities } from './api'
 import { Dashboard } from './dashboard/Dashboard'
 import { applyFilters, defaultFilters, Filters, summarizeFilters, type FilterState } from './Filters'
 import { OpportunityTable } from './OpportunityTable'
-import { sampleOpportunities } from './sampleData'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { styles } from './styles'
 import type { OpportunityRow } from './types'
 
 type Tab = 'dashboard' | 'oportunidades' | 'configuracoes'
 
-function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
+function OpportunitiesView() {
+  const [rows, setRows] = useState<OpportunityRow[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [filters, setFilters] = useState<FilterState>(defaultFilters)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
-  const filtered = applyFilters(rows, filters)
+
+  useEffect(() => {
+    listOpportunities()
+      .then(setRows)
+      .catch(err => setLoadError(err instanceof Error ? err.message : 'Não consegui carregar as oportunidades.'))
+  }, [])
+
+  const filtered = rows ? applyFilters(rows, filters) : []
 
   const handleExport = async (kind: 'pdf' | 'excel') => {
     setExportError(null)
@@ -29,6 +37,9 @@ function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
       setExporting(null)
     }
   }
+
+  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (!rows) return <p className="lt-hint">Carregando oportunidades…</p>
 
   return (
     <div>
@@ -46,12 +57,18 @@ function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
       </div>
       {exportError && <p className="lt-hint" role="alert">{exportError}</p>}
       <Filters rows={rows} value={filters} onChange={setFilters} />
-      <OpportunityTable rows={filtered} />
+      {rows.length === 0 ? (
+        <p className="lt-empty" role="status">
+          Nenhuma oportunidade ainda — rode uma sincronização em Configurações.
+        </p>
+      ) : (
+        <OpportunityTable rows={filtered} />
+      )}
     </div>
   )
 }
 
-export function App({ rows = sampleOpportunities }: { rows?: OpportunityRow[] }) {
+export function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
 
   return (
@@ -69,7 +86,7 @@ export function App({ rows = sampleOpportunities }: { rows?: OpportunityRow[] })
         </button>
       </div>
       {tab === 'dashboard' && <Dashboard />}
-      {tab === 'oportunidades' && <OpportunitiesView rows={rows} />}
+      {tab === 'oportunidades' && <OpportunitiesView />}
       {tab === 'configuracoes' && <SettingsScreen />}
     </div>
   )

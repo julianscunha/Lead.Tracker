@@ -21,20 +21,20 @@ from techforge_sdk.contracts import ModuleContract, ModuleMetadata, HealthResult
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.config import sync_env
-from core.db import create_engine, init_db, make_session_factory
+from core.db import init_db
+from backend.db_session import DB_PATH as _DB_PATH, engine as _engine, session_factory
 from backend.routes_exports import router as exports_router
 from backend.routes_settings import router as settings_router
+from backend.routes_sync import router as sync_router
 
 _MODULE_ROOT = Path(__file__).parent.parent
-_DB_PATH = _MODULE_ROOT / "data" / "lead_tracker.db"
 
 sdk = create_sdk("lead_tracker")
-_engine = create_engine(_DB_PATH)
-session_factory = make_session_factory(_engine)
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
 router.include_router(exports_router)
 router.include_router(settings_router)
+router.include_router(sync_router)
 
 
 @router.get("/ping")

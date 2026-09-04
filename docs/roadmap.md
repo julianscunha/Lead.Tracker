@@ -179,6 +179,15 @@ mudou de status" se não foi guardado desde o início.
 - **Sem tela nova nesta fase** — é só schema/modelo, preparação silenciosa.
 
 ### Fase B.1 — Ligação real (ingestão → banco → API → frontend)
+**Status:** concluída (spec: `docs/specs/fase-b1-ligacao-real.md`). Rodou
+sem gerar oportunidade por regra de propósito — não existe ainda
+persistência de regra (isso é a Fase C, próxima). Achado real ao validar
+em ambiente com banco de instalação anterior à Fase B: `create_all` não
+adiciona coluna a tabela já existente, então um install com dado de antes
+da Fase B quebra com "no such column" até o schema ser recriado — confirma
+a dívida já documentada em `core/db.py`/spec da Fase B, não uma surpresa
+nova; sem Alembic ainda por decisão consciente.
+
 **A lacuna mais antiga desta conversa, identificada no início e nunca
 formalizada até agora.** Hoje `backend/main.py` só tem `/ping` e rotas de
 export — nenhuma rota lê/escreve `Company`/`Opportunity` de verdade, e o

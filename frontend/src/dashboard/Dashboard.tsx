@@ -1,10 +1,8 @@
+import { useEffect, useState } from 'react'
+import { getDashboardMetrics, type DashboardMetrics } from '../api'
 import { BarChart } from './BarChart'
 import { DonutChart } from './DonutChart'
 import { FunnelChart } from './FunnelChart'
-import {
-  sampleCustomerVsProspect, sampleFinancialByVendor, sampleFunnelCounts,
-  sampleKpis, sampleOpportunitiesByService, sampleVendorDistribution,
-} from './sampleMetrics'
 import { StatTile } from './StatTile'
 import { FUNNEL_STAGES } from './types'
 
@@ -16,13 +14,25 @@ function formatCount(v: number): string {
 }
 
 export function Dashboard() {
-  const kpis = sampleKpis
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getDashboardMetrics()
+      .then(setMetrics)
+      .catch(err => setError(err instanceof Error ? err.message : 'Não consegui carregar as métricas.'))
+  }, [])
+
+  if (error) return <p className="lt-hint" role="alert">{error}</p>
+  if (!metrics) return <p className="lt-hint">Carregando…</p>
+
+  const { kpis } = metrics
 
   return (
     <div className="lt-dashboard">
       <div className="lt-header">
         <h2>Dashboard Executivo</h2>
-        <p>Visão consolidada — dados fictícios até a persistência real existir.</p>
+        <p>Visão consolidada — dado real da sua instalação.</p>
       </div>
 
       <div className="lt-stat-grid">
@@ -39,33 +49,33 @@ export function Dashboard() {
       <div className="lt-chart-grid">
         <section className="lt-chart-card">
           <h3>Distribuição por fabricante</h3>
-          <DonutChart data={sampleVendorDistribution} emptyMessage="Sem oportunidades com fabricante identificado." />
+          <DonutChart data={metrics.vendorDistribution} emptyMessage="Sem oportunidades com fabricante identificado." />
         </section>
 
         <section className="lt-chart-card">
           <h3>Potencial financeiro por fabricante</h3>
-          <BarChart data={sampleFinancialByVendor} formatValue={formatCurrency} emptyMessage="Sem potencial financeiro registrado." />
+          <BarChart data={metrics.financialByVendor} formatValue={formatCurrency} emptyMessage="Sem potencial financeiro registrado." />
         </section>
 
         <section className="lt-chart-card">
           <h3>Oportunidades por serviço</h3>
-          <BarChart data={sampleOpportunitiesByService} formatValue={formatCount} emptyMessage="Sem oportunidades de serviço." />
+          <BarChart data={metrics.opportunitiesByService} formatValue={formatCount} emptyMessage="Sem oportunidades de serviço." />
         </section>
 
         <section className="lt-chart-card">
           <h3>Clientes × Prospects</h3>
-          <BarChart data={sampleCustomerVsProspect} formatValue={formatCount} emptyMessage="Sem empresas analisadas." />
+          <BarChart data={metrics.customerVsProspect} formatValue={formatCount} emptyMessage="Sem empresas analisadas." />
         </section>
 
         <section className="lt-chart-card lt-chart-card--wide">
           <h3>Funil de oportunidades</h3>
-          <FunnelChart stages={FUNNEL_STAGES} counts={sampleFunnelCounts} />
+          <FunnelChart stages={FUNNEL_STAGES} counts={metrics.funnelCounts} />
         </section>
       </div>
 
       <p className="lt-hint">
         Tendência temporal e segmentação por região/segmento ficam de fora por enquanto —
-        exigem persistência histórica e um campo de segmento/região que ainda não existem no modelo.
+        exigem histórico de status (Fase D do roadmap) e dado real de segmento/região vindo de uma fonte configurada.
       </p>
     </div>
   )

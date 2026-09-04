@@ -32,8 +32,10 @@ def normalize_domain(website: str | None) -> str | None:
     return host or None
 
 
-def _dedup_key(company: Company) -> str:
-    """Chave de deduplicação: domínio quando disponível, senão nome normalizado."""
+def dedup_key(company: Company) -> str:
+    """Chave de deduplicação: domínio quando disponível, senão nome normalizado.
+    Pública — backend/sync.py usa pra reconciliar empresa vinda de uma fonte
+    contra empresa já persistida de outra fonte, sem duplicar."""
     domain = normalize_domain(company.website)
     return f"domain:{domain}" if domain else f"name:{normalize_name(company.name)}"
 
@@ -47,7 +49,10 @@ def _merge_sources(existing: list[SourceRef], incoming: list[SourceRef]) -> list
     return list(by_type.values())
 
 
-def _merge_pair(base: Company, other: Company) -> Company:
+def merge_pair(base: Company, other: Company) -> Company:
+    """Mescla `other` em `base`, preservando o `id`/identidade de `base` —
+    usado quando `base` já está persistido (backend/sync.py) e não pode
+    trocar de id sem quebrar Contact/Opportunity que o referenciam."""
     return base.model_copy(update={
         "legal_name": base.legal_name or other.legal_name,
         "website": base.website or other.website,
@@ -65,9 +70,9 @@ def merge_companies(companies: list[Company]) -> list[Company]:
     """
     merged: dict[str, Company] = {}
     for company in companies:
-        key = _dedup_key(company)
+        key = dedup_key(company)
         if key in merged:
-            merged[key] = _merge_pair(merged[key], company)
+            merged[key] = merge_pair(merged[key], company)
         else:
             merged[key] = company
     return list(merged.values())

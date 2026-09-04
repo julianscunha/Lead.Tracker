@@ -4,6 +4,24 @@
 
 ### Adicionado
 
+- **Ligação real** (Fase B.1 do roadmap): o módulo para de rodar sobre dado
+  fictício. Botão "Atualizar dados" (Configurações) aciona
+  `POST /sync`, que busca empresas/contatos de cada fonte habilitada,
+  normaliza (dedup dentro da própria fonte) e reconcilia contra empresa já
+  persistida de OUTRA fonte antes de salvar (`core/normalization.dedup_key`/
+  `merge_pair`, agora públicas) — nunca duplica empresa por aparecer em
+  fontes diferentes, mesmo com IDs nativos distintos por provider; busca de
+  contato continua usando o ID nativo do provider mesmo quando a empresa é
+  reconciliada pra um ID já existente. `GET /companies`, `GET
+  /opportunities` e `GET /dashboard-metrics` leem do
+  banco — frontend (`Dashboard`, `Oportunidades`) trocou
+  `sampleData.ts`/`sampleMetrics.ts` por chamada real, com estado de
+  carregamento e vazio em linguagem de negócio. Falha de uma fonte nunca
+  aborta as outras nem propaga exceção crua — sempre erro amigável por
+  fonte. **Geração de oportunidade por regra continua pendente da Fase C**
+  (não existe ainda persistência de regra de correlação) — `GET
+  /opportunities` é honesto: devolve vazio até lá, nunca dado inventado.
+
 - Fundação de modelo de dados (Fase B do roadmap): `Company` ganha
   `rep_id`/`segment`/`region`/`trigger_event`/`attempted_solutions`/
   `strategic_context`; `Contact` ganha `impacted_area`; `Product`/`Service`

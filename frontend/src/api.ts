@@ -119,3 +119,128 @@ export async function testSourceConnection(sourceId: string): Promise<LastCheck>
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }
+
+// ── Dado real (Fase B.1) ─────────────────────────────────────────────────────
+// Backend fala snake_case (convenção Python já usada nas outras rotas);
+// as funções abaixo adaptam pra camelCase (convenção do frontend).
+
+interface OpportunityApiRow {
+  id: string
+  company_id: string
+  company_name: string
+  is_customer: boolean
+  type: string
+  product_id: string | null
+  product_name: string | null
+  service_id: string | null
+  service_name: string | null
+  opportunity_score: number | null
+  financial_potential: number | null
+  strategic_score: number | null
+  confidence_score: number | null
+  evidence: string[]
+  justification: string | null
+  sources: { type: string; confidence: number }[]
+  status: OpportunityRow['status']
+}
+
+/** priority não existe no domínio (core/models.py) — derivado do score real,
+ * nunca inventado. Mesmos limiares usados pra ordenar por prioridade em OpportunityTable. */
+export function derivePriority(score: number | null): OpportunityRow['priority'] {
+  if (score === null) return 'baixa'
+  if (score >= 0.7) return 'alta'
+  if (score >= 0.4) return 'média'
+  return 'baixa'
+}
+
+function fromApiRow(r: OpportunityApiRow): OpportunityRow {
+  return {
+    id: r.id,
+    companyName: r.company_name,
+    isCustomer: r.is_customer,
+    opportunityScore: r.opportunity_score,
+    financialPotential: r.financial_potential,
+    type: r.type,
+    product: r.product_name,
+    service: r.service_name,
+    priority: derivePriority(r.opportunity_score),
+    sources: r.sources,
+    status: r.status,
+    evidence: r.evidence,
+    justification: r.justification,
+    confidenceScore: r.confidence_score,
+    // Sem fonte real ainda de "o que a empresa já tem" (Fase B.1 não popula
+    // portfólio por empresa — ver docs/specs/fase-b1-ligacao-real.md).
+    currentProducts: [],
+    recommendedProducts: r.product_name ? [r.product_name] : [],
+    recommendedServices: r.service_name ? [r.service_name] : [],
+  }
+}
+
+export async function listOpportunities(): Promise<OpportunityRow[]> {
+  const resp = await fetch(`${BASE}/opportunities`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data: OpportunityApiRow[] = await resp.json()
+  return data.map(fromApiRow)
+}
+
+export interface SyncResult {
+  sourceId: string
+  companiesSynced: number
+  contactsSynced: number
+  errors: string[]
+}
+
+export async function triggerSync(): Promise<SyncResult[]> {
+  const resp = await fetch(`${BASE}/sync`, { method: 'POST' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data = await resp.json()
+  return data.map((r: { source_id: string; companies_synced: number; contacts_synced: number; errors: string[] }) => ({
+    sourceId: r.source_id, companiesSynced: r.companies_synced, contactsSynced: r.contacts_synced, errors: r.errors,
+  }))
+}
+
+export interface DashboardMetrics {
+  kpis: {
+    opportunitiesIdentified: number
+    customersAnalyzed: number
+    prospectsAnalyzed: number
+    financialPotentialTotal: number
+    productOpportunities: number
+    serviceOpportunities: number
+    topVendor: string | null
+    topService: string | null
+  }
+  vendorDistribution: { label: string; value: number }[]
+  financialByVendor: { label: string; value: number }[]
+  opportunitiesByService: { label: string; value: number }[]
+  customerVsProspect: { label: string; value: number }[]
+  funnelCounts: Record<string, number>
+}
+
+export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+  const resp = await fetch(`${BASE}/dashboard-metrics`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const d = await resp.json()
+  const pairs = (arr: [string, number][]) => arr.map(([label, value]) => ({ label, value }))
+  return {
+    kpis: {
+      opportunitiesIdentified: d.kpis.opportunities_identified,
+      customersAnalyzed: d.kpis.customers_analyzed,
+      prospectsAnalyzed: d.kpis.prospects_analyzed,
+      financialPotentialTotal: d.kpis.financial_potential_total,
+      productOpportunities: d.kpis.product_opportunities,
+      serviceOpportunities: d.kpis.service_opportunities,
+      topVendor: d.kpis.top_vendor,
+      topService: d.kpis.top_service,
+    },
+    vendorDistribution: pairs(d.vendor_distribution),
+    financialByVendor: pairs(d.financial_by_vendor),
+    opportunitiesByService: pairs(d.opportunities_by_service),
+    customerVsProspect: [
+      { label: 'Clientes', value: d.customer_vs_prospect.clientes },
+      { label: 'Prospects', value: d.customer_vs_prospect.prospects },
+    ],
+    funnelCounts: d.funnel_counts,
+  }
+}
