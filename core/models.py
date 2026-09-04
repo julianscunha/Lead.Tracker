@@ -155,7 +155,7 @@ class CompanySignal(BaseModel):
     o núcleo não fecha a lista de tipos possíveis."""
     id: str = Field(default_factory=_new_id)
     company_id: str
-    signal_type: str
+    signal_type: str  # convenção: nunca reusar um vendor/product/service id — motor de regras trata os dois no mesmo conjunto de "itens presentes"
     evidence: list[str] = Field(default_factory=list)
     source: SourceRef
     confidence: float = Field(ge=0.0, le=1.0, default=1.0)

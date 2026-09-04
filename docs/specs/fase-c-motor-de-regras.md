@@ -147,3 +147,58 @@ Mesmo padrão dos demais — sem framework novo.
 - [ ] Retrocompatibilidade total com `test_opportunity_engine.py` atual.
 - [ ] Editor mínimo funcional na UI (criar regra por dropdown, ver lista).
 - [ ] Suíte completa passa. `CHANGELOG.md` atualizado.
+
+---
+
+## Fatia 2 — Sinais de expansão entrando no motor
+
+### Objetivo
+
+`CompanySignal` existe desde a Fase B (persistido, com CRUD) mas nenhuma
+regra consegue reagir a ele — sinal de renovação próxima, troca de
+contato-chave, adoção parcial fica só guardado, nunca vira oportunidade.
+
+### Design — sem 4º tipo de regra
+
+Roadmap é explícito: "só 3 tipos de regra no total, nunca mais". Em vez de
+criar um mecanismo novo (`requires_signal_type`), `signal_type` dos sinais
+**abertos** (`status="open"`) da empresa entra no mesmo conjunto de itens
+que `requires`/`absent` (mecanismo 1) já verifica — uma regra
+`requires=["renewal_upcoming"]` dispara se existir um `CompanySignal`
+aberto com esse `signal_type`, exatamente como hoje dispara por
+`product_id`/`service_id` no portfólio. Zero mecanismo novo, zero regra
+nova — só uma fonte a mais de "item presente".
+
+- `core/opportunity_engine.py::evaluate_rules` ganha parâmetro opcional
+  `signals: list[CompanySignal] | None = None`; `_portfolio_items` (ou uma
+  variante) passa a unir `portfolio` + `{s.signal_type for s in signals if
+  s.status == "open"}`.
+- `backend/sync.py` carrega `list_company_signals(session, company.id)`
+  pra cada empresa avaliada e passa pro motor.
+- Sinal resolvido/descartado (`status != "open"`) nunca conta — evita regra
+  disparar por um sinal que já foi tratado.
+
+### Não objetivo desta fatia
+
+- Nenhuma fonte ainda **gera** `CompanySignal` automaticamente (nem
+  Salesforce nem Manual criam sinal — isso é outra tarefa, ligar
+  `LastActivityDate`/dado de CRM a um sinal de verdade). Esta fatia só
+  garante que, se um sinal existir (hoje só via `POST` direto no
+  repositório/teste, sem rota de criação ainda), o motor o usa.
+- Sem rota de criação de sinal na API/UI ainda — fica pra quando existir
+  fonte real gerando sinal.
+
+### Teste
+
+- `evaluate_rules` com sinal aberto presente dispara regra que o `requires`.
+- Sinal `status="resolved"` não dispara.
+- Sem `signals` (retrocompat) continua funcionando como hoje.
+- `backend/sync.py`: empresa com sinal aberto + regra correspondente gera
+  oportunidade via sync.
+
+### Critério de sucesso
+
+- [ ] Sinal aberto dispara regra simples via `requires`.
+- [ ] Sinal resolvido/descartado nunca dispara.
+- [ ] Retrocompat total (chamada sem `signals` continua igual).
+- [ ] Suíte completa passa.

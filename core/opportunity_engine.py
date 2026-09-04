@@ -18,7 +18,8 @@ from __future__ import annotations
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    CorrelationRule, Opportunity, OpportunityStatus, Portfolio, Product, RuleError, Service, SourceRef,
+    CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, Portfolio, Product, RuleError,
+    Service, SourceRef,
 )
 
 __all__ = ["CorrelationRule", "RuleError", "evaluate_rules"]
@@ -35,8 +36,14 @@ def _deterministic_opportunity_id(company_id: str, rule_id: str, evidence: list[
     return str(uuid5(NAMESPACE_URL, key))
 
 
-def _portfolio_items(portfolio: Portfolio) -> set[str]:
-    return set(portfolio.vendor_ids) | set(portfolio.product_ids) | set(portfolio.service_ids)
+def _portfolio_items(portfolio: Portfolio, signals: list[CompanySignal]) -> set[str]:
+    """Conjunto de "itens presentes" pra regra simples avaliar — portfólio
+    (vendor/product/service) + signal_type de todo CompanySignal ABERTO
+    (sinal resolvido/descartado nunca dispara regra: já foi tratado).
+    Sinal entra aqui, não como mecanismo novo — "só 3 tipos de regra"."""
+    items = set(portfolio.vendor_ids) | set(portfolio.product_ids) | set(portfolio.service_ids)
+    items |= {s.signal_type for s in signals if s.status == "open"}
+    return items
 
 
 def _categories_present(items: set[str], products: list[Product], services: list[Service]) -> set[str]:
@@ -108,6 +115,7 @@ def evaluate_rules(
     rules: list[CorrelationRule],
     products: list[Product] | None = None,
     services: list[Service] | None = None,
+    signals: list[CompanySignal] | None = None,
 ) -> list[Opportunity]:
     """
     Avalia cada regra ativa contra o portfólio da empresa. Uma regra usa só
@@ -115,11 +123,15 @@ def evaluate_rules(
     presença/ausência simples, categoria, ou relação tipada (precisa do
     catálogo — `products`/`services` — pra resolver categoria/relação;
     omitidos, regra de categoria/relação simplesmente não encontra nada,
-    retrocompatível com quem só usa regra simples).
+    retrocompatível com quem só usa regra simples). `signals` (sinal de
+    expansão/risco, Fase B) entra como item a mais na regra simples —
+    `requires=["renewal_upcoming"]` dispara se a empresa tiver um
+    `CompanySignal` aberto desse tipo, mesmo mecanismo de sempre.
     """
     products = products or []
     services = services or []
-    items = _portfolio_items(portfolio)
+    signals = signals or []
+    items = _portfolio_items(portfolio, signals)
     categories = _categories_present(items, products, services)
     opportunities: list[Opportunity] = []
 

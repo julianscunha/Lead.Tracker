@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Sinais de expansão no motor de regras** (Fase C do roadmap, segunda
+  fatia): `CompanySignal` aberto (`status="open"`) agora entra no mesmo
+  mecanismo de presença/ausência já existente — `signal_type` conta como
+  item presente ao lado de `product_id`/`service_id` do portfólio, sem
+  criar um 4º tipo de regra. Sinal resolvido/descartado nunca dispara
+  regra. `POST /sync` carrega os sinais de cada empresa sincronizada e os
+  passa pro motor. Ainda não existe fonte que gere `CompanySignal`
+  automaticamente (fica pra quando Salesforce/Manual ligarem isso a dado
+  real de CRM) — esta fatia só garante que, uma vez que o sinal exista, o
+  motor reage a ele.
+
 - **Motor de regras ampliado** (Fase C do roadmap, primeira fatia):
   `CorrelationRule` vira modelo persistido (`GET`/`POST /rules`) com 3
   mecanismos — presença/ausência simples, categoria

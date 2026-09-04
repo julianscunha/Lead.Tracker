@@ -18,8 +18,8 @@ from core.models import Company
 from core.normalization import dedup_key, merge_companies, merge_pair
 from core.opportunity_engine import evaluate_rules
 from core.repository import (
-    get_portfolio_by_company, list_active_rules, list_companies, list_products,
-    list_services, save_company, save_contact, save_opportunity,
+    get_portfolio_by_company, list_active_rules, list_companies, list_company_signals,
+    list_products, list_services, save_company, save_contact, save_opportunity,
 )
 from providers.base import ProviderError
 
@@ -110,7 +110,8 @@ async def _evaluate_rules_for_synced_companies(
             portfolio = await get_portfolio_by_company(session, company.id)
             if portfolio is None:
                 continue
-            opportunities = evaluate_rules(portfolio, rules, products=products, services=services)
+            signals = await list_company_signals(session, company.id)
+            opportunities = evaluate_rules(portfolio, rules, products=products, services=services, signals=signals)
             for opportunity in opportunities:
                 await save_opportunity(session, opportunity)
                 generated += 1

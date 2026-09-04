@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.models import Portfolio, Product, ProductRelation, Service
+from core.models import CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import CorrelationRule, RuleError, evaluate_rules
 
 
@@ -153,6 +153,47 @@ def test_substitute_relation_generates_consolidation_opportunity():
     assert result[0].risk_flag is None
 
 
+# ── Sinais de expansão (Fase C, Fatia 2) ──────────────────────────────────────
+
+RENEWAL_RULE = CorrelationRule(
+    id="renovacao_proxima", opportunity_type="renewal",
+    requires=["renewal_upcoming"],
+    justification="Sinal de renovação próxima em aberto.",
+)
+
+
+def _signal(company_id: str, signal_type: str, status: str = "open") -> CompanySignal:
+    return CompanySignal(
+        company_id=company_id, signal_type=signal_type, status=status,
+        source=SourceRef(type="manual", confidence=1.0),
+    )
+
+
+def test_open_signal_triggers_rule_via_requires():
+    pf = Portfolio(company_id="c1")
+    signals = [_signal("c1", "renewal_upcoming")]
+
+    result = evaluate_rules(pf, [RENEWAL_RULE], signals=signals)
+
+    assert len(result) == 1
+    assert result[0].type == "renewal"
+
+
+def test_resolved_signal_never_triggers_rule():
+    pf = Portfolio(company_id="c1")
+    signals = [_signal("c1", "renewal_upcoming", status="resolved")]
+
+    result = evaluate_rules(pf, [RENEWAL_RULE], signals=signals)
+
+    assert result == []
+
+
+def test_evaluate_rules_without_signals_still_works_retrocompat():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    result = evaluate_rules(pf, [VDC365_RULE])
+    assert len(result) == 1
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -166,4 +207,7 @@ if __name__ == "__main__":
     test_prerequisite_relation_generates_risk_flag_not_fake_opportunity()
     test_prerequisite_relation_does_not_fire_when_prerequisite_present()
     test_substitute_relation_generates_consolidation_opportunity()
+    test_open_signal_triggers_rule_via_requires()
+    test_resolved_signal_never_triggers_rule()
+    test_evaluate_rules_without_signals_still_works_retrocompat()
     print("OK — todos os testes do motor de oportunidades passaram")

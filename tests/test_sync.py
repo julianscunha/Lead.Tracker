@@ -10,8 +10,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend.settings import SourceDescriptor
 from backend.sync import sync_all_enabled_sources, sync_source
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, Contact, CorrelationRule, Portfolio
-from core.repository import list_companies, list_contacts, list_opportunities, save_company, save_portfolio, save_rule
+from core.models import Company, CompanySignal, Contact, CorrelationRule, Portfolio, SourceRef
+from core.repository import (
+    list_companies, list_contacts, list_opportunities, save_company, save_company_signal,
+    save_portfolio, save_rule,
+)
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 
@@ -252,6 +255,37 @@ def test_sync_generates_no_opportunity_when_company_has_no_portfolio():
     asyncio.run(run())
 
 
+def test_sync_generates_opportunity_from_open_company_signal():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company])
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            rule = CorrelationRule(
+                id="renovacao_proxima", opportunity_type="renewal",
+                requires=["renewal_upcoming"], justification="Sinal de renovação próxima em aberto.",
+            )
+            async with session_factory() as session:
+                await save_rule(session, rule)
+                await save_portfolio(session, Portfolio(company_id=company.id))
+                await save_company_signal(session, CompanySignal(
+                    company_id=company.id, signal_type="renewal_upcoming",
+                    source=SourceRef(type="manual", confidence=1.0),
+                ))
+
+            result = await sync_source(session_factory, source, {})
+
+            assert result.opportunities_generated == 1
+            async with session_factory() as session:
+                opportunities = await list_opportunities(session, company_id=company.id)
+            assert len(opportunities) == 1
+            assert opportunities[0].type == "renewal"
+
+    asyncio.run(run())
+
+
 def test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -274,5 +308,6 @@ if __name__ == "__main__":
     test_sync_generates_opportunity_when_active_rule_and_portfolio_exist()
     test_sync_twice_never_duplicates_opportunity()
     test_sync_generates_no_opportunity_when_company_has_no_portfolio()
+    test_sync_generates_opportunity_from_open_company_signal()
     test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources()
     print("OK — todos os testes de sincronização passaram")
