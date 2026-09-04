@@ -15,11 +15,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
-    CompanyORM, CompanySignalORM, ContactORM, OpportunityORM, OpportunityStatusChangeORM,
-    PortfolioORM, ProductORM, ServiceORM, VendorORM,
+    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, OpportunityORM,
+    OpportunityStatusChangeORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
 )
 from core.models import (
-    Company, CompanySignal, ContextNote, Contact, Opportunity, OpportunityStatus,
+    Company, CompanySignal, ContextNote, Contact, CorrelationRule, Opportunity, OpportunityStatus,
     OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef, Vendor,
 )
 
@@ -179,6 +179,7 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         financial_potential=row.financial_potential, strategic_score=row.strategic_score,
         confidence_score=row.confidence_score, evidence=row.evidence, justification=row.justification,
         sources=_sources_from_json(row.sources), status=OpportunityStatus(row.status),
+        risk_flag=row.risk_flag,
     )
 
 
@@ -190,6 +191,7 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
         strategic_score=opportunity.strategic_score, confidence_score=opportunity.confidence_score,
         evidence=opportunity.evidence, justification=opportunity.justification,
         sources=_sources_to_json(opportunity.sources), status=opportunity.status.value,
+        risk_flag=opportunity.risk_flag,
     ))
 
 
@@ -259,3 +261,35 @@ async def list_opportunity_status_changes(session: AsyncSession, opportunity_id:
         id=r.id, opportunity_id=r.opportunity_id,
         status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at),
     ) for r in rows]
+
+
+# ── CorrelationRule ──────────────────────────────────────────────────────────
+
+async def save_rule(session: AsyncSession, rule: CorrelationRule) -> None:
+    await _upsert(session, CorrelationRuleORM(
+        id=rule.id, opportunity_type=rule.opportunity_type, justification=rule.justification,
+        requires=rule.requires, absent=rule.absent,
+        requires_category=rule.requires_category, absent_category=rule.absent_category,
+        relation_type=rule.relation_type, opportunity_score=rule.opportunity_score,
+        confidence_score=rule.confidence_score, active=rule.active,
+    ))
+
+
+def _rule_from_row(row: CorrelationRuleORM) -> CorrelationRule:
+    return CorrelationRule(
+        id=row.id, opportunity_type=row.opportunity_type, justification=row.justification,
+        requires=row.requires, absent=row.absent,
+        requires_category=row.requires_category, absent_category=row.absent_category,
+        relation_type=row.relation_type, opportunity_score=row.opportunity_score,
+        confidence_score=row.confidence_score, active=row.active,
+    )
+
+
+async def list_rules(session: AsyncSession) -> list[CorrelationRule]:
+    rows = (await session.execute(select(CorrelationRuleORM))).scalars().all()
+    return [_rule_from_row(r) for r in rows]
+
+
+async def list_active_rules(session: AsyncSession) -> list[CorrelationRule]:
+    rows = (await session.execute(select(CorrelationRuleORM).where(CorrelationRuleORM.active == True))).scalars().all()  # noqa: E712
+    return [_rule_from_row(r) for r in rows]

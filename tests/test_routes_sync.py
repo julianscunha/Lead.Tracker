@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 import main as backend_main
 from backend import routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, Opportunity, OpportunityStatus, SourceRef
-from core.repository import save_company, save_opportunity
+from core.models import Company, Opportunity, OpportunityStatus, Product, Service, SourceRef
+from core.repository import save_company, save_opportunity, save_product, save_service
 
 app = FastAPI()
 app.include_router(backend_main.router)
@@ -145,6 +145,66 @@ def test_sync_endpoint_reads_isolated_env_never_the_real_module_env():
         assert "incompleta" in body[0]["errors"][0]
 
 
+def test_get_opportunities_includes_risk_flag():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(
+            company_id=company.id, type="risk", risk_flag="vdc365 sem assessment.",
+            sources=[SourceRef(type="rule_engine")],
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get("/modules/lead_tracker/opportunities")
+        assert resp.json()[0]["risk_flag"] == "vdc365 sem assessment."
+
+
+def test_get_products_and_services_return_catalog():
+    with _TempDb() as db:
+        import asyncio
+        product = Product(id="veeam_vbr", vendor_id="v1", name="Veeam VBR", category="backup")
+        service = Service(id="zabbix", name="Zabbix", category="monitoring")
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_product(session, product)
+                await save_service(session, service)
+        asyncio.run(seed())
+
+        products_resp = client.get("/modules/lead_tracker/products")
+        services_resp = client.get("/modules/lead_tracker/services")
+        assert products_resp.json()[0]["category"] == "backup"
+        assert services_resp.json()[0]["category"] == "monitoring"
+
+
+def test_post_rule_creates_and_get_rules_lists_it():
+    with _TempDb():
+        body = {
+            "opportunity_type": "cross-sell", "justification": "Tem backup, sem monitoramento.",
+            "requires_category": ["backup"], "absent_category": ["monitoring"],
+        }
+        create_resp = client.post("/modules/lead_tracker/rules", json=body)
+        assert create_resp.status_code == 200
+        assert create_resp.json()["active"] is True
+
+        list_resp = client.get("/modules/lead_tracker/rules")
+        assert len(list_resp.json()) == 1
+        assert list_resp.json()[0]["requires_category"] == ["backup"]
+
+
+def test_post_rule_without_any_evidence_mechanism_returns_friendly_error():
+    with _TempDb():
+        body = {"opportunity_type": "cross-sell", "justification": "sem evidência nenhuma"}
+        resp = client.post("/modules/lead_tracker/rules", json=body)
+        assert resp.status_code == 422
+        assert "evidência" in resp.json()["detail"]
+
+
 if __name__ == "__main__":
     test_get_companies_returns_empty_list_on_fresh_install()
     test_get_companies_returns_persisted_company()
@@ -153,4 +213,8 @@ if __name__ == "__main__":
     test_get_dashboard_metrics_reflects_empty_state_honestly()
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()
     test_sync_endpoint_reads_isolated_env_never_the_real_module_env()
+    test_get_opportunities_includes_risk_flag()
+    test_get_products_and_services_return_catalog()
+    test_post_rule_creates_and_get_rules_lists_it()
+    test_post_rule_without_any_evidence_mechanism_returns_friendly_error()
     print("OK — todos os testes HTTP de dado real passaram")

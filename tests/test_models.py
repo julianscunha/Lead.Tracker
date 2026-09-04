@@ -5,8 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.models import (
-    Company, CompanySignal, ContextNote, Product, ProductRelation, Service, SourceRef, Vendor,
-    Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
+    Company, CompanySignal, ContextNote, CorrelationRule, Product, ProductRelation, RuleError,
+    Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
 )
 
 
@@ -99,6 +99,55 @@ def test_opportunity_status_change_captures_status_and_timestamp():
     assert change.entered_at is not None
 
 
+# ── CorrelationRule (Fase C) ──────────────────────────────────────────────────
+
+def test_correlation_rule_accepts_single_mechanism():
+    CorrelationRule(id="r1", opportunity_type="x", requires=["a"], justification="j")
+    CorrelationRule(id="r2", opportunity_type="x", requires_category=["backup"], justification="j")
+    CorrelationRule(id="r3", opportunity_type="x", relation_type="prerequisite", justification="j")
+
+
+def test_correlation_rule_rejects_no_mechanism():
+    try:
+        CorrelationRule(id="r", opportunity_type="x", justification="j")
+        assert False, "deveria rejeitar regra sem nenhum mecanismo"
+    except RuleError:
+        pass
+
+
+def test_correlation_rule_rejects_combined_mechanisms():
+    try:
+        CorrelationRule(
+            id="r", opportunity_type="x", justification="j",
+            requires=["a"], requires_category=["backup"],
+        )
+        assert False, "deveria rejeitar regra combinando dois mecanismos"
+    except RuleError:
+        pass
+
+    try:
+        CorrelationRule(
+            id="r2", opportunity_type="x", justification="j",
+            requires=["a"], relation_type="prerequisite",
+        )
+        assert False, "deveria rejeitar requires + relation_type combinados"
+    except RuleError:
+        pass
+
+
+def test_correlation_rule_rejects_unknown_relation_type():
+    try:
+        CorrelationRule(id="r", opportunity_type="x", justification="j", relation_type="lixo")
+        assert False, "deveria rejeitar relation_type desconhecido — regra morta silenciosa"
+    except RuleError:
+        pass
+
+
+def test_correlation_rule_accepts_known_relation_types():
+    CorrelationRule(id="r1", opportunity_type="x", justification="j", relation_type="prerequisite")
+    CorrelationRule(id="r2", opportunity_type="x", justification="j", relation_type="substitute")
+
+
 if __name__ == "__main__":
     test_company_defaults_and_sources()
     test_source_confidence_bounds()
@@ -113,4 +162,9 @@ if __name__ == "__main__":
     test_product_and_service_have_optional_category()
     test_company_signal_requires_source_and_defaults_open()
     test_opportunity_status_change_captures_status_and_timestamp()
+    test_correlation_rule_accepts_single_mechanism()
+    test_correlation_rule_rejects_no_mechanism()
+    test_correlation_rule_rejects_combined_mechanisms()
+    test_correlation_rule_rejects_unknown_relation_type()
+    test_correlation_rule_accepts_known_relation_types()
     print("OK — todos os testes de modelos passaram")

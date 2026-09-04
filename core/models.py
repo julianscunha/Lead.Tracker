@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def _now() -> datetime:
@@ -131,6 +131,10 @@ class Opportunity(BaseModel):
     justification: str | None = None
     sources: list[SourceRef] = Field(default_factory=list)
     status: OpportunityStatus = OpportunityStatus.DETECTED
+    # Preenchido por regra de pré-requisito (relation_type="prerequisite"):
+    # produto vendido sem o pré-requisito é risco técnico, não oportunidade
+    # de venda — string livre descrevendo o risco, nunca um novo Opportunity.
+    risk_flag: str | None = None
 
 
 class Portfolio(BaseModel):
@@ -166,3 +170,65 @@ class OpportunityStatusChange(BaseModel):
     opportunity_id: str
     status: OpportunityStatus
     entered_at: datetime = Field(default_factory=_now)
+
+
+class RuleError(Exception):
+    """Regra de correlação mal definida (ex.: sem nenhum mecanismo de
+    evidência) — nunca vira Opportunity, sempre barrada na criação."""
+
+
+class CorrelationRule(BaseModel):
+    """
+    Regra de correlação determinística (Fase C do roadmap) — 3 tipos no
+    total, nunca mais (resistir a pedido de motor tipo query language):
+
+    1. Presença/ausência simples: `requires`/`absent` (ids de vendor/
+       product/service no portfólio) — forma original, já existia.
+    2. Por categoria: `requires_category`/`absent_category` (categoria de
+       Product/Service) — generaliza sem exigir listar item por item.
+    3. Por relação tipada: `relation_type` ("prerequisite" ou "substitute",
+       de `ProductRelation`) — "substitute" gera oportunidade de
+       consolidação; "prerequisite" sinaliza `Opportunity.risk_flag`, nunca
+       inventa oportunidade de venda.
+
+    Uma regra usa só UM desses três mecanismos por vez.
+    """
+    id: str = Field(default_factory=_new_id)
+    opportunity_type: str
+    justification: str
+    requires: list[str] = Field(default_factory=list)
+    absent: list[str] = Field(default_factory=list)
+    requires_category: list[str] = Field(default_factory=list)
+    absent_category: list[str] = Field(default_factory=list)
+    relation_type: str | None = None
+    opportunity_score: float = 1.0
+    confidence_score: float = 1.0
+    active: bool = True
+
+    @model_validator(mode="after")
+    def _requires_exactly_one_evidence_mechanism(self) -> "CorrelationRule":
+        mechanisms = [
+            bool(self.requires or self.absent),
+            bool(self.requires_category or self.absent_category),
+            bool(self.relation_type),
+        ]
+        used = sum(mechanisms)
+        if used == 0:
+            raise RuleError(
+                f"regra '{self.id}': precisa de 'requires', 'requires_category' "
+                "ou 'relation_type' — oportunidade sem evidência"
+            )
+        if used > 1:
+            raise RuleError(
+                f"regra '{self.id}': só pode usar UM mecanismo por vez — "
+                "item, categoria OU relação, nunca combinados"
+            )
+        if self.relation_type is not None and self.relation_type not in ("prerequisite", "substitute"):
+            # Convenção de valor, não Enum fechado (núcleo genérico) — mas
+            # só essas duas o motor sabe avaliar hoje; qualquer outra vira
+            # regra "morta" silenciosa (nunca dispara, nunca avisa ninguém).
+            raise RuleError(
+                f"regra '{self.id}': relation_type '{self.relation_type}' não é avaliado pelo motor "
+                "— use 'prerequisite' ou 'substitute'"
+            )
+        return self

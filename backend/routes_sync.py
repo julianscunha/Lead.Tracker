@@ -1,8 +1,8 @@
 """
-Rotas de dado real (Fase B.1 do roadmap): sincronização + leitura de
-companies/opportunities/métricas do banco — substituem sampleData.ts/
-sampleMetrics.ts no frontend. Nenhuma rota aqui gera oportunidade por
-regra (sem persistência de regra ainda — ver docs/specs/fase-b1-ligacao-real.md).
+Rotas de dado real (Fase B.1/C do roadmap): sincronização + leitura de
+companies/opportunities/métricas do banco (substituem sampleData.ts/
+sampleMetrics.ts no frontend) + CRUD mínimo de regra de correlação e
+catálogo (produto/serviço) pro editor de regras.
 """
 from __future__ import annotations
 
@@ -17,14 +17,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend import routes_settings  # _ENV_PATH acessado via módulo, não import direto — precisa
                                        # refletir monkeypatch de teste em routes_settings._ENV_PATH
 from backend.db_session import session_factory
+from backend.http_errors import raise_http
 from backend.sync import sync_all_enabled_sources
 from core.config import load_env
 from core.dashboard_metrics import (
     compute_kpis, customer_vs_prospect, distribution_by_vendor,
     financial_potential_by_vendor, funnel_counts, opportunities_by_service,
 )
-from core.models import Company
-from core.repository import list_companies, list_opportunities, list_products, list_services, list_vendors
+from core.errors import DomainError, ErrorCategory
+from core.models import Company, CorrelationRule, Product, RuleError, Service
+from core.repository import (
+    list_companies, list_opportunities, list_products, list_rules, list_services,
+    list_vendors, save_rule,
+)
 
 router = APIRouter(tags=["lead_tracker-data"])
 
@@ -33,6 +38,7 @@ class SyncResultOut(BaseModel):
     source_id: str
     companies_synced: int
     contacts_synced: int
+    opportunities_generated: int
     errors: list[str]
 
 
@@ -54,6 +60,20 @@ class OpportunityOut(BaseModel):
     justification: str | None
     sources: list[dict]
     status: str
+    risk_flag: str | None
+
+
+class RuleIn(BaseModel):
+    opportunity_type: str
+    justification: str
+    requires: list[str] = []
+    absent: list[str] = []
+    requires_category: list[str] = []
+    absent_category: list[str] = []
+    relation_type: str | None = None
+    opportunity_score: float = 1.0
+    confidence_score: float = 1.0
+    active: bool = True
 
 
 @router.post("/sync")
@@ -90,8 +110,38 @@ async def get_opportunities(company_id: str | None = None) -> list[OpportunityOu
             strategic_score=o.strategic_score, confidence_score=o.confidence_score,
             evidence=o.evidence, justification=o.justification,
             sources=[s.model_dump() for s in o.sources], status=o.status.value,
+            risk_flag=o.risk_flag,
         ))
     return out
+
+
+@router.get("/products")
+async def get_products() -> list[Product]:
+    async with session_factory() as session:
+        return await list_products(session)
+
+
+@router.get("/services")
+async def get_services() -> list[Service]:
+    async with session_factory() as session:
+        return await list_services(session)
+
+
+@router.get("/rules")
+async def get_rules() -> list[CorrelationRule]:
+    async with session_factory() as session:
+        return await list_rules(session)
+
+
+@router.post("/rules")
+async def create_rule(body: RuleIn) -> CorrelationRule:
+    try:
+        rule = CorrelationRule(**body.model_dump())
+    except RuleError as exc:
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, str(exc)))
+    async with session_factory() as session:
+        await save_rule(session, rule)
+    return rule
 
 
 @router.get("/dashboard-metrics")

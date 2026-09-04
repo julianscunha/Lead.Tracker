@@ -85,6 +85,7 @@ class OpportunityORM(Base):
     justification: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String)
+    risk_flag: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class PortfolioORM(Base):
@@ -117,3 +118,18 @@ class OpportunityStatusChangeORM(Base):
     opportunity_id: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String)
     entered_at: Mapped[datetime] = mapped_column()
+
+
+class CorrelationRuleORM(Base):
+    __tablename__ = "correlation_rules"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    opportunity_type: Mapped[str] = mapped_column(String)
+    justification: Mapped[str] = mapped_column(String)
+    requires: Mapped[list] = mapped_column(JSON, default=list)
+    absent: Mapped[list] = mapped_column(JSON, default=list)
+    requires_category: Mapped[list] = mapped_column(JSON, default=list)
+    absent_category: Mapped[list] = mapped_column(JSON, default=list)
+    relation_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    opportunity_score: Mapped[float] = mapped_column(Float)
+    confidence_score: Mapped[float] = mapped_column(Float)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -4,6 +4,20 @@
 
 ### Adicionado
 
+- **Motor de regras ampliado** (Fase C do roadmap, primeira fatia):
+  `CorrelationRule` vira modelo persistido (`GET`/`POST /rules`) com 3
+  mecanismos — presença/ausência simples, categoria
+  (`requires_category`/`absent_category`, via `Product`/`Service.category`
+  da Fase B) e relação tipada (`relation_type`, via
+  `Product.related_services` da Fase B): `prerequisite` sinaliza
+  `Opportunity.risk_flag` (nunca inventa oportunidade de venda fake),
+  `substitute` gera oportunidade de consolidação. `POST /sync` agora roda
+  o motor contra o portfólio já conhecido de cada empresa sincronizada —
+  empresa sem portfólio cadastrado não gera nada (honesto, não é bug).
+  Editor de regras na tela de Configurações: sempre por dropdown
+  alimentado pelo catálogo real (`GET /products`/`GET /services`), nunca
+  campo de texto livre pro item/categoria que dispara a regra.
+
 - **Ligação real** (Fase B.1 do roadmap): o módulo para de rodar sobre dado
   fictício. Botão "Atualizar dados" (Configurações) aciona
   `POST /sync`, que busca empresas/contatos de cada fonte habilitada,

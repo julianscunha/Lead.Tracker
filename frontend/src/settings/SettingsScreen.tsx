@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
 
 export function summarizeSync(results: SyncResult[]): string {
@@ -60,6 +61,8 @@ export function SettingsScreen() {
           />
         ))}
       </div>
+
+      <RulesSection />
     </div>
   )
 }

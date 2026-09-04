@@ -14,10 +14,10 @@ from core.models import (
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
-    get_company, get_portfolio_by_company, list_companies, list_company_signals,
-    list_opportunities, list_opportunity_status_changes, list_vendors, save_company,
-    save_company_signal, save_opportunity, save_opportunity_status_change,
-    save_portfolio, save_vendor,
+    get_company, get_portfolio_by_company, list_active_rules, list_companies,
+    list_company_signals, list_opportunities, list_opportunity_status_changes,
+    list_rules, list_vendors, save_company, save_company_signal, save_opportunity,
+    save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
 )
 
 
@@ -220,6 +220,65 @@ def test_opportunity_status_change_round_trip():
     asyncio.run(run())
 
 
+def test_correlation_rule_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            rule = CorrelationRule(
+                id="backup_sem_monitoring", opportunity_type="cross-sell",
+                requires_category=["backup"], absent_category=["monitoring"],
+                justification="Tem backup, sem monitoramento.", active=False,
+            )
+
+            async with session_factory() as session:
+                await save_rule(session, rule)
+            async with session_factory() as session:
+                loaded = await list_rules(session)
+
+            assert len(loaded) == 1
+            assert loaded[0].requires_category == ["backup"]
+            assert loaded[0].active is False
+
+    asyncio.run(run())
+
+
+def test_list_active_rules_filters_inactive():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            active = CorrelationRule(id="ativa", opportunity_type="x", requires=["a"], justification="j")
+            inactive = CorrelationRule(id="inativa", opportunity_type="x", requires=["a"], justification="j", active=False)
+
+            async with session_factory() as session:
+                await save_rule(session, active)
+                await save_rule(session, inactive)
+            async with session_factory() as session:
+                loaded = await list_active_rules(session)
+
+            assert [r.id for r in loaded] == ["ativa"]
+
+    asyncio.run(run())
+
+
+def test_opportunity_risk_flag_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            opportunity = Opportunity(
+                company_id="c1", type="risk", risk_flag="vdc365 vendido sem assessment.",
+                sources=[SourceRef(type="rule_engine")],
+            )
+
+            async with session_factory() as session:
+                await save_opportunity(session, opportunity)
+            async with session_factory() as session:
+                loaded = await list_opportunities(session, company_id="c1")
+
+            assert loaded[0].risk_flag == "vdc365 vendido sem assessment."
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_get_company_returns_none_when_not_found()
@@ -230,4 +289,7 @@ if __name__ == "__main__":
     test_company_without_fase_b_fields_round_trips_as_none()
     test_company_signal_round_trip()
     test_opportunity_status_change_round_trip()
+    test_correlation_rule_round_trip()
+    test_list_active_rules_filters_inactive()
+    test_opportunity_risk_flag_round_trips()
     print("OK — todos os testes de persistência passaram")

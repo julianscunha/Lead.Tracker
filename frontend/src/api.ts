@@ -244,3 +244,70 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     funnelCounts: d.funnel_counts,
   }
 }
+
+// ── Regras e catálogo (Fase C) ────────────────────────────────────────────────
+// Espelham core/models.py direto (mesmo padrão de SourceStatus) — sem
+// adaptador camelCase, é tela de configuração, não de resultado.
+
+export interface Product {
+  id: string
+  vendor_id: string
+  name: string
+  category: string | null
+}
+
+export interface Service {
+  id: string
+  name: string
+  category: string | null
+}
+
+export interface CorrelationRule {
+  id: string
+  opportunity_type: string
+  justification: string
+  requires: string[]
+  absent: string[]
+  requires_category: string[]
+  absent_category: string[]
+  relation_type: string | null
+  active: boolean
+}
+
+export interface NewRule {
+  opportunity_type: string
+  justification: string
+  requires?: string[]
+  absent?: string[]
+  requires_category?: string[]
+  absent_category?: string[]
+  relation_type?: string | null
+}
+
+export async function listProducts(): Promise<Product[]> {
+  const resp = await fetch(`${BASE}/products`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function listServices(): Promise<Service[]> {
+  const resp = await fetch(`${BASE}/services`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function listRules(): Promise<CorrelationRule[]> {
+  const resp = await fetch(`${BASE}/rules`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function createRule(rule: NewRule): Promise<CorrelationRule> {
+  const resp = await fetch(`${BASE}/rules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
