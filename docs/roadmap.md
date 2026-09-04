@@ -371,6 +371,29 @@ em paralelo às Fases D/E/F, não depende delas.
   mesmo princípio de "IA nunca decide sozinha" aplicado ao pipeline, não só
   ao envio de e-mail.
 
+## Débito técnico que bloqueia release de produção (não bloqueia dev)
+
+**Migração de schema (Alembic).** Hoje `core/db.py::init_db()` usa
+`Base.metadata.create_all()` — cria tabela ausente, mas **nunca adiciona
+coluna nova a uma tabela que já existe**. Isso já se provou um problema
+real durante o desenvolvimento (Fases B e C adicionaram colunas várias
+vezes; cada vez foi preciso apagar e recriar o banco de dev manualmente).
+
+**Por que é aceitável agora e deixa de ser:** aceitável enquanto só existem
+bancos de desenvolvimento/teste, sem instalação real com dado de cliente.
+Deixa de ser aceitável no momento em que existir a primeira instalação em
+produção — a primeira atualização de versão com schema novo depois disso
+quebraria com "no such column" sem aviso, sem forma de recuperar o dado já
+gravado.
+
+**O que fazer, quando chegar a hora:** o Tech.Forge Core já usa Alembic
+(é dependência dele, não uma ferramenta nova pro projeto) — adotar o mesmo
+aqui: gerar migração por mudança de schema, `alembic upgrade head` no
+`install()`/`enable()` do módulo em vez de `create_all()` puro. Não é uma
+fase do produto (não entrega nada pro usuário final), é item de checklist
+de `shipping-and-launch` — fazer antes do primeiro release real, não antes
+de continuar as fases de feature.
+
 ## Fora de escopo (mencionado pelas personas, descartado por ora)
 
 - Scraping de LinkedIn/job postings, sentiment analysis de e-mail — alto
