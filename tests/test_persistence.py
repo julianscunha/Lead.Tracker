@@ -8,11 +8,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, Opportunity, OpportunityStatus, Portfolio, SourceRef, Vendor
+from core.models import (
+    Company, CompanySignal, ContextNote, Opportunity, OpportunityStatus,
+    OpportunityStatusChange, Portfolio, SourceRef, Vendor,
+)
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
-    get_company, get_portfolio_by_company, list_companies, list_opportunities,
-    list_vendors, save_company, save_opportunity, save_portfolio, save_vendor,
+    get_company, get_portfolio_by_company, list_companies, list_company_signals,
+    list_opportunities, list_opportunity_status_changes, list_vendors, save_company,
+    save_company_signal, save_opportunity, save_opportunity_status_change,
+    save_portfolio, save_vendor,
 )
 
 
@@ -135,10 +140,94 @@ def test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity():
     asyncio.run(run())
 
 
+def test_company_fase_b_fields_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(
+                name="Aurora Sistemas", rep_id="rep-1", segment="média", region="sudeste",
+                trigger_event=ContextNote(text="Renovação em 30 dias", source=SourceRef(type="salesforce")),
+                attempted_solutions=[ContextNote(text="Tentou backup manual", source=SourceRef(type="manual"))],
+                strategic_context=ContextNote(text="Expansão para novo escritório", source=SourceRef(type="website")),
+            )
+
+            async with session_factory() as session:
+                await save_company(session, company)
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+
+            assert loaded.rep_id == "rep-1"
+            assert loaded.segment == "média"
+            assert loaded.trigger_event.text == "Renovação em 30 dias"
+            assert loaded.attempted_solutions[0].source.type == "manual"
+            assert loaded.strategic_context.text == "Expansão para novo escritório"
+
+    asyncio.run(run())
+
+
+def test_company_without_fase_b_fields_round_trips_as_none():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+
+            assert loaded.trigger_event is None
+            assert loaded.attempted_solutions == []
+
+    asyncio.run(run())
+
+
+def test_company_signal_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            signal = CompanySignal(
+                company_id="c1", signal_type="renewal_upcoming",
+                evidence=["contrato vence em 2026-10-01"], source=SourceRef(type="salesforce"),
+            )
+
+            async with session_factory() as session:
+                await save_company_signal(session, signal)
+            async with session_factory() as session:
+                loaded = await list_company_signals(session, "c1")
+
+            assert len(loaded) == 1
+            assert loaded[0].signal_type == "renewal_upcoming"
+            assert loaded[0].status == "open"
+
+    asyncio.run(run())
+
+
+def test_opportunity_status_change_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            change = OpportunityStatusChange(opportunity_id="o1", status=OpportunityStatus.QUALIFIED)
+
+            async with session_factory() as session:
+                await save_opportunity_status_change(session, change)
+            async with session_factory() as session:
+                loaded = await list_opportunity_status_changes(session, "o1")
+
+            assert len(loaded) == 1
+            assert loaded[0].status == OpportunityStatus.QUALIFIED
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_get_company_returns_none_when_not_found()
     test_save_company_twice_upserts_not_duplicates()
     test_portfolio_round_trip_by_company_id()
     test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity()
+    test_company_fase_b_fields_round_trip()
+    test_company_without_fase_b_fields_round_trips_as_none()
+    test_company_signal_round_trip()
+    test_opportunity_status_change_round_trip()
     print("OK — todos os testes de persistência passaram")

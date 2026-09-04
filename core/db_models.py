@@ -25,7 +25,8 @@ class ProductORM(Base):
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str | None] = mapped_column(String, nullable=True)
-    related_service_ids: Mapped[list] = mapped_column(JSON, default=list)
+    category: Mapped[str | None] = mapped_column(String, nullable=True)
+    related_services: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class ServiceORM(Base):
@@ -34,6 +35,7 @@ class ServiceORM(Base):
     name: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str | None] = mapped_column(String, nullable=True)
+    category: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class CompanyORM(Base):
@@ -47,6 +49,12 @@ class CompanyORM(Base):
     sources: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
+    rep_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    segment: Mapped[str | None] = mapped_column(String, nullable=True)
+    region: Mapped[str | None] = mapped_column(String, nullable=True)
+    trigger_event: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    attempted_solutions: Mapped[list] = mapped_column(JSON, default=list)
+    strategic_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class ContactORM(Base):
@@ -58,6 +66,7 @@ class ContactORM(Base):
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str | None] = mapped_column(String, nullable=True)
     sources: Mapped[list] = mapped_column(JSON, default=list)
+    impacted_area: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OpportunityORM(Base):
@@ -88,3 +97,23 @@ class PortfolioORM(Base):
     relations: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column()
+
+
+class CompanySignalORM(Base):
+    __tablename__ = "company_signals"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    company_id: Mapped[str] = mapped_column(String)
+    signal_type: Mapped[str] = mapped_column(String)
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    source: Mapped[dict] = mapped_column(JSON)
+    confidence: Mapped[float] = mapped_column(Float)
+    detected_at: Mapped[datetime] = mapped_column()
+    status: Mapped[str] = mapped_column(String)
+
+
+class OpportunityStatusChangeORM(Base):
+    __tablename__ = "opportunity_status_changes"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    opportunity_id: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String)
+    entered_at: Mapped[datetime] = mapped_column()

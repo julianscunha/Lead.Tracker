@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- Fundação de modelo de dados (Fase B do roadmap): `Company` ganha
+  `rep_id`/`segment`/`region`/`trigger_event`/`attempted_solutions`/
+  `strategic_context`; `Contact` ganha `impacted_area`; `Product`/`Service`
+  ganham `category`; `Product.related_service_ids` (lista de strings) vira
+  `Product.related_services` (lista de `ProductRelation`, com
+  `relation_type` — `prerequisite`/`complementary`/`substitute` por
+  convenção, não `Enum` fechado). Dois modelos/tabelas novos:
+  `CompanySignal` (sinal de expansão/risco, `signal_type` string aberta) e
+  `OpportunityStatusChange` (histórico de transição de status). Todos os
+  campos novos ficam `None`/vazios até uma fonte real preenchê-los — nada
+  inventado. Sem tela, sem rota nova — só schema/modelo e persistência.
 - `SalesforceProvider`: primeira fonte de dados real além do `ManualProvider`.
   Autentica via OAuth 2.0 Client Credentials Flow, consulta `Account`/`Contact`
   via SOQL (REST API), pagina resultados automaticamente. Erros técnicos nunca

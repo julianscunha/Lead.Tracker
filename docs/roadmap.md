@@ -151,9 +151,10 @@ mudou de status" se não foi guardado desde o início.
   medir qualidade de sinal por fonte na Fase D.
 - `category` em `Product`/`Service` — pré-requisito da Fase C (regra "tem
   categoria backup, não tem categoria monitoring").
-- `relation_type` (enum: `prerequisite`/`complementary`/`substitute`) nas
-  relações produto↔produto/serviço, reaproveitando `related_service_ids`/
-  `related_product_ids` já existentes — sem tabela nova.
+- `relation_type` (`prerequisite`/`complementary`/`substitute`, string
+  livre por convenção — implementado como `Product.related_services:
+  list[ProductRelation]`, renomeado de `related_service_ids: list[str]` já
+  que o campo nunca teve consumidor real ainda) — sem tabela nova.
 - Modelo genérico de sinal (`CompanySignal`/`ExpansionSignal`): `signal_type`
   como string aberta, não enum fechado no código — feed pro mesmo motor de
   regras da Fase C, nunca um motor paralelo.

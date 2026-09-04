@@ -31,6 +31,15 @@ class SourceRef(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, default=1.0)
 
 
+class ContextNote(BaseModel):
+    """Fato registrado com fonte e data — nunca texto solto sem
+    rastreabilidade. Reaproveitado onde quer que um campo precise de
+    'porquê' além do valor (trigger_event, attempted_solutions, etc.)."""
+    text: str
+    source: SourceRef
+    observed_at: datetime = Field(default_factory=_now)
+
+
 class Company(BaseModel):
     id: str = Field(default_factory=_new_id)
     name: str
@@ -41,6 +50,14 @@ class Company(BaseModel):
     sources: list[SourceRef] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
+    # Fundação de dado (Fase B do roadmap) — todos None/vazios até uma fonte
+    # real preencher; nenhum valor é inventado aqui.
+    rep_id: str | None = None
+    segment: str | None = None
+    region: str | None = None
+    trigger_event: ContextNote | None = None
+    attempted_solutions: list[ContextNote] = Field(default_factory=list)
+    strategic_context: ContextNote | None = None
 
 
 class Contact(BaseModel):
@@ -53,11 +70,21 @@ class Contact(BaseModel):
     phone: str | None = None
     role: str | None = None
     sources: list[SourceRef] = Field(default_factory=list)
+    # Quem sente o impacto de um gap detectado — string livre (ex.:
+    # "operações/TI", "compliance/risco"), distinto do cargo formal (`role`).
+    impacted_area: str | None = None
 
 
 class Vendor(BaseModel):
     id: str = Field(default_factory=_new_id)
     name: str
+
+
+class ProductRelation(BaseModel):
+    """Relação tipada entre um Product e um Service — convenção, não Enum
+    fechado (núcleo genérico): 'prerequisite' | 'complementary' | 'substitute'."""
+    service_id: str
+    relation_type: str = "complementary"
 
 
 class Product(BaseModel):
@@ -67,7 +94,8 @@ class Product(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     description: str | None = None
     status: str | None = None
-    related_service_ids: list[str] = Field(default_factory=list)
+    category: str | None = None
+    related_services: list[ProductRelation] = Field(default_factory=list)
 
 
 class Service(BaseModel):
@@ -75,6 +103,7 @@ class Service(BaseModel):
     name: str
     description: str | None = None
     status: str | None = None
+    category: str | None = None
 
 
 class OpportunityStatus(str, Enum):
@@ -113,3 +142,27 @@ class Portfolio(BaseModel):
     relations: list[dict] = Field(default_factory=list)
     notes: str | None = None
     updated_at: datetime = Field(default_factory=_now)
+
+
+class CompanySignal(BaseModel):
+    """Sinal de expansão/risco em uma empresa (renovação próxima, troca de
+    contato-chave, adoção parcial, ...) — alimenta o mesmo motor de regras
+    da Opportunity, nunca um motor paralelo. `signal_type` é string aberta:
+    o núcleo não fecha a lista de tipos possíveis."""
+    id: str = Field(default_factory=_new_id)
+    company_id: str
+    signal_type: str
+    evidence: list[str] = Field(default_factory=list)
+    source: SourceRef
+    confidence: float = Field(ge=0.0, le=1.0, default=1.0)
+    detected_at: datetime = Field(default_factory=_now)
+    status: str = "open"  # open | resolved | dismissed
+
+
+class OpportunityStatusChange(BaseModel):
+    """Histórico de transição de status de uma Opportunity — pré-requisito
+    de qualquer métrica de tempo parado/velocity (Fase D)."""
+    id: str = Field(default_factory=_new_id)
+    opportunity_id: str
+    status: OpportunityStatus
+    entered_at: datetime = Field(default_factory=_now)

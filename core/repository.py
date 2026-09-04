@@ -3,7 +3,7 @@ Repositório — ponte entre os modelos de domínio (Pydantic,
 core/models.py) e as tabelas (SQLAlchemy, core/db_models.py).
 
 Upsert via session.merge() (insere ou atualiza pela PK, sem exists-check
-manual). Mapeamento Pydantic<->ORM fica explícito por entidade — 7 entidades
+manual). Mapeamento Pydantic<->ORM fica explícito por entidade — 9 entidades
 com forma idêntica de CRUD justificam esse tanto de repetição; um
 Repository[T] genérico esconderia a diferença de campos entre elas.
 """
@@ -15,10 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
-    CompanyORM, ContactORM, OpportunityORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
+    CompanyORM, CompanySignalORM, ContactORM, OpportunityORM, OpportunityStatusChangeORM,
+    PortfolioORM, ProductORM, ServiceORM, VendorORM,
 )
 from core.models import (
-    Company, Contact, Opportunity, OpportunityStatus, Portfolio, Product, Service, SourceRef, Vendor,
+    Company, CompanySignal, ContextNote, Contact, Opportunity, OpportunityStatus,
+    OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef, Vendor,
 )
 
 
@@ -28,6 +30,30 @@ def _sources_to_json(sources: list[SourceRef]) -> list[dict]:
 
 def _sources_from_json(data: list[dict] | None) -> list[SourceRef]:
     return [SourceRef(**d) for d in (data or [])]
+
+
+def _note_to_json(note: ContextNote | None) -> dict | None:
+    return note.model_dump(mode="json") if note else None
+
+
+def _note_from_json(data: dict | None) -> ContextNote | None:
+    return ContextNote(**data) if data else None
+
+
+def _notes_to_json(notes: list[ContextNote]) -> list[dict]:
+    return [n.model_dump(mode="json") for n in notes]
+
+
+def _notes_from_json(data: list[dict] | None) -> list[ContextNote]:
+    return [ContextNote(**d) for d in (data or [])]
+
+
+def _relations_to_json(relations: list[ProductRelation]) -> list[dict]:
+    return [r.model_dump() for r in relations]
+
+
+def _relations_from_json(data: list[dict] | None) -> list[ProductRelation]:
+    return [ProductRelation(**d) for d in (data or [])]
 
 
 def _ensure_utc(value: datetime) -> datetime:
@@ -59,7 +85,8 @@ async def save_product(session: AsyncSession, product: Product) -> None:
     await _upsert(session, ProductORM(
         id=product.id, vendor_id=product.vendor_id, name=product.name,
         aliases=product.aliases, description=product.description,
-        status=product.status, related_service_ids=product.related_service_ids,
+        status=product.status, category=product.category,
+        related_services=_relations_to_json(product.related_services),
     ))
 
 
@@ -67,7 +94,8 @@ async def list_products(session: AsyncSession) -> list[Product]:
     rows = (await session.execute(select(ProductORM))).scalars().all()
     return [Product(
         id=r.id, vendor_id=r.vendor_id, name=r.name, aliases=r.aliases,
-        description=r.description, status=r.status, related_service_ids=r.related_service_ids,
+        description=r.description, status=r.status, category=r.category,
+        related_services=_relations_from_json(r.related_services),
     ) for r in rows]
 
 
@@ -75,13 +103,16 @@ async def list_products(session: AsyncSession) -> list[Product]:
 
 async def save_service(session: AsyncSession, service: Service) -> None:
     await _upsert(session, ServiceORM(
-        id=service.id, name=service.name, description=service.description, status=service.status,
+        id=service.id, name=service.name, description=service.description,
+        status=service.status, category=service.category,
     ))
 
 
 async def list_services(session: AsyncSession) -> list[Service]:
     rows = (await session.execute(select(ServiceORM))).scalars().all()
-    return [Service(id=r.id, name=r.name, description=r.description, status=r.status) for r in rows]
+    return [Service(
+        id=r.id, name=r.name, description=r.description, status=r.status, category=r.category,
+    ) for r in rows]
 
 
 # ── Company ──────────────────────────────────────────────────────────────────
@@ -91,6 +122,10 @@ def _company_from_row(row: CompanyORM) -> Company:
         id=row.id, name=row.name, legal_name=row.legal_name, website=row.website,
         is_customer=row.is_customer, customer_status=row.customer_status,
         sources=_sources_from_json(row.sources), created_at=_ensure_utc(row.created_at), updated_at=_ensure_utc(row.updated_at),
+        rep_id=row.rep_id, segment=row.segment, region=row.region,
+        trigger_event=_note_from_json(row.trigger_event),
+        attempted_solutions=_notes_from_json(row.attempted_solutions),
+        strategic_context=_note_from_json(row.strategic_context),
     )
 
 
@@ -99,6 +134,10 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         id=company.id, name=company.name, legal_name=company.legal_name, website=company.website,
         is_customer=company.is_customer, customer_status=company.customer_status,
         sources=_sources_to_json(company.sources), created_at=company.created_at, updated_at=company.updated_at,
+        rep_id=company.rep_id, segment=company.segment, region=company.region,
+        trigger_event=_note_to_json(company.trigger_event),
+        attempted_solutions=_notes_to_json(company.attempted_solutions),
+        strategic_context=_note_to_json(company.strategic_context),
     ))
 
 
@@ -118,7 +157,7 @@ async def save_contact(session: AsyncSession, contact: Contact) -> None:
     await _upsert(session, ContactORM(
         id=contact.id, company_id=contact.company_id, name=contact.name,
         email=contact.email, phone=contact.phone, role=contact.role,
-        sources=_sources_to_json(contact.sources),
+        sources=_sources_to_json(contact.sources), impacted_area=contact.impacted_area,
     ))
 
 
@@ -127,6 +166,7 @@ async def list_contacts(session: AsyncSession, company_id: str) -> list[Contact]
     return [Contact(
         id=r.id, company_id=r.company_id, name=r.name, email=r.email,
         role=r.role, phone=r.phone, sources=_sources_from_json(r.sources),
+        impacted_area=r.impacted_area,
     ) for r in rows]
 
 
@@ -181,3 +221,41 @@ async def save_portfolio(session: AsyncSession, portfolio: Portfolio) -> None:
 async def get_portfolio_by_company(session: AsyncSession, company_id: str) -> Portfolio | None:
     row = (await session.execute(select(PortfolioORM).where(PortfolioORM.company_id == company_id))).scalar_one_or_none()
     return _portfolio_from_row(row) if row else None
+
+
+# ── CompanySignal ────────────────────────────────────────────────────────────
+
+async def save_company_signal(session: AsyncSession, signal: CompanySignal) -> None:
+    await _upsert(session, CompanySignalORM(
+        id=signal.id, company_id=signal.company_id, signal_type=signal.signal_type,
+        evidence=signal.evidence, source=signal.source.model_dump(),
+        confidence=signal.confidence, detected_at=signal.detected_at, status=signal.status,
+    ))
+
+
+async def list_company_signals(session: AsyncSession, company_id: str) -> list[CompanySignal]:
+    rows = (await session.execute(select(CompanySignalORM).where(CompanySignalORM.company_id == company_id))).scalars().all()
+    return [CompanySignal(
+        id=r.id, company_id=r.company_id, signal_type=r.signal_type, evidence=r.evidence,
+        source=SourceRef(**r.source), confidence=r.confidence,
+        detected_at=_ensure_utc(r.detected_at), status=r.status,
+    ) for r in rows]
+
+
+# ── OpportunityStatusChange ──────────────────────────────────────────────────
+
+async def save_opportunity_status_change(session: AsyncSession, change: OpportunityStatusChange) -> None:
+    await _upsert(session, OpportunityStatusChangeORM(
+        id=change.id, opportunity_id=change.opportunity_id,
+        status=change.status.value, entered_at=change.entered_at,
+    ))
+
+
+async def list_opportunity_status_changes(session: AsyncSession, opportunity_id: str) -> list[OpportunityStatusChange]:
+    rows = (await session.execute(
+        select(OpportunityStatusChangeORM).where(OpportunityStatusChangeORM.opportunity_id == opportunity_id)
+    )).scalars().all()
+    return [OpportunityStatusChange(
+        id=r.id, opportunity_id=r.opportunity_id,
+        status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at),
+    ) for r in rows]
