@@ -21,3 +21,6 @@ dist/
 
 # Claude Code — config/skills locais, não fazem parte do módulo
 .claude/
+
+# Artefatos de sessão de browser-testing (Playwright MCP) — nunca fazem parte do módulo
+.playwright-mcp/
