@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Alterado
+
+- Renomeado `env-model` de volta para `.env-model` — o Tech.Forge Core
+  v1.1.0 passou a permitir esse dotfile explicitamente no empacotamento
+  (`ALLOWED_DOTFILES` no `PackageBuilder`), então o workaround de nome sem
+  ponto não é mais necessário. `platform_min_version` subiu para `1.1.0`
+  no manifest por causa dessa dependência.
+
 ## [0.1.0] - 2026-09-01
 
 Primeira release.

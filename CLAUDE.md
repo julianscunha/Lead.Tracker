@@ -8,7 +8,7 @@ Lead.Tracker is an **Opportunity Intelligence module for Tech.Forge**. It turns 
 
 ## Architecture
 
-Stack: Python/FastAPI backend, React/TypeScript frontend (Tech.Forge Module Host-compatible), SQLite local persistence (SQLAlchemy async), `.env`/`env-model` config, `.mod` packaging.
+Stack: Python/FastAPI backend, React/TypeScript frontend (Tech.Forge Module Host-compatible), SQLite local persistence (SQLAlchemy async), `.env`/`.env-model` config, `.mod` packaging.
 
 Dependency direction (interface must never reach past its layer, e.g. no direct Salesforce/Maps/AI calls from the UI):
 
@@ -40,7 +40,7 @@ Providers (Salesforce, Website, Google Maps, CSV, Manual, ...) collect and norma
 
 ## Configuration
 
-`.env` holds real install values (never committed). `env-model` is the distributed template. On startup/upgrade: diff `.env` against `env-model`, add only missing keys, never overwrite or remove existing values. Users configure everything through a settings screen — never by hand-editing `.env`. Secrets must never appear in tables, logs, error messages, PDFs, exports, or AI prompts.
+`.env` holds real install values (never committed). `.env-model` is the distributed template — safe to ship inside the `.mod` archive because the Tech.Forge Core packer (v1.1.0+) allowlists this exact dotfile name. On startup/upgrade: diff `.env` against `.env-model`, add only missing keys, never overwrite or remove existing values. Users configure everything through a settings screen — never by hand-editing `.env`. Secrets must never appear in tables, logs, error messages, PDFs, exports, or AI prompts.
 
 ## Error handling & resilience
 
