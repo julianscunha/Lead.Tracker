@@ -76,6 +76,8 @@ produto ou serviço fora do portfólio configurado.
 python tests/test_models.py
 python tests/test_config.py
 python tests/test_providers.py
+python tests/test_salesforce_provider.py
+python tests/test_settings.py
 python tests/test_portfolio.py
 python tests/test_normalization.py
 python tests/test_opportunity_engine.py

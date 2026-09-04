@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ai.email_draft import generate_email_draft
 from ai.factory import create_ai_provider
 from core.config import load_env
+from backend.http_errors import raise_http as _raise_http
 from core.dashboard_metrics import DashboardKPIs
 from core.errors import DomainError, ErrorCategory
 from exports.excel import opportunities_excel
@@ -30,22 +31,6 @@ from exports.types import OpportunityExportRow
 _MODULE_ROOT = Path(__file__).parent.parent
 
 router = APIRouter(tags=["lead_tracker-exports"])
-
-_STATUS_BY_CATEGORY = {
-    ErrorCategory.CONFIGURATION: 503,
-    ErrorCategory.AUTHENTICATION: 502,
-    ErrorCategory.CONNECTIVITY: 502,
-    ErrorCategory.TIMEOUT: 504,
-    ErrorCategory.API_LIMIT: 429,
-    ErrorCategory.INTEGRATION: 502,
-    ErrorCategory.INVALID_DATA: 422,
-    ErrorCategory.AI: 502,
-    ErrorCategory.EXPORT: 500,
-}
-
-
-def _raise_http(exc: DomainError) -> None:
-    raise HTTPException(status_code=_STATUS_BY_CATEGORY.get(exc.category, 500), detail=str(exc)) from exc
 
 
 class OpportunityRowSchema(BaseModel):

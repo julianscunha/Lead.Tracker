@@ -75,3 +75,47 @@ export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraf
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }
+
+export interface SourceField {
+  key: string
+  label: string
+  help_text: string
+  secret: boolean
+  has_value: boolean
+}
+
+export interface LastCheck {
+  status: 'connected' | 'failed' | 'unknown'
+  message: string
+}
+
+export interface SourceStatus {
+  id: string
+  label: string
+  implemented: boolean
+  enabled: boolean | null
+  fields: SourceField[]
+  last_check: LastCheck
+}
+
+export async function listSettings(): Promise<SourceStatus[]> {
+  const resp = await fetch(`${BASE}/settings`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateSettings(sourceId: string, enabled: boolean | null, fields: Record<string, string>): Promise<SourceStatus> {
+  const resp = await fetch(`${BASE}/settings/${sourceId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled, fields }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function testSourceConnection(sourceId: string): Promise<LastCheck> {
+  const resp = await fetch(`${BASE}/settings/${sourceId}/test`, { method: 'POST' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}

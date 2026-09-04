@@ -4,10 +4,11 @@ import { Dashboard } from './dashboard/Dashboard'
 import { applyFilters, defaultFilters, Filters, summarizeFilters, type FilterState } from './Filters'
 import { OpportunityTable } from './OpportunityTable'
 import { sampleOpportunities } from './sampleData'
+import { SettingsScreen } from './settings/SettingsScreen'
 import { styles } from './styles'
 import type { OpportunityRow } from './types'
 
-type Tab = 'dashboard' | 'oportunidades'
+type Tab = 'dashboard' | 'oportunidades' | 'configuracoes'
 
 function OpportunitiesView({ rows }: { rows: OpportunityRow[] }) {
   const [filters, setFilters] = useState<FilterState>(defaultFilters)
@@ -63,8 +64,13 @@ export function App({ rows = sampleOpportunities }: { rows?: OpportunityRow[] })
         <button type="button" role="tab" aria-selected={tab === 'oportunidades'} className="lt-tab" onClick={() => setTab('oportunidades')}>
           Oportunidades
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'configuracoes'} className="lt-tab" onClick={() => setTab('configuracoes')}>
+          Configurações
+        </button>
       </div>
-      {tab === 'dashboard' ? <Dashboard /> : <OpportunitiesView rows={rows} />}
+      {tab === 'dashboard' && <Dashboard />}
+      {tab === 'oportunidades' && <OpportunitiesView rows={rows} />}
+      {tab === 'configuracoes' && <SettingsScreen />}
     </div>
   )
 }

@@ -67,4 +67,16 @@ export const styles = `
 .lt-chart-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }
 .lt-chart-card h3 { font-size: 12px; font-weight: 600; margin: 0 0 12px; color: hsl(var(--text)); }
 .lt-chart-card--wide { grid-column: 1 / -1; }
+
+.lt-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.lt-source-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }
+.lt-source-card__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.lt-source-card__title { font-size: 13px; font-weight: 600; margin: 0; color: hsl(var(--text)); }
+.lt-source-card__status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lt-conn-indicator { font-size: 11px; color: hsl(var(--text-muted)); white-space: nowrap; }
+.lt-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
+.lt-source-card__form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.lt-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.lt-field span:first-child { font-weight: 600; color: hsl(var(--text)); }
+.lt-field input { font-size: 12px; padding: 6px 8px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text)); }
 `

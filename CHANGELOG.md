@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- `SalesforceProvider`: primeira fonte de dados real além do `ManualProvider`.
+  Autentica via OAuth 2.0 Client Credentials Flow, consulta `Account`/`Contact`
+  via SOQL (REST API), pagina resultados automaticamente. Erros técnicos nunca
+  vazam brutos — categorizados em `CONFIGURATION`/`AUTHENTICATION`/`TIMEOUT`/
+  `CONNECTIVITY`/`INTEGRATION`; retry só em erro transitório (429/5xx), nunca
+  em credencial inválida. Sessão expirada em pleno uso (401 no meio de uma
+  consulta) reautentica uma única vez antes de desistir — só vira erro de
+  credencial se a sessão nova também falhar. `company_id` validado contra o
+  formato exato de ID do Salesforce (15 ou 18 caracteres) antes de entrar em
+  qualquer SOQL (evita injeção).
+- Tela de **Configurações de Fontes** (Fase 0 do roadmap): liga/desliga cada
+  fonte (Manual sempre disponível; Salesforce configurável; Website/Google
+  Maps aparecem como "em breve" até os providers existirem), com formulário
+  de credencial em português e teste de conexão automático ao ligar —
+  indicador 🟢/🔴/⚪ ao lado do toggle. Nenhum segredo volta em claro em
+  nenhuma resposta de API. Nova rota `PUT /settings/{id}` grava valor no
+  `.env` sem apagar chave não mencionada (`set_env_values` em
+  `core/config.py`, complementa `sync_env`) — rejeita valor com quebra de
+  linha (evita injeção de chave nova no arquivo) e corrige chave duplicada
+  mantendo só a ocorrência com o valor novo.
+
+### Corrigido
+
+- `SalesforceProvider._authenticate`: resposta 200 com corpo inesperado do
+  Salesforce (sem `access_token`/`instance_url`) não vazava mais como
+  `KeyError`/`JSONDecodeError` cru — vira `ProviderError` categorizado.
+
 ### Alterado
 
 - Renomeado `env-model` de volta para `.env-model` — o Tech.Forge Core

@@ -1,0 +1,166 @@
+- generic [ref=f1e5]:
+  - complementary [ref=f1e6]:
+    - generic [ref=f1e7]: TechForge
+    - navigation [ref=f1e12]:
+      - generic [ref=f1e13]:
+        - link "Dashboard" [ref=f1e14] [cursor=pointer]:
+          - /url: /
+        - link "Módulos" [ref=f1e22] [cursor=pointer]:
+          - /url: /modules
+        - link "Developer Center" [ref=f1e35] [cursor=pointer]:
+          - /url: /developer-center
+      - generic [ref=f1e41]:
+        - generic [ref=f1e42]:
+          - button "Examples 1" [ref=f1e43] [cursor=pointer]:
+            - paragraph [ref=f1e44]: Examples
+            - generic [ref=f1e45]: "1"
+          - button "TechForge" [ref=f1e51] [cursor=pointer]
+        - generic [ref=f1e55]:
+          - button "Sales 1" [ref=f1e56] [cursor=pointer]:
+            - paragraph [ref=f1e57]: Sales
+            - generic [ref=f1e58]: "1"
+          - button "TechForge" [ref=f1e64] [cursor=pointer]
+      - generic [ref=f1e68]:
+        - paragraph [ref=f1e69]: Plataforma
+        - generic [ref=f1e70]:
+          - link "Marketplace" [ref=f1e71] [cursor=pointer]:
+            - /url: /marketplace
+          - link "Diagnostics" [ref=f1e79] [cursor=pointer]:
+            - /url: /diagnostics
+          - link "Configurações" [ref=f1e84] [cursor=pointer]:
+            - /url: /settings
+    - paragraph [ref=f1e91]: v1.1.0
+  - generic [ref=f1e92]:
+    - banner [ref=f1e93]:
+      - generic [ref=f1e94]:
+        - button "Collapse sidebar" [ref=f1e95] [cursor=pointer]
+        - navigation "breadcrumb" [ref=f1e98]:
+          - link "TechForge" [ref=f1e100] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f1e101]: Módulos
+      - generic [ref=f1e105]:
+        - 'button "Ajuda: Ciclo de Vida dos Módulos" [ref=f1e106] [cursor=pointer]'
+        - button "Notificações (8 não lidas)" [ref=f1e111] [cursor=pointer]:
+          - generic [ref=f1e115]: "8"
+        - button "Alternar tema" [ref=f1e116] [cursor=pointer]
+    - main [ref=f1e123]:
+      - generic [ref=f1e125]:
+        - generic [ref=f1e126]:
+          - generic [ref=f1e127]:
+            - generic [ref=f1e128]:
+              - heading "Módulos" [level=1] [ref=f1e129]
+              - paragraph [ref=f1e140]: 2 módulos no registry
+            - generic [ref=f1e141]:
+              - button "Developer Mode" [ref=f1e142] [cursor=pointer]
+              - button "Atualizar" [ref=f1e146] [cursor=pointer]
+          - generic [ref=f1e152]:
+            - generic [ref=f1e153]:
+              - generic [ref=f1e155]: Instalados
+              - generic [ref=f1e156]: "2"
+            - generic [ref=f1e157]:
+              - generic [ref=f1e159]: Desabilitados
+              - generic [ref=f1e160]: "0"
+            - generic [ref=f1e161]:
+              - generic [ref=f1e163]: Inválidos
+              - generic [ref=f1e164]: "0"
+            - generic [ref=f1e165]:
+              - generic [ref=f1e167]: Incompatíveis
+              - generic [ref=f1e168]: "0"
+        - generic [ref=f1e169]:
+          - textbox "Pesquisar módulos…" [ref=f1e174]
+          - generic [ref=f1e175]:
+            - button "Todos" [ref=f1e176] [cursor=pointer]
+            - button "Instalados" [ref=f1e177] [cursor=pointer]
+            - button "Desabilitados" [ref=f1e178] [cursor=pointer]
+            - button "Inválidos" [ref=f1e179] [cursor=pointer]
+            - button "Incompatíveis" [ref=f1e180] [cursor=pointer]
+        - generic [ref=f1e182]:
+          - button "EX Hello World TechForge · v1.0.0 Inválido Instalado Docs 100% Minimal reference module that validates the Phase 2–4 plugin architecture. Demonstrates the complete manifest contract, directory structure, and registry integration. Not a functional tool — architecture proof only. Examples Serviço" [ref=f1e183] [cursor=pointer]:
+            - generic [ref=f1e184]:
+              - generic [ref=f1e185]:
+                - generic [ref=f1e186]: EX
+                - generic [ref=f1e188]:
+                  - paragraph [ref=f1e189]: Hello World
+                  - paragraph [ref=f1e190]: TechForge · v1.0.0
+              - generic [ref=f1e191]:
+                - generic [ref=f1e192]: Inválido
+                - generic [ref=f1e197]: Instalado
+            - generic [ref=f1e201]: Docs 100%
+            - paragraph [ref=f1e206]: Minimal reference module that validates the Phase 2–4 plugin architecture. Demonstrates the complete manifest contract, directory structure, and registry integration. Not a functional tool — architecture proof only.
+            - generic [ref=f1e207]:
+              - generic [ref=f1e208]: Examples
+              - generic [ref=f1e209]: Serviço
+          - 'button "SA Lead.Tracker TechForge · v0.1.1 Inválido Instalado Docs 100% Módulo de Opportunity Intelligence: transforma dados de clientes, prospects, portfólio tecnológico, produtos e serviços em oportunidades comerciais priorizadas (cross-sell, up-sell, modernização, otimização de custos). Sales Aplicação" [active] [ref=f1e213] [cursor=pointer]':
+            - generic [ref=f1e214]:
+              - generic [ref=f1e215]:
+                - generic [ref=f1e216]: SA
+                - generic [ref=f1e218]:
+                  - paragraph [ref=f1e219]: Lead.Tracker
+                  - paragraph [ref=f1e220]: TechForge · v0.1.1
+              - generic [ref=f1e221]:
+                - generic [ref=f1e222]: Inválido
+                - generic [ref=f1e227]: Instalado
+            - generic [ref=f1e231]: Docs 100%
+            - paragraph [ref=f1e236]: "Módulo de Opportunity Intelligence: transforma dados de clientes, prospects, portfólio tecnológico, produtos e serviços em oportunidades comerciais priorizadas (cross-sell, up-sell, modernização, otimização de custos)."
+            - generic [ref=f1e237]:
+              - generic [ref=f1e238]: Sales
+              - generic [ref=f1e239]: Aplicação
+        - generic [ref=f1e244]:
+          - generic [ref=f1e245]:
+            - generic [ref=f1e246]:
+              - generic [ref=f1e247]: SA
+              - generic [ref=f1e249]:
+                - paragraph [ref=f1e250]: Lead.Tracker
+                - paragraph [ref=f1e251]: lead_tracker
+            - button [ref=f1e252] [cursor=pointer]
+          - generic [ref=f1e256]:
+            - generic [ref=f1e257]:
+              - generic [ref=f1e258]:
+                - paragraph [ref=f1e259]: Status
+                - generic [ref=f1e260]: Instalado
+              - generic [ref=f1e262]:
+                - paragraph [ref=f1e263]: Tipo
+                - generic [ref=f1e264]: Aplicação
+            - generic [ref=f1e267]:
+              - paragraph [ref=f1e268]: Identificação
+              - generic [ref=f1e269]:
+                - generic [ref=f1e270]:
+                  - generic [ref=f1e271]: Nome
+                  - generic [ref=f1e272]: Lead.Tracker
+                - generic [ref=f1e273]:
+                  - generic [ref=f1e274]: Vendor
+                  - generic [ref=f1e275]: TechForge
+                - generic [ref=f1e276]:
+                  - generic [ref=f1e277]: Autor
+                  - generic [ref=f1e278]: TechForge Team
+                - generic [ref=f1e279]:
+                  - generic [ref=f1e280]: Versão
+                  - generic [ref=f1e281]: 0.1.1
+                - generic [ref=f1e282]:
+                  - generic [ref=f1e283]: Categoria
+                  - generic [ref=f1e284]: Sales
+            - generic [ref=f1e285]:
+              - paragraph [ref=f1e286]: Compatibilidade
+              - generic [ref=f1e287]:
+                - generic [ref=f1e288]:
+                  - generic [ref=f1e289]: Versão mínima
+                  - generic [ref=f1e290]: 1.0.0
+                - generic [ref=f1e291]:
+                  - generic [ref=f1e292]: Versão máxima
+                  - generic [ref=f1e293]: 2.0.0
+            - generic [ref=f1e294]:
+              - paragraph [ref=f1e295]: Descrição
+              - paragraph [ref=f1e297]: "Módulo de Opportunity Intelligence: transforma dados de clientes, prospects, portfólio tecnológico, produtos e serviços em oportunidades comerciais priorizadas (cross-sell, up-sell, modernização, otimização de custos)."
+            - generic [ref=f1e298]:
+              - paragraph [ref=f1e299]: Trust & Integrity
+              - generic [ref=f1e300]:
+                - generic [ref=f1e301]:
+                  - generic [ref=f1e302]: Trust Level
+                  - generic [ref=f1e303]: Inválido
+                - paragraph [ref=f1e308]: Invalid — Integrity manifest is missing or corrupted. Publisher signature not configured.
+                - generic [ref=f1e309]:
+                  - generic [ref=f1e310]: Publisher
+                  - generic [ref=f1e311]: (não declarado)
+            - generic [ref=f1e312]:
+              - paragraph [ref=f1e313]: Security Warnings
+              - generic [ref=f1e314]: Integrity manifest is missing or corrupted.

@@ -53,6 +53,54 @@ def sync_env(env_path: Path, model_path: Path) -> list[str]:
     return added
 
 
+def set_env_values(env_path: Path, values: dict[str, str]) -> None:
+    """
+    Atualiza (ou adiciona, se ainda não existir) cada chave de `values` no
+    `.env`, preservando comentários, linhas em branco e qualquer chave não
+    mencionada. Complementa `sync_env` — usada pela tela de Configurações
+    de Fontes, que grava valor que o usuário digitou (nunca à mão).
+
+    Uma chave com valor vazio em `values` nunca apaga um valor já salvo —
+    mesma filosofia não-destrutiva do `sync_env`.
+
+    Levanta `ValueError` se algum valor contiver quebra de linha — sem essa
+    checagem, um campo de credencial poderia injetar uma chave nova
+    arbitrária no `.env` (`sync_env`/`load_env` leem linha a linha).
+
+    # ponytail: leitura-modificação-escrita sem lock de arquivo — assume um
+    # único processo escrevendo por vez (módulo local-first, desktop). Se
+    # escritas concorrentes via API virarem cenário real, adicionar lock.
+    """
+    values = {k: v for k, v in values.items() if v != ""}
+    if not values:
+        return
+    for key, value in values.items():
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"Valor de '{key}' contém quebra de linha — não permitido em .env.")
+
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    written: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in values:
+                if key in written:
+                    continue  # chave duplicada no arquivo — descarta a repetição, mantém só a primeira
+                new_lines.append(f"{key}={values[key]}")
+                written.add(key)
+                continue
+        new_lines.append(line)
+
+    for key, value in values.items():
+        if key not in written:
+            new_lines.append(f"{key}={value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
 def load_env(env_path: Path) -> dict[str, str]:
     """Lê `.env` para um dict — usado em runtime pra configurar providers
     (ex.: AI_PROVIDER/AI_API_KEY). Chave sem valor vira string vazia, nunca None."""

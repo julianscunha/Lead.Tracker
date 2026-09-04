@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.config import sync_env
 from core.db import create_engine, init_db, make_session_factory
 from backend.routes_exports import router as exports_router
+from backend.routes_settings import router as settings_router
 
 _MODULE_ROOT = Path(__file__).parent.parent
 _DB_PATH = _MODULE_ROOT / "data" / "lead_tracker.db"
@@ -33,6 +34,7 @@ session_factory = make_session_factory(_engine)
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
 router.include_router(exports_router)
+router.include_router(settings_router)
 
 
 @router.get("/ping")
