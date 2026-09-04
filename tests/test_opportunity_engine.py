@@ -262,17 +262,24 @@ def test_warm_company_keeps_full_confidence_score():
     assert result[0].confidence_score == VDC365_RULE.confidence_score
 
 
-def test_cold_company_beyond_90_days_gets_penalized_confidence_score():
+def test_lukewarm_company_between_120_and_270_days_gets_15_percent_penalty():
     pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
-    old = datetime.now(timezone.utc) - timedelta(days=200)
-    result = evaluate_rules(pf, [VDC365_RULE], company=_company(old))
-    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.7
+    lukewarm = datetime.now(timezone.utc) - timedelta(days=200)
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(lukewarm))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.85
 
 
-def test_company_without_last_activity_at_is_treated_as_cold():
+def test_very_cold_company_beyond_270_days_gets_50_percent_penalty():
+    pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
+    very_old = datetime.now(timezone.utc) - timedelta(days=400)
+    result = evaluate_rules(pf, [VDC365_RULE], company=_company(very_old))
+    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.5
+
+
+def test_company_without_last_activity_at_is_treated_as_very_cold():
     pf = Portfolio(company_id="c1", product_ids=["veeam_vbr", "m365"])
     result = evaluate_rules(pf, [VDC365_RULE], company=_company(None))
-    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.7
+    assert result[0].confidence_score == VDC365_RULE.confidence_score * 0.5
 
 
 def test_evaluate_rules_without_company_never_penalizes_retrocompat():
@@ -314,8 +321,9 @@ if __name__ == "__main__":
     test_discovery_prompt_propagates_from_rule_to_opportunity()
     test_discovery_prompt_defaults_to_none_without_breaking()
     test_warm_company_keeps_full_confidence_score()
-    test_cold_company_beyond_90_days_gets_penalized_confidence_score()
-    test_company_without_last_activity_at_is_treated_as_cold()
+    test_lukewarm_company_between_120_and_270_days_gets_15_percent_penalty()
+    test_very_cold_company_beyond_270_days_gets_50_percent_penalty()
+    test_company_without_last_activity_at_is_treated_as_very_cold()
     test_evaluate_rules_without_company_never_penalizes_retrocompat()
     test_naive_last_activity_at_never_crashes_the_engine()
     print("OK — todos os testes do motor de oportunidades passaram")

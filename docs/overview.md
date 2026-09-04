@@ -34,4 +34,8 @@ Ver tela de Configurações do módulo (ou `.env` durante desenvolvimento) para
 ## Documentação completa
 
 Ver `README.md` e `CONTRIBUTING.md` neste repositório para arquitetura,
-comandos de desenvolvimento e regras de domínio.
+comandos de desenvolvimento e regras de domínio. Ver
+`docs/criterios-de-qualificacao.md` para o que cada critério de
+priorização de oportunidade significa e por que o número/threshold é
+esse (recência de atividade, nível hierárquico do contato, severidade de
+gap).

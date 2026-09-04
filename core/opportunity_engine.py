@@ -23,8 +23,10 @@ from core.models import (
     RuleError, Service, SourceRef,
 )
 
-_WARM_WINDOW_DAYS = 90
-_COLD_MULTIPLIER = 0.7
+_WARM_WINDOW_DAYS = 120
+_LUKEWARM_WINDOW_DAYS = 270
+_LUKEWARM_MULTIPLIER = 0.85
+_COLD_MULTIPLIER = 0.5
 
 __all__ = ["CorrelationRule", "RuleError", "evaluate_rules"]
 
@@ -81,10 +83,14 @@ def _evidence_summary(
 
 
 def _warmth_multiplier(company: Company | None) -> float:
-    """Fase C, Fatia 4a — proxy de momentum. `company` não passado
-    (retrocompat) não penaliza; passado sem `last_activity_at` ou fora da
-    janela de 90 dias é fria (ausência já é o sinal, nunca um terceiro
-    estado "desconhecido") e reduz a confiança.
+    """Fase C, Fatia 4a (corrigido após revisão com Pipeline Analyst — ciclo
+    de venda B2B de infraestrutura roda 90-180+ dias, corte binário em 90
+    dias tratava conta só no ritmo normal do ciclo como "esfriada" e
+    igualava "91 dias sem atividade" a "700 dias"). 3 níveis: quente
+    (≤120 dias) mantém confiança cheia; morno (121-270 dias) reduz 15%;
+    muito frio (>270 dias OU nunca registrado — ausência já é o sinal,
+    nunca um terceiro estado "desconhecido") reduz 50%. `company` não
+    passado (retrocompat) não penaliza.
 
     `last_activity_at` sempre chega UTC-aware por quem já persistiu/mapeou
     (core/repository.py `_ensure_utc`, providers/salesforce.py), mas essa
@@ -97,7 +103,9 @@ def _warmth_multiplier(company: Company | None) -> float:
     if last_activity_at.tzinfo is None:
         last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
     age_days = (datetime.now(timezone.utc) - last_activity_at).days
-    return 1.0 if age_days <= _WARM_WINDOW_DAYS else _COLD_MULTIPLIER
+    if age_days <= _WARM_WINDOW_DAYS:
+        return 1.0
+    return _LUKEWARM_MULTIPLIER if age_days <= _LUKEWARM_WINDOW_DAYS else _COLD_MULTIPLIER
 
 
 def _build_opportunity(

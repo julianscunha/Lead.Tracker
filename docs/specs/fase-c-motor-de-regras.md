@@ -267,10 +267,9 @@ legível e a `discovery_prompt` opcional.
 ## Fatia 4a — Sinais granulares de qualificação (campos automáticos)
 
 Decisões tomadas com o usuário antes desta fatia:
-- Janela de recência: **90 dias**. Existe atividade recente → quente.
-  Não existe (nunca registrada ou expirou) → fria — nunca um terceiro
-  estado "desconhecido", a ausência já é o sinal.
-- Multiplicador de `confidence_score`: quente `×1.0`, fria `×0.7`.
+- Janela de recência: **90 dias**, binário quente/fria, `×1.0`/`×0.7`.
+  **Corrigido após o fato** (ver "Correção pós-shipping" abaixo) — mantido
+  aqui só como registro histórico da decisão original.
 - Nível hierárquico: mapeamento automático por palavra-chave a partir do
   `Title`/`role` que o Salesforce já traz; sem correspondência fica
   `None` — nunca inventa classificação.
@@ -297,9 +296,8 @@ Decisões tomadas com o usuário antes desta fatia:
     substring match. Sem match → `None`.
 - `core/opportunity_engine.py`:
   - `_warmth_multiplier(company: Company | None) -> float` — `company`
-    não passado (retrocompat) → `1.0` sem penalidade; `company` passado
-    sem `last_activity_at` ou fora da janela de 90 dias → `0.7`; dentro
-    da janela → `1.0`.
+    não passado (retrocompat) → `1.0` sem penalidade; ver "Correção
+    pós-shipping" abaixo pros níveis atuais.
   - `evaluate_rules` ganha `company: Company | None = None`; `confidence_score`
     de toda oportunidade gerada é `rule.confidence_score * _warmth_multiplier(company)`.
 - `backend/sync.py`: passa `company=company` (já disponível no loop) pra
@@ -324,9 +322,9 @@ Decisões tomadas com o usuário antes desta fatia:
   `None` pra título sem match, `None` pra título vazio/ausente.
 - `SalesforceProvider.fetch_companies`: mapeia `LastActivityDate` pra
   `last_activity_at`.
-- `evaluate_rules`: `company` quente → confidence_score cheio; `company`
-  frio (sem `last_activity_at` ou > 90 dias) → confidence_score ×0.7;
-  sem `company` (retrocompat) → confidence_score cheio, sem penalidade.
+- `evaluate_rules`: `company` quente → confidence_score cheio; sem
+  `company` (retrocompat) → confidence_score cheio, sem penalidade.
+  Ver "Correção pós-shipping" pros níveis morno/muito frio atuais.
 - Persistência: round-trip dos dois campos novos.
 
 ### Critério de sucesso
@@ -340,3 +338,28 @@ Decisões tomadas com o usuário antes desta fatia:
 - [x] Suíte completa passa (achado de revisão corrigido:
       `_warmth_multiplier` reanexa UTC se `last_activity_at` vier naive,
       em vez de deixar `TypeError` explodir cru até o sync).
+
+### Correção pós-shipping — threshold de recência (consulta ao Pipeline Analyst)
+
+Por instrução do usuário ("sempre... puxar antes as skills de
+especialistas... pois eu e vc não somos especialistas"), consultamos o
+agente Pipeline Analyst *depois* deste código já commitado — achado real:
+90 dias binário é curto demais pra ciclo de venda B2B de infraestrutura
+(normalmente 90-180+ dias), penalizando conta só no ritmo normal do ciclo
+(aprovação de budget, licitação) como se tivesse esfriado. Além disso, o
+corte único igualava "91 dias sem atividade" a "700 dias" — populações de
+risco muito diferentes.
+
+**Substitui o binário por 3 níveis:**
+- Quente: `≤120 dias` → `×1.0`.
+- Morno: `121-270 dias` → `×0.85`.
+- Muito frio: `>270 dias` OU nunca registrado → `×0.5` (ausência continua
+  sendo o próprio sinal, nunca um terceiro estado "desconhecido" — só
+  ficou mais severo que o binário original).
+
+`_WARM_WINDOW_DAYS`/`_LUKEWARM_WINDOW_DAYS`/`_LUKEWARM_MULTIPLIER`/
+`_COLD_MULTIPLIER` em `core/opportunity_engine.py`. O Pipeline Analyst
+recomendou calibrar o corte quente/morno pela mediana real de
+intervalo-entre-atividades dos deals fechados do usuário (não temos esse
+dado ainda) — os números acima são o ponto de partida, não um valor
+definitivo; revisitar quando existir essa métrica.

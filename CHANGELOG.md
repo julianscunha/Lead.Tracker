@@ -7,9 +7,13 @@
 - **Sinais granulares de qualificação** (Fase C do roadmap, quarta fatia
   — parte 1, campos automáticos): `Company.last_activity_at`, mapeado do
   `LastActivityDate` do Salesforce, alimenta um multiplicador de
-  `confidence_score` na geração de oportunidade — empresa com atividade
-  nos últimos 90 dias mantém o score cheio, sem atividade recente (ou
-  nunca registrada) reduz em 30%. `Contact.seniority_tier` é inferido
+  `confidence_score` na geração de oportunidade — 3 níveis (quente até
+  120 dias ×1.0, morno até 270 dias ×0.85, muito frio depois disso ou sem
+  registro ×0.5; revisado com o agente especialista Pipeline Analyst após
+  o corte binário original de 90 dias/×0.7 se mostrar curto demais pra
+  ciclo de venda B2B de infraestrutura — ver
+  `docs/criterios-de-qualificacao.md` pro raciocínio completo).
+  `Contact.seniority_tier` é inferido
   automaticamente por palavra-chave do cargo (`decisor`/
   `influenciador_tecnico`/`operacional`), sem correspondência fica vazio
   — nunca inventa classificação. Edição manual do nível hierárquico fica
