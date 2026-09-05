@@ -247,3 +247,100 @@ passa a usar esse campo, nunca `synced_at`.
       tocar as tabelas transacionais.
 - [x] Suíte completa passa, verificado ao vivo contra o módulo instalado
       (`POST /sync` roda sem erro em banco vazio, tabela nova criada).
+
+## Módulo 4 — Agregador do dashboard via snapshot
+
+### Objetivo
+
+`GET /dashboard-metrics` passa a ler do snapshot diário (módulos 2+3) pras
+métricas novas da Fase D: potencial ponderado (bruto vs. avaliado vs.
+estimado), cortes por rep/segmento/fonte (sempre segmentados, nunca total
+misturado), contagem de zumbi, e alcance do funil. Funções antigas que já
+operavam em `list[Opportunity]`/`list[Company]` (distribuição por
+fabricante, funil por contagem simples) ficam intactas — não fazem parte
+do escopo desta fase, não têm problema de histórico/velocity que o
+snapshot resolveria.
+
+### Decisão de metodologia (consulta ao Pipeline Analyst) — "alcance", nunca "conversão"
+
+O snapshot só guarda o estágio ATUAL de cada oportunidade, não o histórico
+completo de por quais estágios ela já passou (`OpportunityStatusChange`
+só existe pra transições manuais, a maioria das oportunidades ainda não
+tem nenhuma). Calcular "taxa de conversão por etapa" de verdade exigiria
+uma coorte fechada num período — dado que não existe ainda.
+
+**Decisão**: `funnel_reach` — alcance cumulativo do snapshot mais recente,
+nunca chamado de "conversão" em variável, docstring ou campo de API.
+`reach_count[estágio]` = quantas oportunidades estão HOJE nesse estágio ou
+além; `reach_ratio_from_previous[i] = reach_count[i] / reach_count[i-1]`.
+É uma foto transversal (mistura oportunidades de idades bem diferentes),
+não uma taxa histórica de coorte — limitação conhecida, documentada, não
+escondida. Migrar pra conversão de coorte de verdade quando
+`OpportunityStatusChange` tiver massa suficiente (o Pipeline Analyst
+sugeriu um piso explícito: >70% das oportunidades fechadas no período com
+pelo menos 1 transição registrada) — até lá, a UI (módulo 8) precisa
+rotular como "Alcance do funil (visão atual)", nunca "Taxa de conversão".
+
+### Design
+
+- `core/dashboard_metrics.py`:
+  - `exclude_zombies(snapshot)` — filtro simples, usado antes de qualquer
+    métrica de "pipeline saudável" (blindagem obrigatória do roadmap).
+  - `compute_weighted_potential(snapshot)` — bruto / ponderado-avaliado
+    (só `confidence_score` real) / ponderado-estimado (+ as sem
+    `confidence_score`, confiança padrão 0.5) — nunca misturado sem rótulo
+    (decisão do Pipeline Analyst, mesma da cadência de QBR).
+  - `potential_by_rep/segment/source(snapshot)` — sempre segmentado; linha
+    sem a chave fica de fora, nunca vira categoria "sem atribuição"
+    fingida.
+  - `count_zombie_opportunities(snapshot)`.
+  - `funnel_reach(snapshot)` — ver decisão de metodologia acima.
+- `backend/routes_sync.py::get_dashboard_metrics`: busca
+  `list_latest_snapshot`; `exclude_zombies` aplicado antes de
+  `compute_weighted_potential`/`potential_by_*`, mas NÃO antes de
+  `funnel_reach` (funil mostra a posição real de toda oportunidade, zumbi
+  ou não — só as métricas de pipeline saudável em R$ excluem).
+  `zombie_count` exposto separado, sobre o snapshot completo, pra UI
+  mostrar o número em vez de escondê-lo.
+
+### Achado da revisão de código, registrado pra quando o módulo 8 (UI) for implementado
+
+A soma de `potential_by_rep`/`segment`/`source` pode legitimamente ficar
+abaixo do `financial_potential_total` do topo (KPI antigo, soma tudo) —
+oportunidade sem `rep_id`/`segment`/`source` conta no total mas não entra
+em nenhum corte (decisão correta, "nunca inventar categoria sem
+atribuição"). Isso vai parecer inconsistência pra quem olha os dois
+números lado a lado. **Não objetivo desta fatia** (é backend puro) —
+registrado aqui pra o módulo 8 tratar com uma nota explícita na UI (ex.:
+"soma inclui oportunidades sem responsável atribuído").
+
+### Não objetivo deste módulo
+
+- Nenhuma migração das métricas antigas (distribuição por fabricante,
+  funil por contagem simples) pro snapshot — não têm problema de
+  histórico/velocity que o snapshot resolveria, ficam como estão.
+- Nenhuma UI ainda — só os novos campos na resposta de
+  `GET /dashboard-metrics` (módulo 8 consome).
+
+### Teste
+
+- `exclude_zombies`, `compute_weighted_potential` (avaliado vs. estimado,
+  `financial_potential=0.0` não é tratado como falsy), `potential_by_*`
+  (sempre segmentado, ignora linha sem chave), `count_zombie_opportunities`.
+- `funnel_reach`: cumulativo com `dismissed` fora; ratio `None` no
+  primeiro estágio e em lista vazia (nunca `ZeroDivisionError`); caso-limite
+  de todas as oportunidades no último estágio (sequência não-crescente,
+  achado da revisão de código).
+- Rota: estado vazio honesto (zeros, nunca `None`/erro); snapshot real
+  refletido, zumbi excluído do ponderado e dos cortes mas contado à parte.
+
+### Critério de sucesso
+
+- [x] `GET /dashboard-metrics` lê do snapshot pras métricas novas, nunca
+      em tempo real.
+- [x] Nenhuma referência a "conversão"/"conversion" em `funnel_reach` (só
+      "alcance"/"reach") — confirmado por grep na revisão de código.
+- [x] Zumbi nunca entra em potencial ponderado nem cortes, mas é contado
+      e exposto.
+- [x] Suíte completa passa, incluindo o caso-limite de funil todo no
+      último estágio.

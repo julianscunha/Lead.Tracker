@@ -4,6 +4,21 @@
 
 ### Adicionado
 
+- **Agregador do dashboard via snapshot** (Fase D, terceiro módulo):
+  `GET /dashboard-metrics` ganha potencial financeiro ponderado (bruto ao
+  lado de duas somas ponderadas — avaliado por confidence_score real, e
+  estimado incluindo as sem avaliação, nunca misturadas sem rótulo),
+  cortes por rep/segmento/fonte (sempre segmentados, nunca um total
+  misturado), contagem de oportunidade zumbi e um "alcance do funil"
+  cumulativo. Consultei o Pipeline Analyst sobre a metodologia do alcance
+  de funil: como o snapshot só guarda o estágio atual (não o histórico
+  completo de transições), não é uma taxa de conversão de coorte de
+  verdade — nomeado deliberadamente "alcance"/`reach`, nunca
+  "conversão"/`conversion`, em qualquer variável, docstring ou campo de
+  API. Zumbi nunca entra no potencial ponderado nem nos cortes (blindagem
+  do roadmap), mas é contado e exposto à parte. Ver
+  `docs/specs/fase-d-dashboard-acionavel.md`.
+
 - **Snapshot diário de oportunidades e detecção de zumbi** (Fase D,
   segundo módulo): nova tabela `opportunity_snapshots`, recalculada por
   inteiro no fim de todo `POST /sync` — o dashboard (próximos módulos) vai

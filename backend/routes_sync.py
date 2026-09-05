@@ -24,8 +24,9 @@ from backend.http_errors import raise_http
 from backend.sync import sync_all_enabled_sources
 from core.config import load_env
 from core.dashboard_metrics import (
-    compute_kpis, customer_vs_prospect, distribution_by_vendor,
-    financial_potential_by_vendor, funnel_counts, opportunities_by_service,
+    compute_kpis, compute_weighted_potential, count_zombie_opportunities, customer_vs_prospect,
+    distribution_by_vendor, exclude_zombies, financial_potential_by_vendor, funnel_counts,
+    funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment, potential_by_source,
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
@@ -34,7 +35,7 @@ from core.models import (
 )
 from core.opportunity_engine import compute_account_health, compute_qbr_suggested_days, compute_severity_band
 from core.repository import (
-    list_companies, list_company_signals, list_opportunities, list_products,
+    list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_products,
     list_rules, list_services, list_vendors, save_rule, update_company_renewal_date,
     update_opportunity_qualification, update_opportunity_status,
 )
@@ -290,10 +291,19 @@ async def get_dashboard_metrics() -> dict:
         opportunities = await list_opportunities(session)
         vendors = await list_vendors(session)
         services = await list_services(session)
+        snapshot = await list_latest_snapshot(session)
 
     vendor_names = {v.id: v.name for v in vendors}
     service_names = {s.id: s.name for s in services}
     kpis = compute_kpis(companies, opportunities, vendor_names, service_names)
+
+    # Fase D — tudo abaixo lê do snapshot diário, nunca das listas ao vivo
+    # acima (decisão de arquitetura do roadmap). Zumbi nunca entra em
+    # métrica de "pipeline saudável" (blindagem obrigatória) — filtrado
+    # antes do potencial ponderado/cortes, mas contado à parte pra UI
+    # mostrar o número, não escondê-lo.
+    healthy_snapshot = exclude_zombies(snapshot)
+    weighted = compute_weighted_potential(healthy_snapshot)
 
     return {
         "kpis": {
@@ -311,4 +321,17 @@ async def get_dashboard_metrics() -> dict:
         "opportunities_by_service": opportunities_by_service(opportunities, service_names),
         "customer_vs_prospect": customer_vs_prospect(companies),
         "funnel_counts": funnel_counts(opportunities),
+        "funnel_reach": [
+            {"stage": r.stage, "reach_count": r.reach_count, "reach_ratio_from_previous": r.reach_ratio_from_previous}
+            for r in funnel_reach(snapshot)
+        ],
+        "weighted_potential": {
+            "gross_total": weighted.gross_total,
+            "weighted_evaluated_total": weighted.weighted_evaluated_total,
+            "weighted_estimated_total": weighted.weighted_estimated_total,
+        },
+        "potential_by_rep": potential_by_rep(healthy_snapshot),
+        "potential_by_segment": potential_by_segment(healthy_snapshot),
+        "potential_by_source": potential_by_source(healthy_snapshot),
+        "zombie_count": count_zombie_opportunities(snapshot),
     }

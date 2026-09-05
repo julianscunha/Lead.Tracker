@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from core.models import Company, Opportunity, OpportunityStatus
+from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
 
 # Doc usa 4 estágios; nosso enum tem 6. Mapeamento explícito — 'reviewed' e
 # 'dismissed' não têm estágio de funil correspondente (não são progresso linear).
@@ -102,3 +102,122 @@ def funnel_counts(opportunities: list[Opportunity]) -> dict[str, int]:
         if stage:
             counts[stage] += 1
     return counts
+
+
+# ── Fase D — leitura via snapshot diário (nunca tempo real das tabelas
+# transacionais, decisão de arquitetura do roadmap) ──────────────────────────
+
+# Confiança padrão pra oportunidade sem confidence_score avaliado — nem
+# otimista (1.0) nem pessimista (0.0), sinalizado à parte na UI como
+# "estimado" (decisão do Pipeline Analyst). Nunca silenciosamente igual a
+# uma oportunidade realmente avaliada.
+_DEFAULT_CONFIDENCE_WHEN_UNKNOWN = 0.5
+
+
+def exclude_zombies(snapshot: list[OpportunitySnapshot]) -> list[OpportunitySnapshot]:
+    """Blindagem obrigatória do roadmap: oportunidade zumbi nunca entra em
+    métrica de "pipeline saudável" — quem calcula esse tipo de métrica
+    filtra por aqui antes."""
+    return [s for s in snapshot if not s.is_zombie]
+
+
+@dataclass
+class WeightedPotential:
+    gross_total: float
+    weighted_evaluated_total: float
+    weighted_estimated_total: float
+
+
+def compute_weighted_potential(snapshot: list[OpportunitySnapshot]) -> WeightedPotential:
+    """Potencial bruto ao lado do ponderado, nunca substituindo (princípio
+    3 do roadmap). Duas somas ponderadas, nunca uma só: `_evaluated` conta
+    só oportunidade com confidence_score real; `_estimated` soma isso mais
+    as sem confidence_score usando a confiança padrão — misturar as duas
+    sem rótulo esconderia quanto do pipeline é estimativa (decisão do
+    Pipeline Analyst)."""
+    gross = 0.0
+    evaluated = 0.0
+    estimated_extra = 0.0
+    for s in snapshot:
+        if s.financial_potential is None:
+            continue
+        gross += s.financial_potential
+        if s.confidence_score is not None:
+            evaluated += s.financial_potential * s.confidence_score
+        else:
+            estimated_extra += s.financial_potential * _DEFAULT_CONFIDENCE_WHEN_UNKNOWN
+    return WeightedPotential(
+        gross_total=gross, weighted_evaluated_total=evaluated,
+        weighted_estimated_total=evaluated + estimated_extra,
+    )
+
+
+def _potential_by(snapshot: list[OpportunitySnapshot], key: str) -> list[tuple[str, float]]:
+    totals: Counter[str] = Counter()
+    for s in snapshot:
+        value = getattr(s, key)
+        if value and s.financial_potential is not None:
+            totals[value] += s.financial_potential
+    return sorted(totals.items(), key=lambda item: item[1], reverse=True)
+
+
+def potential_by_rep(snapshot: list[OpportunitySnapshot]) -> list[tuple[str, float]]:
+    """Sempre segmentado, nunca um total misturado (blindagem do
+    roadmap) — conta sem rep_id (`None`, nenhuma fonte atribuiu ainda)
+    fica de fora, nunca vira uma categoria "sem rep" fingida."""
+    return _potential_by(snapshot, "rep_id")
+
+
+def potential_by_segment(snapshot: list[OpportunitySnapshot]) -> list[tuple[str, float]]:
+    return _potential_by(snapshot, "segment")
+
+
+def potential_by_source(snapshot: list[OpportunitySnapshot]) -> list[tuple[str, float]]:
+    return _potential_by(snapshot, "source")
+
+
+def count_zombie_opportunities(snapshot: list[OpportunitySnapshot]) -> int:
+    return sum(1 for s in snapshot if s.is_zombie)
+
+
+# Sequência de progresso — "dismissed" fica fora (é saída do funil, não um
+# estágio a mais). Nomeação em inglês (chaves internas) — rótulo em
+# português vem do frontend, mesmo padrão de FUNNEL_STAGES.
+FUNNEL_REACH_ORDER = ["detected", "qualified", "reviewed", "contacted", "opportunity"]
+
+
+@dataclass
+class FunnelReachStage:
+    stage: str
+    reach_count: int
+    reach_ratio_from_previous: float | None  # None no primeiro estágio (sem "anterior")
+
+
+def funnel_reach(snapshot: list[OpportunitySnapshot]) -> list[FunnelReachStage]:
+    """"Alcance do funil hoje" — NUNCA chamar de "taxa de conversão"
+    (decisão do Pipeline Analyst): sem histórico completo de por quais
+    estágios cada oportunidade já passou (`OpportunityStatusChange` só
+    existe pra transições manuais, a maioria das oportunidades ainda não
+    tem nenhuma), não dá pra calcular conversão de coorte de verdade. Isso
+    aqui é um corte transversal do snapshot mais recente: `reach_count[i]`
+    = quantas oportunidades estão HOJE no estágio `i` ou além.
+    `reach_ratio_from_previous[i]` = `reach_count[i] / reach_count[i-1]`.
+    Mistura oportunidades de idades bem diferentes — é a limitação
+    conhecida, não escondida (rótulo da UI precisa deixar isso explícito:
+    "visão atual", nunca "conversão histórica")."""
+    stage_index = {stage: i for i, stage in enumerate(FUNNEL_REACH_ORDER)}
+    reach = [0] * len(FUNNEL_REACH_ORDER)
+    for s in snapshot:
+        idx = stage_index.get(s.stage.value)
+        if idx is None:
+            continue  # dismissed (ou qualquer status fora da sequência) não entra
+        for i in range(idx + 1):
+            reach[i] += 1
+
+    result = []
+    previous = None
+    for i, stage in enumerate(FUNNEL_REACH_ORDER):
+        ratio = (reach[i] / previous) if previous else None
+        result.append(FunnelReachStage(stage=stage, reach_count=reach[i], reach_ratio_from_previous=ratio))
+        previous = reach[i]
+    return result

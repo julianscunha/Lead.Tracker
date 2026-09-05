@@ -17,7 +17,10 @@ import main as backend_main
 from backend import routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
 from core.models import Company, Opportunity, OpportunityStatus, Product, Service, SourceRef
-from core.repository import save_company, save_opportunity, save_product, save_service, update_company_renewal_date
+from core.repository import (
+    recompute_daily_snapshot, save_company, save_opportunity, save_product, save_service,
+    update_company_renewal_date,
+)
 
 app = FastAPI()
 app.include_router(backend_main.router)
@@ -115,6 +118,42 @@ def test_get_dashboard_metrics_reflects_empty_state_honestly():
         body = resp.json()
         assert body["kpis"]["opportunities_identified"] == 0
         assert body["kpis"]["top_vendor"] is None
+        assert body["funnel_reach"] == [
+            {"stage": s, "reach_count": 0, "reach_ratio_from_previous": None}
+            for s in ["detected", "qualified", "reviewed", "contacted", "opportunity"]
+        ]
+        assert body["weighted_potential"] == {
+            "gross_total": 0.0, "weighted_evaluated_total": 0.0, "weighted_estimated_total": 0.0,
+        }
+        assert body["zombie_count"] == 0
+
+
+def test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_potential():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", rep_id="rep-1", segment="enterprise")
+        healthy = Opportunity(
+            company_id=company.id, type="cross-sell", financial_potential=1000.0, confidence_score=0.8,
+            sources=[SourceRef(type="salesforce")],
+        )
+        zombie = Opportunity(
+            company_id=company.id, type="service", financial_potential=5000.0, confidence_score=0.9,
+            sources=[SourceRef(type="salesforce")], first_detected_at="2020-01-01T00:00:00+00:00",
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, healthy)
+                await save_opportunity(session, zombie)
+                await recompute_daily_snapshot(session)
+        asyncio.run(seed())
+
+        body = client.get("/modules/lead_tracker/dashboard-metrics").json()
+        assert body["zombie_count"] == 1
+        # zumbi (financial_potential=5000) nunca entra no ponderado nem nos cortes
+        assert body["weighted_potential"]["gross_total"] == 1000.0
+        assert body["potential_by_rep"] == [["rep-1", 1000.0]]
 
 
 def test_sync_endpoint_with_no_source_enabled_returns_empty_list():
@@ -402,6 +441,7 @@ if __name__ == "__main__":
     test_get_opportunities_embeds_company_name()
     test_get_opportunities_empty_on_fresh_install_never_fake_data()
     test_get_dashboard_metrics_reflects_empty_state_honestly()
+    test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_potential()
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()
     test_sync_endpoint_reads_isolated_env_never_the_real_module_env()
     test_get_opportunities_includes_risk_flag()
