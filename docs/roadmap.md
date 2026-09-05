@@ -262,6 +262,7 @@ pra uma regra nova ter o que avaliar).
   descoberta de verdade, não só uma lista de pistas técnicas.
 
 ### Fase D — Dashboard acionável
+**Status:** em andamento (spec: `docs/specs/fase-d-dashboard-acionavel.md`).
 Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
 
 - Funil com taxa de conversão por etapa (não só contagem).

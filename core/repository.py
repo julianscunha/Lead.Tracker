@@ -21,8 +21,10 @@ from core.db_models import (
 )
 from core.models import (
     Company, CompanySignal, ContextNote, Contact, CorrelationRule, Opportunity, OpportunityStatus,
-    OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef, Vendor,
+    OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef,
+    StatusChangeRequiresJustificationError, Vendor,
 )
+from core.opportunity_engine import requires_status_change_justification
 
 
 def _sources_to_json(sources: list[SourceRef]) -> list[dict]:
@@ -226,18 +228,26 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
     `update_opportunity_qualification` concorrente possa ser sobrescrito
     (revisão de código apontou o TOCTOU da versão anterior). Escrita
     manual desses 3 campos usa `update_opportunity_qualification`, nunca
-    esta função."""
+    esta função.
+
+    `status` segue a mesma regra (achado da Fase D, mesmo agente `Plan`):
+    o motor sempre constrói a oportunidade em `detected`
+    (`_build_opportunity`) e o id é determinístico — sem excluir `status`
+    do `SET`, rodar `/sync` de novo pra uma empresa cujo portfólio não
+    mudou resetaria pra `detected` qualquer oportunidade já avançada
+    manualmente. Só entra no `INSERT` inicial (nova oportunidade nasce em
+    `detected`); depois disso, `status` só muda por `update_opportunity_status`."""
     engine_columns = dict(
         company_id=opportunity.company_id, type=opportunity.type,
         vendor_id=opportunity.vendor_id, product_id=opportunity.product_id, service_id=opportunity.service_id,
         opportunity_score=opportunity.opportunity_score, financial_potential=opportunity.financial_potential,
         strategic_score=opportunity.strategic_score, confidence_score=opportunity.confidence_score,
         evidence=opportunity.evidence, justification=opportunity.justification,
-        sources=_sources_to_json(opportunity.sources), status=opportunity.status.value,
+        sources=_sources_to_json(opportunity.sources),
         risk_flag=opportunity.risk_flag, evidence_summary=opportunity.evidence_summary,
         discovery_prompt=opportunity.discovery_prompt, synced_at=opportunity.synced_at,
     )
-    stmt = sqlite_insert(OpportunityORM).values(id=opportunity.id, **engine_columns)
+    stmt = sqlite_insert(OpportunityORM).values(id=opportunity.id, status=opportunity.status.value, **engine_columns)
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
     await session.execute(stmt)
     await session.commit()
@@ -261,6 +271,11 @@ async def update_opportunity_qualification(
     row.severity_note = severity_note
     await session.commit()
     return _opportunity_from_row(row)
+
+
+async def get_opportunity(session: AsyncSession, opportunity_id: str) -> Opportunity | None:
+    row = await session.get(OpportunityORM, opportunity_id)
+    return _opportunity_from_row(row) if row else None
 
 
 async def list_opportunities(session: AsyncSession, company_id: str | None = None) -> list[Opportunity]:
@@ -315,9 +330,14 @@ async def list_company_signals(session: AsyncSession, company_id: str) -> list[C
 # ── OpportunityStatusChange ──────────────────────────────────────────────────
 
 async def save_opportunity_status_change(session: AsyncSession, change: OpportunityStatusChange) -> None:
+    """Helper de teste/setup direto de fixture — NUNCA chamar a partir de
+    código de aplicação para registrar uma transição real de status: o
+    commit fica separado da escrita de `Opportunity.status`, reabrindo o
+    TOCTOU que `update_opportunity_status` fecha ao gravar as duas coisas
+    na mesma transação. Toda transição real usa `update_opportunity_status`."""
     await _upsert(session, OpportunityStatusChangeORM(
         id=change.id, opportunity_id=change.opportunity_id,
-        status=change.status.value, entered_at=change.entered_at,
+        status=change.status.value, entered_at=change.entered_at, note=change.note,
     ))
 
 
@@ -327,8 +347,45 @@ async def list_opportunity_status_changes(session: AsyncSession, opportunity_id:
     )).scalars().all()
     return [OpportunityStatusChange(
         id=r.id, opportunity_id=r.opportunity_id,
-        status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at),
+        status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at), note=r.note,
     ) for r in rows]
+
+
+async def update_opportunity_status(
+    session: AsyncSession, opportunity_id: str, new_status: OpportunityStatus, note: str | None = None,
+) -> Opportunity | None:
+    """Único caminho de escrita de `status` após a criação — o motor
+    (`save_opportunity`) nunca mais toca essa coluna depois do INSERT
+    inicial (achado da Fase D, mesma classe de TOCTOU já corrigida em
+    scope_note/criticality/renewal_date). Grava o novo status e o registro
+    de histórico (`OpportunityStatusChange`, Fase D — até aqui existia no
+    modelo mas nunca era escrito em código real) na MESMA transação: se a
+    auditoria fosse um passo separado, um crash entre as duas escritas
+    deixaria status mudado sem rastro no histórico, esvaziando o propósito
+    da tabela (decisão do agente `Plan`). Sem-op (mesmo status) não grava
+    histórico — não é uma transição real. `None` se a oportunidade não
+    existir (rota decide o 404). A checagem de justificativa roda contra o
+    `status` desta MESMA busca — nunca uma leitura separada feita antes de
+    chamar esta função (a rota fazia isso e a revisão de código encontrou
+    o TOCTOU: entre a leitura da rota e esta escrita, o status real podia
+    mudar, por exemplo por outra aba do navegador). Levanta
+    `StatusChangeRequiresJustificationError` se a transição pular 2+
+    estágios ou reabrir um `dismissed` sem `note`."""
+    row = await session.get(OpportunityORM, opportunity_id)
+    if row is None:
+        return None
+    if row.status == new_status.value:
+        return _opportunity_from_row(row)
+    if requires_status_change_justification(row.status, new_status.value) and not (note or "").strip():
+        raise StatusChangeRequiresJustificationError()
+    row.status = new_status.value
+    change = OpportunityStatusChange(opportunity_id=opportunity_id, status=new_status, note=note)
+    session.add(OpportunityStatusChangeORM(
+        id=change.id, opportunity_id=change.opportunity_id,
+        status=change.status.value, entered_at=change.entered_at, note=change.note,
+    ))
+    await session.commit()
+    return _opportunity_from_row(row)
 
 
 # ── CorrelationRule ──────────────────────────────────────────────────────────

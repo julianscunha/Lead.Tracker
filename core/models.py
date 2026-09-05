@@ -200,11 +200,25 @@ class OpportunityStatusChange(BaseModel):
     opportunity_id: str
     status: OpportunityStatus
     entered_at: datetime = Field(default_factory=_now)
+    # Fase D — obrigatório na rota quando o salto é grande (2+ estágios) ou
+    # reabre um "dismissed" (decisão do Sales Coach: sem isso vira "pipeline
+    # mentiroso"; opcional nos demais casos, nunca burocracia desnecessária).
+    note: str | None = None
 
 
 class RuleError(Exception):
     """Regra de correlação mal definida (ex.: sem nenhum mecanismo de
     evidência) — nunca vira Opportunity, sempre barrada na criação."""
+
+
+class StatusChangeRequiresJustificationError(Exception):
+    """Transição de status pulou 2+ estágios ou reabriu um `dismissed` sem
+    `note` preenchida. Levantada por `update_opportunity_status` a partir
+    do status que a própria função acabou de buscar — nunca de uma leitura
+    separada feita pela rota (isso reabriria o TOCTOU já corrigido em
+    scope_note/renewal_date/status: uma leitura-decide-escreve em 2 passos
+    deixa uma janela onde o status real pode mudar entre a decisão e a
+    escrita)."""
 
 
 class CorrelationRule(BaseModel):

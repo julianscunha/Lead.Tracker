@@ -127,6 +127,7 @@ class OpportunityStatusChangeORM(Base):
     opportunity_id: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String)
     entered_at: Mapped[datetime] = mapped_column()
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class CorrelationRuleORM(Base):

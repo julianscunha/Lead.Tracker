@@ -12,15 +12,15 @@ from datetime import datetime, timezone
 
 from core.models import (
     Company, CompanySignal, Contact, ContextNote, Opportunity, OpportunityStatus,
-    OpportunityStatusChange, Portfolio, SourceRef, Vendor,
+    OpportunityStatusChange, Portfolio, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
-    get_company, get_portfolio_by_company, list_active_rules, list_companies,
+    get_company, get_opportunity, get_portfolio_by_company, list_active_rules, list_companies,
     list_company_signals, list_contacts, list_opportunities, list_opportunity_status_changes,
     list_rules, list_vendors, save_company, save_company_signal, save_contact, save_opportunity,
     save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
-    update_company_renewal_date, update_opportunity_qualification,
+    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -211,6 +211,128 @@ def test_save_opportunity_never_overwrites_manually_filled_qualification():
             assert persisted[0].scope_note == "generalizado"
             assert persisted[0].criticality == "critico_exposto"
             assert persisted[0].severity_note == "Preenchido pelo vendedor."
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_round_trip_writes_history_with_note():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+
+            async with session_factory() as session:
+                updated = await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.CONTACTED, note="Pulou pra contacted, já tinha reunião marcada.",
+                )
+            assert updated.status == OpportunityStatus.CONTACTED
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+                history = await list_opportunity_status_changes(session, opportunity.id)
+            assert persisted.status == OpportunityStatus.CONTACTED
+            assert len(history) == 1
+            assert history[0].status == OpportunityStatus.CONTACTED
+            assert history[0].note == "Pulou pra contacted, já tinha reunião marcada."
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_returns_none_for_unknown_id():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                result = await update_opportunity_status(session, "id-inexistente", OpportunityStatus.QUALIFIED)
+            assert result is None
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_same_status_is_noop_and_writes_no_history():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await update_opportunity_status(session, opportunity.id, OpportunityStatus.DETECTED)
+
+            async with session_factory() as session:
+                history = await list_opportunity_status_changes(session, opportunity.id)
+            assert history == []
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_checks_justification_against_the_real_current_status():
+    """Regressão do TOCTOU apontado na revisão de código: a rota antes lia o
+    status atual numa consulta separada, decidia se precisava de
+    justificativa, e só então chamava update_opportunity_status (que fazia
+    sua PRÓPRIA busca) — entre as duas leituras, o status real podia mudar
+    (ex. outra aba do navegador reabrindo/avançando a oportunidade),
+    enganando a decisão. Agora a checagem roda contra a MESMA linha que a
+    função acabou de buscar, então a exigência de justificativa é sempre
+    calculada contra o dado real persistido no momento da escrita, nunca
+    uma crença desatualizada do chamador."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await update_opportunity_status(session, opportunity.id, OpportunityStatus.DISMISSED)  # status real: dismissed
+
+            # sem nota — reabrir "dismissed" sempre exige justificativa,
+            # mesmo que o chamador não soubesse que o status real era esse
+            async with session_factory() as session:
+                raised = False
+                try:
+                    await update_opportunity_status(session, opportunity.id, OpportunityStatus.CONTACTED, note=None)
+                except StatusChangeRequiresJustificationError:
+                    raised = True
+                assert raised
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.status == OpportunityStatus.DISMISSED  # nunca mudou
+
+    asyncio.run(run())
+
+
+def test_save_opportunity_never_resets_manually_advanced_status_on_resync():
+    """Regressão do achado da Fase D: o motor sempre constrói a oportunidade
+    em `detected` e o id é determinístico — sem excluir `status` do `SET`
+    do upsert, rodar `/sync` de novo pra empresa com o mesmo portfólio
+    resetaria pra `detected` qualquer oportunidade já avançada manualmente."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)  # 1º sync — nasce em detected
+                await update_opportunity_status(session, opportunity.id, OpportunityStatus.QUALIFIED)
+
+            async with session_factory() as session:
+                await save_opportunity(session, opportunity)  # 2º sync — motor ainda constrói em "detected"
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.status == OpportunityStatus.QUALIFIED
 
     asyncio.run(run())
 
@@ -549,5 +671,10 @@ if __name__ == "__main__":
     test_update_opportunity_qualification_round_trip()
     test_update_opportunity_qualification_returns_none_for_unknown_id()
     test_save_opportunity_never_overwrites_manually_filled_qualification()
+    test_update_opportunity_status_round_trip_writes_history_with_note()
+    test_update_opportunity_status_returns_none_for_unknown_id()
+    test_update_opportunity_status_same_status_is_noop_and_writes_no_history()
+    test_update_opportunity_status_checks_justification_against_the_real_current_status()
+    test_save_opportunity_never_resets_manually_advanced_status_on_resync()
     test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
     print("OK — todos os testes de persistência passaram")

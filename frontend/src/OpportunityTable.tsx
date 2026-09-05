@@ -1,5 +1,8 @@
 import { Fragment, useRef, useState } from 'react'
-import { generateEmailDraft, updateCompanyRenewalDate, updateOpportunityQualification, type EmailDraft } from './api'
+import {
+  generateEmailDraft, updateCompanyRenewalDate, updateOpportunityQualification, updateOpportunityStatus,
+  type EmailDraft,
+} from './api'
 import type { AccountHealth, Criticality, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
 const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
@@ -33,6 +36,90 @@ const QBR_REASON_LABEL: Record<string, string> = {
 
 function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
+}
+
+const STATUS_OPTIONS: { value: OpportunityRow['status']; label: string }[] = [
+  { value: 'detected', label: 'Detectada' },
+  { value: 'qualified', label: 'Qualificada' },
+  { value: 'reviewed', label: 'Revisada' },
+  { value: 'contacted', label: 'Contatada' },
+  { value: 'opportunity', label: 'Oportunidade' },
+  { value: 'dismissed', label: 'Descartada' },
+]
+
+// Mesma ordem/regra de core/opportunity_engine.py::requires_status_change_justification —
+// duplicada aqui só pra dar feedback imediato na UI; o backend é quem decide de verdade (422 sem nota).
+const STAGE_ORDER: OpportunityRow['status'][] = ['detected', 'qualified', 'reviewed', 'contacted', 'opportunity']
+
+function statusChangeNeedsJustification(oldStatus: OpportunityRow['status'], newStatus: OpportunityRow['status']): boolean {
+  if (oldStatus === newStatus) return false
+  if (oldStatus === 'dismissed') return newStatus !== 'dismissed'
+  const oldIdx = STAGE_ORDER.indexOf(oldStatus)
+  const newIdx = STAGE_ORDER.indexOf(newStatus)
+  if (oldIdx === -1 || newIdx === -1) return false
+  return newIdx - oldIdx >= 2
+}
+
+function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
+  const [pendingStatus, setPendingStatus] = useState<OpportunityRow['status'] | null>(null)
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const needsNote = pendingStatus !== null && statusChangeNeedsJustification(row.status, pendingStatus)
+
+  const submit = async (value: OpportunityRow['status'], noteValue: string | null) => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const updated = await updateOpportunityStatus(row.id, value, noteValue)
+      onUpdated(updated)
+      setPendingStatus(null)
+      setNote('')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Falha ao mudar o status.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSelect = (value: OpportunityRow['status']) => {
+    setSaveError(null)
+    if (value === row.status) {
+      setPendingStatus(null)
+      return
+    }
+    setPendingStatus(value)
+    if (!statusChangeNeedsJustification(row.status, value)) void submit(value, null)
+  }
+
+  return (
+    <div className="lt-severity">
+      <label>
+        Status
+        <select value={pendingStatus ?? row.status} onChange={e => handleSelect(e.target.value as OpportunityRow['status'])} disabled={saving}>
+          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
+      {needsNote && (
+        <label>
+          Justificativa (pulou etapas ou reabriu uma oportunidade descartada)
+          <textarea value={note} onChange={e => setNote(e.target.value)} />
+        </label>
+      )}
+      {needsNote && (
+        <button
+          type="button"
+          className="lt-btn"
+          onClick={() => submit(pendingStatus as OpportunityRow['status'], note)}
+          disabled={saving || !note.trim()}
+        >
+          Confirmar mudança
+        </button>
+      )}
+      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+    </div>
+  )
 }
 
 const PRIORITY_WEIGHT: Record<OpportunityRow['priority'], number> = { alta: 3, média: 2, baixa: 1 }
@@ -185,9 +272,9 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
   )
 }
 
-function RowDetail({ row, onQualificationUpdated, onRenewalDateUpdated }: {
+function RowDetail({ row, onRowUpdated, onRenewalDateUpdated }: {
   row: OpportunityRow
-  onQualificationUpdated: (updated: OpportunityRow) => void
+  onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
 }) {
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -248,8 +335,9 @@ function RowDetail({ row, onQualificationUpdated, onRenewalDateUpdated }: {
           <dt>Insight</dt>
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
         </dl>
+        <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
-        <SeverityQualification row={row} onUpdated={onQualificationUpdated} />
+        <SeverityQualification row={row} onUpdated={onRowUpdated} />
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
@@ -272,9 +360,9 @@ function RowDetail({ row, onQualificationUpdated, onRenewalDateUpdated }: {
   )
 }
 
-export function OpportunityTable({ rows, onQualificationUpdated, onRenewalDateUpdated }: {
+export function OpportunityTable({ rows, onRowUpdated, onRenewalDateUpdated }: {
   rows: OpportunityRow[]
-  onQualificationUpdated: (updated: OpportunityRow) => void
+  onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('score')
@@ -338,7 +426,7 @@ export function OpportunityTable({ rows, onQualificationUpdated, onRenewalDateUp
               <td>{row.sources.map(s => s.type).join(', ')}</td>
             </tr>
             {expandedId === row.id && (
-              <RowDetail row={row} onQualificationUpdated={onQualificationUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
+              <RowDetail row={row} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
             )}
           </Fragment>
         ))}

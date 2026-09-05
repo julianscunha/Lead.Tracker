@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Transição manual de status da oportunidade** (Fase D, primeiro módulo):
+  dropdown de status na linha expansível, sem máquina de estados no
+  domínio — mas pular 2+ estágios de uma vez ou reabrir uma oportunidade
+  descartada exige uma justificativa (`PATCH /opportunities/{id}/status`,
+  422 amigável sem nota). Corrigido um bug pré-existente descoberto
+  durante o planejamento: o motor de regras resetava o status pra
+  `detected` a cada `/sync`, porque a coluna entrava no upsert de
+  atualização — como nunca existia forma de mudar status manualmente, o
+  bug nunca tinha disparado. `OpportunityStatusChange` (histórico de
+  transição, já existia no modelo desde a Fase B) passa a ser gravado de
+  verdade, na mesma transação da mudança de status. Ver
+  `docs/specs/fase-d-dashboard-acionavel.md` para o detalhamento.
+
 - **Cadência de revisão de conta (QBR)**: última capacidade planejada da
   Fase C. A linha expansível de cada oportunidade ganha a saúde da conta
   (Saudável/Atenção/Crítica/Dados insuficientes, sempre derivada — pior

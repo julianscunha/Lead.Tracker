@@ -219,6 +219,21 @@ export async function updateOpportunityQualification(
   return fromApiRow(data)
 }
 
+export async function updateOpportunityStatus(
+  id: string,
+  newStatus: OpportunityRow['status'],
+  note: string | null,
+): Promise<OpportunityRow> {
+  const resp = await fetch(`${BASE}/opportunities/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_status: newStatus, note }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data: OpportunityApiRow = await resp.json()
+  return fromApiRow(data)
+}
+
 export async function updateCompanyRenewalDate(companyId: string, renewalDate: string | null): Promise<void> {
   const resp = await fetch(`${BASE}/companies/${companyId}/renewal-date`, {
     method: 'PATCH',

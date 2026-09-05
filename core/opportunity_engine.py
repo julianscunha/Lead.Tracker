@@ -65,9 +65,30 @@ _QBR_TABLE: dict[tuple[str, str], tuple[int | None, str]] = {
     ("verde", "sem_data_ou_longa"): (180, "revisao_de_rotina"),
 }
 
+# Fase D — transição manual de status. Decisão do Sales Coach (consultado
+# junto com o Plan, que divergiu recomendando sequência estrita): dropdown
+# livre, sem máquina de estados no backend — sequência rígida força cliques
+# inúteis num deal fechado rápido e não impede "pipeline mentiroso" (rep só
+# atualiza tudo no fim). O freio real é pedir justificativa nos saltos que
+# importam: 2+ estágios de uma vez, ou reabertura de "dismissed" — vira dado
+# de coaching, não burocracia. "dismissed" fica fora da ordem linear (é
+# terminal, não um estágio a mais na sequência).
+_STAGE_ORDER = ["detected", "qualified", "reviewed", "contacted", "opportunity"]
+
+
+def requires_status_change_justification(old_status: str, new_status: str) -> bool:
+    if old_status == new_status:
+        return False
+    if old_status == "dismissed":
+        return new_status != "dismissed"  # reabertura sempre exige motivo
+    if old_status in _STAGE_ORDER and new_status in _STAGE_ORDER:
+        return _STAGE_ORDER.index(new_status) - _STAGE_ORDER.index(old_status) >= 2
+    return False
+
+
 __all__ = [
     "CorrelationRule", "RuleError", "compute_account_health", "compute_qbr_suggested_days",
-    "compute_severity_band", "evaluate_rules",
+    "compute_severity_band", "evaluate_rules", "requires_status_change_justification",
 ]
 
 

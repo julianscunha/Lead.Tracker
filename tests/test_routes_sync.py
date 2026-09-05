@@ -298,6 +298,63 @@ def test_patch_opportunity_qualification_rejects_value_outside_the_three_options
         assert resp.status_code == 422
 
 
+def test_patch_opportunity_status_one_step_advance_needs_no_note():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "qualified"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "qualified"
+
+
+def test_patch_opportunity_status_big_skip_without_note_is_rejected():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "opportunity"},
+        )
+        assert resp.status_code == 422
+        assert "justificativa" in resp.json()["detail"]
+
+        resp_with_note = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "opportunity", "note": "Cliente já assinou, fechamos direto."},
+        )
+        assert resp_with_note.status_code == 200
+        assert resp_with_note.json()["status"] == "opportunity"
+
+
+def test_patch_opportunity_status_returns_friendly_404_for_unknown_id():
+    with _TempDb():
+        resp = client.patch(
+            "/modules/lead_tracker/opportunities/id-inexistente/status",
+            json={"new_status": "qualified"},
+        )
+        assert resp.status_code == 404
+        assert "não encontrada" in resp.json()["detail"]
+
+
 def test_get_products_and_services_return_catalog():
     with _TempDb() as db:
         import asyncio
@@ -355,6 +412,9 @@ if __name__ == "__main__":
     test_patch_opportunity_qualification_updates_and_recomputes_severity_band()
     test_patch_opportunity_qualification_returns_friendly_404_for_unknown_id()
     test_patch_opportunity_qualification_rejects_value_outside_the_three_options()
+    test_patch_opportunity_status_one_step_advance_needs_no_note()
+    test_patch_opportunity_status_big_skip_without_note_is_rejected()
+    test_patch_opportunity_status_returns_friendly_404_for_unknown_id()
     test_get_products_and_services_return_catalog()
     test_post_rule_creates_and_get_rules_lists_it()
     test_post_rule_without_any_evidence_mechanism_returns_friendly_error()

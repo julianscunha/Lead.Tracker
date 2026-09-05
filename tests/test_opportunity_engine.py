@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import (
     CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
-    compute_severity_band, evaluate_rules,
+    compute_severity_band, evaluate_rules, requires_status_change_justification,
 )
 
 
@@ -376,6 +376,35 @@ def test_compute_qbr_suggested_days_two_or_more_open_signals_escalates_one_row()
     assert already_worst == compute_qbr_suggested_days("vermelha", renewal_days=None, open_signal_count=0)
 
 
+def test_requires_status_change_justification_for_one_step_advance_is_false():
+    assert requires_status_change_justification("detected", "qualified") is False
+    assert requires_status_change_justification("qualified", "reviewed") is False
+
+
+def test_requires_status_change_justification_for_two_or_more_stage_skip_is_true():
+    assert requires_status_change_justification("detected", "contacted") is True
+    assert requires_status_change_justification("detected", "opportunity") is True
+
+
+def test_requires_status_change_justification_going_backward_is_false():
+    assert requires_status_change_justification("contacted", "qualified") is False
+
+
+def test_requires_status_change_justification_dismissed_reopen_is_always_true():
+    assert requires_status_change_justification("dismissed", "detected") is True
+    assert requires_status_change_justification("dismissed", "opportunity") is True
+
+
+def test_requires_status_change_justification_advancing_to_dismissed_is_false():
+    assert requires_status_change_justification("detected", "dismissed") is False
+    assert requires_status_change_justification("opportunity", "dismissed") is False
+
+
+def test_requires_status_change_justification_same_status_is_false():
+    assert requires_status_change_justification("qualified", "qualified") is False
+    assert requires_status_change_justification("dismissed", "dismissed") is False
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -412,4 +441,10 @@ if __name__ == "__main__":
     test_compute_qbr_suggested_days_verde_aligns_to_real_renewal_date()
     test_compute_qbr_suggested_days_dados_insuficientes_treated_as_amarela()
     test_compute_qbr_suggested_days_two_or_more_open_signals_escalates_one_row()
+    test_requires_status_change_justification_for_one_step_advance_is_false()
+    test_requires_status_change_justification_for_two_or_more_stage_skip_is_true()
+    test_requires_status_change_justification_going_backward_is_false()
+    test_requires_status_change_justification_dismissed_reopen_is_always_true()
+    test_requires_status_change_justification_advancing_to_dismissed_is_false()
+    test_requires_status_change_justification_same_status_is_false()
     print("OK — todos os testes do motor de oportunidades passaram")

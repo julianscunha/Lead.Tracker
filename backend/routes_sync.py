@@ -28,11 +28,15 @@ from core.dashboard_metrics import (
     financial_potential_by_vendor, funnel_counts, opportunities_by_service,
 )
 from core.errors import DomainError, ErrorCategory
-from core.models import Company, CorrelationRule, Opportunity, OpportunityStatus, Product, RuleError, Service
+from core.models import (
+    Company, CorrelationRule, Opportunity, OpportunityStatus, Product, RuleError, Service,
+    StatusChangeRequiresJustificationError,
+)
 from core.opportunity_engine import compute_account_health, compute_qbr_suggested_days, compute_severity_band
 from core.repository import (
-    list_companies, list_company_signals, list_opportunities, list_products, list_rules,
-    list_services, list_vendors, save_rule, update_company_renewal_date, update_opportunity_qualification,
+    list_companies, list_company_signals, list_opportunities, list_products,
+    list_rules, list_services, list_vendors, save_rule, update_company_renewal_date,
+    update_opportunity_qualification, update_opportunity_status,
 )
 
 router = APIRouter(tags=["lead_tracker-data"])
@@ -87,6 +91,11 @@ class OpportunityQualificationIn(BaseModel):
 
 class CompanyRenewalDateIn(BaseModel):
     renewal_date: datetime | None = None
+
+
+class OpportunityStatusIn(BaseModel):
+    new_status: Literal["detected", "qualified", "reviewed", "contacted", "opportunity", "dismissed"]
+    note: str | None = None
 
 
 class RuleIn(BaseModel):
@@ -206,6 +215,26 @@ async def update_opportunity_qualification_route(opportunity_id: str, body: Oppo
         updated = await update_opportunity_qualification(
             session, opportunity_id, body.scope_note, body.criticality, body.severity_note,
         )
+        if updated is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        companies = {c.id: c for c in await list_companies(session)}
+        products = {p.id: p.name for p in await list_products(session)}
+        services = {s.id: s.name for s in await list_services(session)}
+        health_map = await _account_health_map(session, [updated], companies)
+
+    return _to_opportunity_out(updated, companies, products, services, health_map)
+
+
+@router.patch("/opportunities/{opportunity_id}/status")
+async def update_opportunity_status_route(opportunity_id: str, body: OpportunityStatusIn) -> OpportunityOut:
+    async with session_factory() as session:
+        try:
+            updated = await update_opportunity_status(session, opportunity_id, OpportunityStatus(body.new_status), body.note)
+        except StatusChangeRequiresJustificationError:
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA,
+                "Pular vários estágios de uma vez ou reabrir uma oportunidade descartada exige uma justificativa.",
+            ))
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
         companies = {c.id: c for c in await list_companies(session)}

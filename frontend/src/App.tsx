@@ -26,7 +26,7 @@ function OpportunitiesView() {
 
   const filtered = rows ? applyFilters(rows, filters) : []
 
-  const handleQualificationUpdated = (updated: OpportunityRow) => {
+  const handleRowUpdated = (updated: OpportunityRow) => {
     setRows(prev => prev && prev.map(r => (r.id === updated.id ? updated : r)))
   }
 
@@ -76,7 +76,7 @@ function OpportunitiesView() {
       ) : (
         <OpportunityTable
           rows={filtered}
-          onQualificationUpdated={handleQualificationUpdated}
+          onRowUpdated={handleRowUpdated}
           onRenewalDateUpdated={handleRenewalDateUpdated}
         />
       )}
