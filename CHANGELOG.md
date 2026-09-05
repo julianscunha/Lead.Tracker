@@ -4,6 +4,21 @@
 
 ### Adicionado
 
+- **Quantificação de gap por severidade**: tela de oportunidade ganha
+  dois dropdowns (Alcance, Criticidade) e uma observação opcional,
+  preenchidos manualmente pelo vendedor — sem fonte automática, sem
+  número em R$ calculado pelo sistema. Uma banda de severidade
+  (Baixo/Médio/Alto/Crítico) é derivada por tabela fixa dos dois campos,
+  sempre recalculada na leitura (nunca fica dessincronizada). Nova rota
+  `PATCH /opportunities/{id}`, validando o valor recebido (422 pra
+  qualquer coisa fora das 3 opções de cada dropdown, nunca degrada
+  silenciosamente pra "não avaliado"). `POST /sync` (motor de regras)
+  nunca apaga esses campos manuais — a escrita usa um upsert atômico que
+  não toca nessas 3 colunas, fechando também uma janela de concorrência
+  entre uma sincronização e uma edição manual acontecendo ao mesmo
+  tempo. Ver `docs/criterios-de-qualificacao.md` para o detalhamento de
+  como a banda é calculada.
+
 - **Sinais granulares de qualificação** (Fase C do roadmap, quarta fatia
   — parte 1, campos automáticos): `Company.last_activity_at`, mapeado do
   `LastActivityDate` do Salesforce, alimenta um multiplicador de

@@ -91,6 +91,9 @@ class OpportunityORM(Base):
     evidence_summary: Mapped[str | None] = mapped_column(String, nullable=True)
     discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
     synced_at: Mapped[datetime] = mapped_column()
+    scope_note: Mapped[str | None] = mapped_column(String, nullable=True)
+    criticality: Mapped[str | None] = mapped_column(String, nullable=True)
+    severity_note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class PortfolioORM(Base):

@@ -1,6 +1,22 @@
-import { Fragment, useState } from 'react'
-import { generateEmailDraft, type EmailDraft } from './api'
-import type { OpportunityRow, SortKey } from './types'
+import { Fragment, useRef, useState } from 'react'
+import { generateEmailDraft, updateOpportunityQualification, type EmailDraft } from './api'
+import type { Criticality, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
+
+const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
+  { value: 'isolado', label: 'Isolado (poucas licenças/sistemas)' },
+  { value: 'parcial', label: 'Parcial (parte relevante do parque)' },
+  { value: 'generalizado', label: 'Generalizado (maior parte do parque)' },
+]
+
+const CRITICALITY_OPTIONS: { value: Criticality; label: string }[] = [
+  { value: 'nao_critico', label: 'Não crítico (impacto operacional baixo)' },
+  { value: 'critico_interno', label: 'Crítico interno (grave, não visível ao cliente)' },
+  { value: 'critico_exposto', label: 'Crítico e exposto (produção/cliente-facing)' },
+]
+
+const SEVERITY_LABEL: Record<SeverityBand, string> = {
+  baixo: 'Baixo', medio: 'Médio', alto: 'Alto', critico: 'Crítico', nao_avaliado: 'Não avaliado',
+}
 
 const PRIORITY_WEIGHT: Record<OpportunityRow['priority'], number> = { alta: 3, média: 2, baixa: 1 }
 
@@ -43,7 +59,75 @@ function SortHeader({ label, sortKey, current, direction, onSort }: {
   )
 }
 
-function RowDetail({ row }: { row: OpportunityRow }) {
+function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
+  const [scopeNote, setScopeNote] = useState(row.scopeNote)
+  const [criticality, setCriticality] = useState(row.criticality)
+  const [severityNote, setSeverityNote] = useState(row.severityNote ?? '')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const requestSeq = useRef(0)
+
+  const save = async (next: { scopeNote: ScopeNote | null; criticality: Criticality | null; severityNote: string }) => {
+    setSaveError(null)
+    const seq = ++requestSeq.current
+    try {
+      const updated = await updateOpportunityQualification(row.id, {
+        scopeNote: next.scopeNote, criticality: next.criticality, severityNote: next.severityNote || null,
+      })
+      if (seq !== requestSeq.current) return // resposta atrasada de um save anterior — descarta, não reverte o estado mais novo
+      onUpdated(updated)
+    } catch (err) {
+      if (seq !== requestSeq.current) return
+      setSaveError(err instanceof Error ? err.message : 'Falha ao salvar a qualificação.')
+    }
+  }
+
+  return (
+    <div className="lt-severity">
+      <label>
+        Alcance do gap
+        <select
+          value={scopeNote ?? ''}
+          onChange={e => {
+            const value = (e.target.value || null) as ScopeNote | null
+            setScopeNote(value)
+            save({ scopeNote: value, criticality, severityNote })
+          }}
+        >
+          <option value="">Não avaliado</option>
+          {SCOPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
+      <label>
+        Criticidade
+        <select
+          value={criticality ?? ''}
+          onChange={e => {
+            const value = (e.target.value || null) as Criticality | null
+            setCriticality(value)
+            save({ scopeNote, criticality: value, severityNote })
+          }}
+        >
+          <option value="">Não avaliado</option>
+          {CRITICALITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
+      <label>
+        Observação (opcional)
+        <textarea
+          value={severityNote}
+          onChange={e => setSeverityNote(e.target.value)}
+          onBlur={() => save({ scopeNote, criticality, severityNote })}
+        />
+      </label>
+      <span className={`lt-badge lt-badge--severity-${row.severityBand}`}>
+        Severidade: {SEVERITY_LABEL[row.severityBand]}
+      </span>
+      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+    </div>
+  )
+}
+
+function RowDetail({ row, onQualificationUpdated }: { row: OpportunityRow; onQualificationUpdated: (updated: OpportunityRow) => void }) {
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [draft, setDraft] = useState<EmailDraft | null>(null)
@@ -102,6 +186,7 @@ function RowDetail({ row }: { row: OpportunityRow }) {
           <dt>Insight</dt>
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
         </dl>
+        <SeverityQualification row={row} onUpdated={onQualificationUpdated} />
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
@@ -124,7 +209,10 @@ function RowDetail({ row }: { row: OpportunityRow }) {
   )
 }
 
-export function OpportunityTable({ rows }: { rows: OpportunityRow[] }) {
+export function OpportunityTable({ rows, onQualificationUpdated }: {
+  rows: OpportunityRow[]
+  onQualificationUpdated: (updated: OpportunityRow) => void
+}) {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -185,7 +273,7 @@ export function OpportunityTable({ rows }: { rows: OpportunityRow[] }) {
               <td>{row.priority}</td>
               <td>{row.sources.map(s => s.type).join(', ')}</td>
             </tr>
-            {expandedId === row.id && <RowDetail row={row} />}
+            {expandedId === row.id && <RowDetail row={row} onQualificationUpdated={onQualificationUpdated} />}
           </Fragment>
         ))}
       </tbody>

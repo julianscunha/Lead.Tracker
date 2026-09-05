@@ -9,6 +9,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from typing import Literal
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -26,9 +28,10 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import Company, CorrelationRule, Product, RuleError, Service
+from core.opportunity_engine import compute_severity_band
 from core.repository import (
     list_companies, list_opportunities, list_products, list_rules, list_services,
-    list_vendors, save_rule,
+    list_vendors, save_rule, update_opportunity_qualification,
 )
 
 router = APIRouter(tags=["lead_tracker-data"])
@@ -61,6 +64,20 @@ class OpportunityOut(BaseModel):
     sources: list[dict]
     status: str
     risk_flag: str | None
+    scope_note: str | None
+    criticality: str | None
+    severity_note: str | None
+    severity_band: str
+
+
+class OpportunityQualificationIn(BaseModel):
+    # Domínio (core/models.py) mantém os 3 campos como string aberta de propósito
+    # (Fatia 5, "Design"). Aqui na fronteira HTTP, porém, qualquer cliente além da UI
+    # (curl, integração futura) poderia gravar lixo que compute_severity_band
+    # silenciosamente rebaixa a "não avaliado" — Literal fecha só esse ponto de entrada.
+    scope_note: Literal["isolado", "parcial", "generalizado"] | None = None
+    criticality: Literal["nao_critico", "critico_interno", "critico_exposto"] | None = None
+    severity_note: str | None = None
 
 
 class RuleIn(BaseModel):
@@ -89,6 +106,26 @@ async def get_companies() -> list[Company]:
         return await list_companies(session)
 
 
+def _to_opportunity_out(
+    o, companies: dict[str, Company], products: dict[str, str], services: dict[str, str],
+) -> OpportunityOut:
+    company = companies.get(o.company_id)
+    return OpportunityOut(
+        id=o.id, company_id=o.company_id,
+        company_name=company.name if company else "(empresa removida)",
+        is_customer=company.is_customer if company else False,
+        type=o.type, product_id=o.product_id, product_name=products.get(o.product_id),
+        service_id=o.service_id, service_name=services.get(o.service_id),
+        opportunity_score=o.opportunity_score, financial_potential=o.financial_potential,
+        strategic_score=o.strategic_score, confidence_score=o.confidence_score,
+        evidence=o.evidence, justification=o.justification,
+        sources=[s.model_dump() for s in o.sources], status=o.status.value,
+        risk_flag=o.risk_flag, scope_note=o.scope_note, criticality=o.criticality,
+        severity_note=o.severity_note,
+        severity_band=compute_severity_band(o.scope_note, o.criticality),
+    )
+
+
 @router.get("/opportunities")
 async def get_opportunities(company_id: str | None = None) -> list[OpportunityOut]:
     async with session_factory() as session:
@@ -97,22 +134,22 @@ async def get_opportunities(company_id: str | None = None) -> list[OpportunityOu
         products = {p.id: p.name for p in await list_products(session)}
         services = {s.id: s.name for s in await list_services(session)}
 
-    out: list[OpportunityOut] = []
-    for o in opportunities:
-        company = companies.get(o.company_id)
-        out.append(OpportunityOut(
-            id=o.id, company_id=o.company_id,
-            company_name=company.name if company else "(empresa removida)",
-            is_customer=company.is_customer if company else False,
-            type=o.type, product_id=o.product_id, product_name=products.get(o.product_id),
-            service_id=o.service_id, service_name=services.get(o.service_id),
-            opportunity_score=o.opportunity_score, financial_potential=o.financial_potential,
-            strategic_score=o.strategic_score, confidence_score=o.confidence_score,
-            evidence=o.evidence, justification=o.justification,
-            sources=[s.model_dump() for s in o.sources], status=o.status.value,
-            risk_flag=o.risk_flag,
-        ))
-    return out
+    return [_to_opportunity_out(o, companies, products, services) for o in opportunities]
+
+
+@router.patch("/opportunities/{opportunity_id}")
+async def update_opportunity_qualification_route(opportunity_id: str, body: OpportunityQualificationIn) -> OpportunityOut:
+    async with session_factory() as session:
+        updated = await update_opportunity_qualification(
+            session, opportunity_id, body.scope_note, body.criticality, body.severity_note,
+        )
+        if updated is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        companies = {c.id: c for c in await list_companies(session)}
+        products = {p.id: p.name for p in await list_products(session)}
+        services = {s.id: s.name for s in await list_services(session)}
+
+    return _to_opportunity_out(updated, companies, products, services)
 
 
 @router.get("/products")

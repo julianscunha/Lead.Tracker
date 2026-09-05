@@ -17,6 +17,7 @@ class ErrorCategory(str, Enum):
     API_LIMIT = "api_limit"
     INTEGRATION = "integration"
     INVALID_DATA = "invalid_data"
+    NOT_FOUND = "not_found"
     AI = "ai"
     EXPORT = "export"
 

@@ -24,6 +24,10 @@ function OpportunitiesView() {
 
   const filtered = rows ? applyFilters(rows, filters) : []
 
+  const handleQualificationUpdated = (updated: OpportunityRow) => {
+    setRows(prev => prev && prev.map(r => (r.id === updated.id ? updated : r)))
+  }
+
   const handleExport = async (kind: 'pdf' | 'excel') => {
     setExportError(null)
     setExporting(kind)
@@ -62,7 +66,7 @@ function OpportunitiesView() {
           Nenhuma oportunidade ainda — rode uma sincronização em Configurações.
         </p>
       ) : (
-        <OpportunityTable rows={filtered} />
+        <OpportunityTable rows={filtered} onQualificationUpdated={handleQualificationUpdated} />
       )}
     </div>
   )

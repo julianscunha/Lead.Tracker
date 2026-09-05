@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
@@ -184,12 +185,22 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         sources=_sources_from_json(row.sources), status=OpportunityStatus(row.status),
         risk_flag=row.risk_flag, evidence_summary=row.evidence_summary,
         discovery_prompt=row.discovery_prompt, synced_at=_ensure_utc(row.synced_at),
+        scope_note=row.scope_note, criticality=row.criticality, severity_note=row.severity_note,
     )
 
 
 async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> None:
-    await _upsert(session, OpportunityORM(
-        id=opportunity.id, company_id=opportunity.company_id, type=opportunity.type,
+    """Caminho de escrita do MOTOR (chamado a cada `/sync`). O motor nunca
+    sabe de scope_note/criticality/severity_note (Fase C, Fatia 5 — campos
+    100% manuais). Upsert atômico via `INSERT ... ON CONFLICT DO UPDATE`
+    que nunca lista essas 3 colunas no `set_` — ao contrário de um
+    fetch-then-merge, não existe janela entre leitura e escrita onde um
+    `update_opportunity_qualification` concorrente possa ser sobrescrito
+    (revisão de código apontou o TOCTOU da versão anterior). Escrita
+    manual desses 3 campos usa `update_opportunity_qualification`, nunca
+    esta função."""
+    engine_columns = dict(
+        company_id=opportunity.company_id, type=opportunity.type,
         vendor_id=opportunity.vendor_id, product_id=opportunity.product_id, service_id=opportunity.service_id,
         opportunity_score=opportunity.opportunity_score, financial_potential=opportunity.financial_potential,
         strategic_score=opportunity.strategic_score, confidence_score=opportunity.confidence_score,
@@ -197,7 +208,31 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
         sources=_sources_to_json(opportunity.sources), status=opportunity.status.value,
         risk_flag=opportunity.risk_flag, evidence_summary=opportunity.evidence_summary,
         discovery_prompt=opportunity.discovery_prompt, synced_at=opportunity.synced_at,
-    ))
+    )
+    stmt = sqlite_insert(OpportunityORM).values(id=opportunity.id, **engine_columns)
+    stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def update_opportunity_qualification(
+    session: AsyncSession, opportunity_id: str,
+    scope_note: str | None, criticality: str | None, severity_note: str | None,
+) -> Opportunity | None:
+    """Único caminho de escrita de scope_note/criticality/severity_note
+    (Fase C, Fatia 5) — entrada manual do vendedor, nunca tocada por
+    `save_opportunity` (caminho do motor). Substituição completa dos 3
+    campos a cada chamada — a UI sempre envia o estado atual dos 3
+    controles, sem merge parcial ambíguo. `None` se a oportunidade não
+    existir (rota decide o 404)."""
+    row = await session.get(OpportunityORM, opportunity_id)
+    if row is None:
+        return None
+    row.scope_note = scope_note
+    row.criticality = criticality
+    row.severity_note = severity_note
+    await session.commit()
+    return _opportunity_from_row(row)
 
 
 async def list_opportunities(session: AsyncSession, company_id: str | None = None) -> list[Opportunity]:

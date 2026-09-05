@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import datetime, timedelta, timezone
 
 from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
-from core.opportunity_engine import CorrelationRule, RuleError, evaluate_rules
+from core.opportunity_engine import CorrelationRule, RuleError, compute_severity_band, evaluate_rules
 
 
 VDC365_RULE = CorrelationRule(
@@ -288,6 +288,30 @@ def test_evaluate_rules_without_company_never_penalizes_retrocompat():
     assert result[0].confidence_score == VDC365_RULE.confidence_score
 
 
+# ── Banda de severidade (Fase C, Fatia 5) ─────────────────────────────────────
+
+def test_compute_severity_band_covers_all_nine_combinations():
+    expected = {
+        ("isolado", "nao_critico"): "baixo",
+        ("isolado", "critico_interno"): "medio",
+        ("isolado", "critico_exposto"): "alto",
+        ("parcial", "nao_critico"): "medio",
+        ("parcial", "critico_interno"): "alto",
+        ("parcial", "critico_exposto"): "alto",
+        ("generalizado", "nao_critico"): "medio",
+        ("generalizado", "critico_interno"): "alto",
+        ("generalizado", "critico_exposto"): "critico",
+    }
+    for (scope, criticality), band in expected.items():
+        assert compute_severity_band(scope, criticality) == band
+
+
+def test_compute_severity_band_falls_back_to_nao_avaliado_when_any_field_blank():
+    assert compute_severity_band(None, "critico_exposto") == "nao_avaliado"
+    assert compute_severity_band("isolado", None) == "nao_avaliado"
+    assert compute_severity_band(None, None) == "nao_avaliado"
+
+
 def test_naive_last_activity_at_never_crashes_the_engine():
     """CLAUDE.md: nunca vazar exceção técnica crua — company.last_activity_at
     sempre chega UTC-aware hoje (repository/provider garantem isso), mas o
@@ -326,4 +350,6 @@ if __name__ == "__main__":
     test_company_without_last_activity_at_is_treated_as_very_cold()
     test_evaluate_rules_without_company_never_penalizes_retrocompat()
     test_naive_last_activity_at_never_crashes_the_engine()
+    test_compute_severity_band_covers_all_nine_combinations()
+    test_compute_severity_band_falls_back_to_nao_avaliado_when_any_field_blank()
     print("OK — todos os testes do motor de oportunidades passaram")

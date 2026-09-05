@@ -142,6 +142,10 @@ interface OpportunityApiRow {
   justification: string | null
   sources: { type: string; confidence: number }[]
   status: OpportunityRow['status']
+  scope_note: OpportunityRow['scopeNote']
+  criticality: OpportunityRow['criticality']
+  severity_note: string | null
+  severity_band: OpportunityRow['severityBand']
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -174,6 +178,10 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     currentProducts: [],
     recommendedProducts: r.product_name ? [r.product_name] : [],
     recommendedServices: r.service_name ? [r.service_name] : [],
+    scopeNote: r.scope_note,
+    criticality: r.criticality,
+    severityNote: r.severity_note,
+    severityBand: r.severity_band,
   }
 }
 
@@ -182,6 +190,24 @@ export async function listOpportunities(): Promise<OpportunityRow[]> {
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const data: OpportunityApiRow[] = await resp.json()
   return data.map(fromApiRow)
+}
+
+export async function updateOpportunityQualification(
+  id: string,
+  qualification: { scopeNote: OpportunityRow['scopeNote']; criticality: OpportunityRow['criticality']; severityNote: string | null },
+): Promise<OpportunityRow> {
+  const resp = await fetch(`${BASE}/opportunities/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      scope_note: qualification.scopeNote,
+      criticality: qualification.criticality,
+      severity_note: qualification.severityNote,
+    }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data: OpportunityApiRow = await resp.json()
+  return fromApiRow(data)
 }
 
 export interface SyncResult {

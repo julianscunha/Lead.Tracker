@@ -1,99 +1,134 @@
 # Critérios de qualificação de oportunidade
 
-Este documento explica **o que cada critério significa e por que o número
-é esse** — não é uma spec de implementação (essas ficam em
-`docs/specs/`), é a referência de negócio pra quem configura, audita ou
-questiona por que uma oportunidade recebeu determinado score ou banda.
+Este documento explica **o que cada critério significa, de onde vem o
+dado e por que o número/corte é esse** — pra quem usa o Lead.Tracker
+entender como o sistema chegou naquele score, naquela banda ou naquele
+selo, sem precisar abrir código. Não é uma spec técnica de
+implementação (essas ficam em `docs/specs/`, uso interno de
+desenvolvimento).
 
-Todo critério aqui é uma **regra determinística configurável**, nunca uma
-estimativa de IA (`CLAUDE.md` — "Deterministic rules come before AI"). Os
-números de corte (dias, multiplicadores, bandas) são pontos de partida
-revisáveis, não constantes definitivas — cada um traz a razão de ter sido
-escolhido e quando revisitar.
+Todo critério listado aqui é uma **regra determinística**, nunca uma
+estimativa de IA: o sistema segue uma fórmula fixa e auditável, nunca
+"acha" ou inventa um valor. Os números de corte (dias, multiplicadores,
+bandas) são revisáveis com o tempo — cada um vem acompanhado do porquê,
+pra ficar claro quando faz sentido ajustar.
 
-## Recência de atividade → multiplicador de `confidence_score`
+## Recência de atividade → confiança da oportunidade
 
-**O que é:** proxy de "quão viva está a conversa com essa conta". Uma
-oportunidade tecnicamente idêntica vale menos confiança se a conta está
-em silêncio há muito tempo — não porque a oportunidade deixou de existir,
-mas porque a chance de avançar agora é menor.
+**O que é:** mede o quão "viva" está a conversa com aquela conta. Duas
+oportunidades tecnicamente idênticas não têm o mesmo peso se uma conta
+está em silêncio há muito tempo — a oportunidade continua existindo, mas
+a chance de avançar agora é menor. Isso ajusta o `confidence_score`
+(confiança) da oportunidade, nunca o fato de ela existir ou não.
 
-**De onde vem o dado:** `LastActivityDate` do Salesforce (`Company.last_activity_at`).
-Fontes sem esse conceito (Manual, CSV) não alimentam este campo — nesse
-caso a empresa é tratada como "muito fria" (ver abaixo), nunca como um
+**De onde vem o dado:** a data da última atividade registrada no
+Salesforce daquela empresa. Fontes que não têm esse conceito (cadastro
+manual, planilha) deixam esse dado em branco — nesse caso a empresa é
+tratada como a categoria mais fria (ver tabela abaixo), nunca como um
 terceiro estado "não sei".
 
 **Os 3 níveis:**
 
-| Nível | Janela | Multiplicador |
+| Nível | Janela desde a última atividade | Efeito na confiança |
 |---|---|---|
-| Quente | até 120 dias desde a última atividade | ×1.0 (sem penalidade) |
-| Morno | 121 a 270 dias | ×0.85 |
-| Muito frio | mais de 270 dias, **ou nunca registrado** | ×0.5 |
+| Quente | até 120 dias | Sem penalidade |
+| Morno | de 121 a 270 dias | Reduz 15% |
+| Muito frio | mais de 270 dias, **ou nunca registrado** | Reduz 50% |
 
-**Por que esses números:** a primeira versão usava um corte binário de 90
-dias (quente/frio, ×1.0/×0.7). Consultamos o agente especialista Pipeline
-Analyst antes de confirmar esse desenho em produção, e o retorno apontou
-dois problemas reais:
+**Por que esses números:** ciclos de venda de infraestrutura de TI
+costumam rodar 90-180 dias ou mais — uma conta parada 60-90 dias entre
+reuniões por causa de aprovação de orçamento ou processo de compra é
+normal, não significa que esfriou. Um corte curto demais penalizaria
+esse ritmo normal como se fosse desengajamento. Por outro lado, tratar
+"91 dias sem contato" e "700 dias sem contato" como a mesma coisa também
+distorce a priorização — por isso existe o nível intermediário "morno"
+em vez de um corte único.
 
-1. **90 dias é curto demais** pra ciclo de venda de infraestrutura B2B
-   (tipicamente 90-180+ dias) — uma conta parada 60-90 dias entre reuniões
-   por causa de aprovação de budget/licitação é normal, não "esfriou". O
-   corte de 90 dias penalizava esse ritmo normal como se fosse
-   desengajamento.
-2. **Corte único trata "91 dias sem atividade" igual a "700 dias"** —
-   duas populações com risco de morte do deal muito diferentes,
-   distorção perceptível pelo vendedor que usa o sistema.
+Esses números são o ponto de partida, não uma constante definitiva: o
+ideal é calibrá-los pela mediana real de intervalo entre atividades dos
+negócios que sua equipe já fechou, quando esse histórico existir.
 
-A correção adicionou o nível intermediário "morno" e moveu o corte
-quente/morno pra 120 dias. **Isso ainda não está calibrado com dado real
-de vocês** — o ideal (segundo o próprio especialista consultado) é usar a
-mediana de intervalo-entre-atividades dos deals fechados (`won`) do seu
-histórico de Salesforce, não uma régua genérica de mercado. Revisitar
-quando esse dado existir.
+**Regra importante:** a ausência da data de última atividade nunca vira
+um terceiro estado "desconhecido" — conta sem essa informação é tratada
+como muito fria, de propósito. Prefere subestimar a confiança a fingir
+neutralidade sobre um dado que falta.
 
-**Nunca acontece:** a ausência de `last_activity_at` nunca vira um
-terceiro estado "desconhecido" — conta sem essa informação é tratada como
-muito fria (regra de negócio deliberada, não lacuna de implementação).
+## Nível hierárquico do contato
 
-## Nível hierárquico do contato (`seniority_tier`)
+**O que é:** indica se o contato registrado na oportunidade é quem
+decide (ex.: diretor, gestor) ou só um influenciador técnico. Uma
+oportunidade forte cujo único contato conhecido é operacional carrega um
+risco a mais: pode nunca chegar em quem aprova a compra.
 
-**O que é:** proxy de autoridade — o contato registrado é quem decide
-(Economic Buyer) ou só um influenciador técnico? Uma oportunidade forte
-com um contato só operacional tem risco de nunca chegar em quem aprova.
+**De onde vem o dado:** inferido automaticamente a partir do cargo
+registrado no Salesforce, por reconhecimento de palavra-chave em
+português — **sem uso de IA**, é busca direta de termos conhecidos:
 
-**De onde vem o dado:** inferido automaticamente do cargo (`Title` no
-Salesforce) por palavra-chave, **sem IA** — é busca de substring em
-português, case-insensitive, primeiro match vence:
-
-| Categoria | Palavras-chave |
+| Classificação | Palavras reconhecidas no cargo |
 |---|---|
-| `decisor` | gestor, diretor, gerente, head, ceo, cto, cio |
-| `influenciador_tecnico` | arquiteto, especialista |
-| `operacional` | técnico, analista, suporte |
+| Decisor | gestor, diretor, gerente, head, ceo, cto, cio |
+| Influenciador técnico | arquiteto, especialista |
+| Operacional | técnico, analista, suporte |
 
-Cargo sem nenhuma palavra-chave reconhecida fica **sem classificação**
-(`None`) — o sistema nunca inventa um nível quando não tem certeza.
+Cargo sem nenhuma dessas palavras fica **sem classificação** — o sistema
+nunca inventa um nível quando não reconhece o termo.
 
-**Edição manual:** ainda não existe (rota de edição de contato é um item
-futuro do roadmap, "Fatia 4b") — hoje a classificação automática é a
-única fonte, mesmo sabendo que pode errar (ex.: "Diretor de Operações"
-sendo confundido, cargos em outro idioma, etc.). Quando a edição manual
-existir, ela sempre poderá corrigir o valor inferido.
+**Limitação atual:** ainda não existe uma tela pra corrigir manualmente
+essa classificação quando ela erra (ex.: cargos incomuns, em outro
+idioma, ou ambíguos como "Diretor de Operações"). Por enquanto, a
+classificação automática é a única fonte — a correção manual é um
+recurso planejado.
 
 ## Quantificação de gap por severidade
 
-*(Em implementação — esta seção será preenchida com o desenho final:
-Alcance × Criticidade → banda de severidade, ambos preenchidos
-manualmente pelo vendedor, revisado com o agente especialista Deal
-Strategist antes de shipar.)*
+**O que é:** classifica o quão sério é um problema/lacuna detectado
+(ex.: "cliente não tem proteção de backup"), sem nunca calcular um valor
+em reais automaticamente — o sistema nunca inventa quanto custa a
+inação, isso sempre fica como pergunta pro vendedor confirmar junto ao
+cliente.
 
-## Por que consultar especialistas antes de fixar um número
+**De onde vem o dado:** **100% preenchido manualmente** pelo vendedor na
+tela da oportunidade — não existe hoje nenhuma fonte automática que
+avalie isso. Dois campos, sempre escolhidos de uma lista (nunca digitado
+livre):
 
-Nenhuma pessoa na equipe de desenvolvimento deste módulo é especialista
-em metodologia de vendas ou em diagnóstico de pipeline — por isso, toda
-decisão de threshold/fórmula que afeta como uma oportunidade é priorizada
-passa por um agente especialista (Pipeline Analyst, Deal Strategist, etc.)
-antes de ser confirmada, e o motivo da escolha fica registrado aqui, não
-só o número. Se um critério parecer estranho na prática, este documento
-é o lugar pra entender a lógica original antes de mudar.
+- **Alcance** — o quanto da base do cliente é afetado: `Isolado` (poucos
+  sistemas/licenças), `Parcial` (parte relevante do parque), ou
+  `Generalizado` (maior parte do parque).
+- **Criticidade** — o quão grave é se o problema se concretizar:
+  `Não crítico` (impacto operacional baixo), `Crítico interno` (grave,
+  mas não visível pro cliente final), ou `Crítico e exposto` (afeta
+  produção ou algo que o cliente do seu cliente vê diretamente).
+
+Um terceiro campo, **Observação**, é opcional — espaço de texto livre
+pra registrar o motivo/contexto da classificação, serve de lembrete pra
+quando a oportunidade for revisada depois.
+
+**Como vira uma banda:** os dois campos se combinam numa tabela fixa,
+sempre a mesma, nunca ajustada por IA:
+
+| | Não crítico | Crítico interno | Crítico e exposto |
+|---|---|---|---|
+| Isolado | Baixo | Médio | Alto |
+| Parcial | Médio | Alto | Alto |
+| Generalizado | Médio | Alto | **Crítico** |
+
+Enquanto qualquer um dos dois campos não for preenchido, a banda aparece
+como **"Não avaliado"** — o sistema nunca calcula uma banda com
+informação incompleta.
+
+**Por que só 2 perguntas e não mais:** o objetivo é dar ao vendedor um
+jeito rápido de sinalizar prioridade sem virar um formulário longo.
+Alcance e criticidade juntos já bastam pra separar "vale a pena tratar
+com urgência" de "fica pra depois" — outros fatores (prazo, orçamento,
+quem decide) já têm campo próprio em outros lugares da oportunidade.
+
+## Os números não são definitivos
+
+Todo threshold e toda fórmula deste documento é revisável — nada aqui é
+"assim porque sim". Se um critério não estiver refletindo a realidade do
+seu negócio na prática (ex.: 120 dias parecer curto ou longo demais pro
+seu ciclo de venda), isso é sinal de que vale revisar o número, não de
+que o sistema está errado por natureza. Este documento existe justamente
+pra deixar claro o raciocínio por trás de cada corte, facilitando essa
+revisão.

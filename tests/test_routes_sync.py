@@ -164,6 +164,83 @@ def test_get_opportunities_includes_risk_flag():
         assert resp.json()[0]["risk_flag"] == "vdc365 sem assessment."
 
 
+def test_get_opportunities_includes_severity_band_not_avaliado_by_default():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get("/modules/lead_tracker/opportunities")
+        body = resp.json()[0]
+        assert body["severity_band"] == "nao_avaliado"
+        assert body["scope_note"] is None
+        assert body["criticality"] is None
+
+
+def test_patch_opportunity_qualification_updates_and_recomputes_severity_band():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}",
+            json={"scope_note": "generalizado", "criticality": "critico_exposto", "severity_note": "Afeta todos os sites."},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["scope_note"] == "generalizado"
+        assert body["criticality"] == "critico_exposto"
+        assert body["severity_note"] == "Afeta todos os sites."
+        assert body["severity_band"] == "critico"
+
+
+def test_patch_opportunity_qualification_returns_friendly_404_for_unknown_id():
+    with _TempDb():
+        resp = client.patch(
+            "/modules/lead_tracker/opportunities/id-inexistente",
+            json={"scope_note": "isolado", "criticality": "nao_critico"},
+        )
+        assert resp.status_code == 404
+        assert "não encontrada" in resp.json()["detail"]
+
+
+def test_patch_opportunity_qualification_rejects_value_outside_the_three_options():
+    """Fronteira HTTP: scope_note/criticality ficam string aberta no domínio
+    (core/models.py), mas a rota PATCH é acessível por qualquer cliente, não
+    só a UI com dropdown — um valor fora das 3 opções deve ser rejeitado
+    aqui, não silenciosamente virar 'não avaliado' em compute_severity_band."""
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}",
+            json={"scope_note": "todo-o-parque-inteiro", "criticality": "nao_critico"},
+        )
+        assert resp.status_code == 422
+
+
 def test_get_products_and_services_return_catalog():
     with _TempDb() as db:
         import asyncio
@@ -214,6 +291,10 @@ if __name__ == "__main__":
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()
     test_sync_endpoint_reads_isolated_env_never_the_real_module_env()
     test_get_opportunities_includes_risk_flag()
+    test_get_opportunities_includes_severity_band_not_avaliado_by_default()
+    test_patch_opportunity_qualification_updates_and_recomputes_severity_band()
+    test_patch_opportunity_qualification_returns_friendly_404_for_unknown_id()
+    test_patch_opportunity_qualification_rejects_value_outside_the_three_options()
     test_get_products_and_services_return_catalog()
     test_post_rule_creates_and_get_rules_lists_it()
     test_post_rule_without_any_evidence_mechanism_returns_friendly_error()

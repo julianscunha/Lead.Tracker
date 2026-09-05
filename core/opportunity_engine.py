@@ -28,7 +28,34 @@ _LUKEWARM_WINDOW_DAYS = 270
 _LUKEWARM_MULTIPLIER = 0.85
 _COLD_MULTIPLIER = 0.5
 
-__all__ = ["CorrelationRule", "RuleError", "evaluate_rules"]
+# Fase C, Fatia 5 — Alcance x Criticidade -> banda de severidade, revisado
+# com o agente especialista Deal Strategist. Qualquer um dos dois em branco
+# nunca entra aqui — compute_severity_band trata isso antes (fallback
+# "nao_avaliado"), nunca uma banda calculada com informação incompleta.
+_SEVERITY_TABLE: dict[tuple[str, str], str] = {
+    ("isolado", "nao_critico"): "baixo",
+    ("isolado", "critico_interno"): "medio",
+    ("isolado", "critico_exposto"): "alto",
+    ("parcial", "nao_critico"): "medio",
+    ("parcial", "critico_interno"): "alto",
+    ("parcial", "critico_exposto"): "alto",
+    ("generalizado", "nao_critico"): "medio",
+    ("generalizado", "critico_interno"): "alto",
+    ("generalizado", "critico_exposto"): "critico",
+}
+
+__all__ = ["CorrelationRule", "RuleError", "compute_severity_band", "evaluate_rules"]
+
+
+def compute_severity_band(scope_note: str | None, criticality: str | None) -> str:
+    """Banda qualitativa de severidade — nunca um valor em R$ inventado
+    (regra de domínio). Sempre derivada na leitura, nunca persistida —
+    elimina o risco de dessincronizar do que a gerou. Qualquer um dos dois
+    campos em branco (ainda não avaliado pelo vendedor) cai em
+    "nao_avaliado", nunca numa banda calculada com informação incompleta."""
+    if scope_note is None or criticality is None:
+        return "nao_avaliado"
+    return _SEVERITY_TABLE.get((scope_note, criticality), "nao_avaliado")
 
 
 def _deterministic_opportunity_id(company_id: str, rule_id: str, evidence: list[str]) -> str:

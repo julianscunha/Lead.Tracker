@@ -17,6 +17,7 @@ STATUS_BY_CATEGORY = {
     ErrorCategory.API_LIMIT: 429,
     ErrorCategory.INTEGRATION: 502,
     ErrorCategory.INVALID_DATA: 422,
+    ErrorCategory.NOT_FOUND: 404,
     ErrorCategory.AI: 502,
     ErrorCategory.EXPORT: 500,
 }

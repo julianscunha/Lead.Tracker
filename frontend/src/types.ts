@@ -29,7 +29,15 @@ export interface OpportunityRow {
   currentProducts: string[]
   recommendedProducts: string[]
   recommendedServices: string[]
+  scopeNote: ScopeNote | null
+  criticality: Criticality | null
+  severityNote: string | null
+  severityBand: SeverityBand
 }
+
+export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'
+export type Criticality = 'nao_critico' | 'critico_interno' | 'critico_exposto'
+export type SeverityBand = 'baixo' | 'medio' | 'alto' | 'critico' | 'nao_avaliado'
 
 export type SortKey = 'score' | 'potencial' | 'prioridade' | 'confianca'
 export type ClientFilter = 'todos' | 'clientes' | 'prospects'

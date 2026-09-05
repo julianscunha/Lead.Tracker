@@ -339,6 +339,171 @@ Decisões tomadas com o usuário antes desta fatia:
       `_warmth_multiplier` reanexa UTC se `last_activity_at` vier naive,
       em vez de deixar `TypeError` explodir cru até o sync).
 
+---
+
+## Fatia 5 — Quantificação de gap por severidade
+
+### Objetivo
+
+Última capacidade em aberto da Fase C do roadmap: classificar o quão
+sério é um gap detectado, sem inventar valor em R$. Diferente das fatias
+anteriores, os dois campos-fonte (`scope_note`/`criticality`) são
+**100% manuais** — não existe nenhuma fonte automática que os preencha.
+
+### Decisões tomadas (com o usuário + consulta ao Deal Strategist)
+
+Desenho original (usuário) tinha 2 opções de criticidade e 3 bandas; o
+Deal Strategist (especialista em qualificação de deals/MEDDPICC,
+consultado por instrução do usuário antes de fixar a metodologia)
+recomendou refinar pra separar "crítico mas interno" de "crítico e
+exposto ao cliente" — são histórias de venda diferentes. Versão adotada:
+
+- **Alcance** (`scope_note`, dropdown): `isolado` (poucos sistemas/
+  licenças) / `parcial` (parte relevante do parque) / `generalizado`
+  (maior parte do parque).
+- **Criticidade** (`criticality`, dropdown): `nao_critico` / `critico_interno`
+  (grave, mas não visível ao cliente) / `critico_exposto` (produção/
+  cliente-facing).
+- **Observação** (`severity_note`, texto livre **opcional**): rastro de
+  auditoria pra banda não virar "número sem contexto" — não é um 3º eixo
+  de classificação, só contexto de apoio (mesmo padrão de uso livre que
+  `ContextNote` já tem em outros lugares do domínio).
+- **Banda de severidade**: `baixo` / `medio` / `alto` / `critico`,
+  **nunca persistida** — computada a partir de `scope_note`×`criticality`
+  toda vez que a oportunidade é lida (elimina de vez o risco de banda e
+  campos-fonte saírem de sincronia). Qualquer um dos dois em branco →
+  `nao_avaliado`, nunca um valor calculado com informação incompleta.
+
+Tabela (Alcance × Criticidade → banda):
+
+| | não crítico | crítico interno | crítico exposto |
+|---|---|---|---|
+| isolado | baixo | medio | alto |
+| parcial | medio | alto | alto |
+| generalizado | medio | alto | critico |
+
+### Decisão de arquitetura (consulta ao agente `Plan`)
+
+Consultado antes de decidir o fatiamento: **tudo numa fatia só**
+(campos + função de banda + rota de escrita + UI), não repetir o padrão
+"campo primeiro, edição depois" da Fatia 4a — lá o campo tinha fonte
+automática (Salesforce) e produzia efeito observável sem UI nova; aqui
+não existe fonte automática nenhuma, então uma fatia sem rota de escrita
+deixaria `severity_band` em `nao_avaliado` pra sempre, sem nenhum
+comportamento observável fora de teste unitário.
+
+**Achado real do mesmo agente, confirmado no código**: `core/repository.py
+save_opportunity` faz `session.merge()` de um `OpportunityORM` inteiro
+construído a partir do `Opportunity` que o motor gera — como o motor
+nunca sabe de `scope_note`/`criticality`/`severity_note` (ficam `None`
+no objeto que ele constrói), todo `POST /sync` futuro apagaria qualquer
+valor que o vendedor tivesse preenchido manualmente. **Correção**:
+`save_opportunity` (caminho do motor) passa a preservar os 3 campos
+manuais da linha já existente antes do merge. A escrita manual desses 3
+campos usa uma função própria (`update_opportunity_qualification`),
+nunca `save_opportunity` — dois caminhos de escrita totalmente
+separados, sem ambiguidade sobre qual "vence".
+
+### Design
+
+- `core/models.py`: `Opportunity` ganha `scope_note: str | None`,
+  `criticality: str | None`, `severity_note: str | None` — todos
+  opcionais, strings abertas (núcleo genérico, não enum fechado no
+  domínio; a UI que restringe às 3+3 opções via dropdown).
+- `core/opportunity_engine.py`: `compute_severity_band(scope_note,
+  criticality) -> str` — função pura, tabela acima + fallback
+  `"nao_avaliado"`. Nunca chamada durante `evaluate_rules` (motor não
+  sabe de severidade) — só na leitura (rota).
+- `core/db_models.py`: `OpportunityORM` ganha as 3 colunas novas
+  (nullable). Sem coluna de banda — é sempre derivada.
+- `core/repository.py`:
+  - `save_opportunity` (caminho do motor): busca a linha existente por
+    id antes do merge; se existir, copia `scope_note`/`criticality`/
+    `severity_note` dela pro objeto que vai ser salvo (motor nunca
+    sobrescreve dado manual).
+  - `update_opportunity_qualification(session, opportunity_id,
+    scope_note, criticality, severity_note) -> Opportunity | None` —
+    único caminho de escrita desses 3 campos; `None` se a oportunidade
+    não existir (rota decide 404). Substituição completa dos 3 campos
+    a cada chamada (a UI sempre envia o estado atual dos 3 controles,
+    sem merge parcial ambíguo).
+- `backend/routes_sync.py`:
+  - `OpportunityOut` ganha `scope_note`, `criticality`, `severity_note`,
+    `severity_band` (computado na resposta via `compute_severity_band`).
+  - `PATCH /opportunities/{opportunity_id}` — body `{scope_note,
+    criticality, severity_note}` (`OpportunityQualificationIn`, todos
+    opcionais/nuláveis) — chama `update_opportunity_qualification`,
+    404 amigável se não existir.
+- Frontend:
+  - `types.ts`: `OpportunityRow` ganha os 4 campos novos.
+  - `api.ts`: `fromApiRow` mapeia os campos novos; `updateOpportunityQualification`
+    nova função (`PATCH`, mesmo padrão de `createRule`).
+  - `OpportunityTable.tsx` (`RowDetail`): 2 `<select>` (Alcance,
+    Criticidade — sempre dropdown, nunca texto livre pro que vira
+    critério) + 1 `<textarea>` opcional (Observação) + selo da banda
+    calculada; salva via `updateOpportunityQualification` ao mudar.
+
+### Não objetivo desta fatia
+
+- Nenhuma fonte automática de `scope_note`/`criticality` — 100% manual,
+  como decidido.
+- Nenhuma quantificação em R$ — banda qualitativa só, nunca número
+  calculado (regra de domínio, princípio "IA/motor nunca inventa valor
+  financeiro").
+
+### Teste
+
+- `compute_severity_band`: as 9 combinações da tabela + fallback
+  `nao_avaliado` pra cada campo em branco (isolado, junto, e os dois).
+- `core/repository.py`: `save_opportunity` chamado 2x (simulando 2
+  syncs) com `update_opportunity_qualification` no meio preservando o
+  valor manual no segundo `save_opportunity` — regressão do bug
+  encontrado pelo agente `Plan`.
+- `update_opportunity_qualification`: round-trip dos 3 campos; `None`
+  quando a oportunidade não existe.
+- Rota `PATCH /opportunities/{id}`: sucesso atualiza e devolve
+  `severity_band` recalculado; 404 amigável pra id inexistente.
+- Frontend: lógica pura de formatação/rótulo (se houver) em teste
+  `*.test.ts`, mesmo padrão de `RulesSection.test.ts`.
+
+### Revisão de código (`agent-skills:code-reviewer`) — 2 achados corrigidos
+
+- **TOCTOU no fix do `Plan`**: o fetch-then-merge original de
+  `save_opportunity` (busca a linha, depois `session.merge()`) ainda
+  deixava uma janela entre as duas `await` onde um `PATCH` concorrente
+  podia ser sobrescrito pelos valores antigos lidos antes dele.
+  Corrigido trocando por upsert atômico (`INSERT ... ON CONFLICT(id) DO
+  UPDATE`, `sqlalchemy.dialects.sqlite.insert`) que nunca lista as 3
+  colunas manuais no `SET` — não há mais janela de leitura entre a
+  checagem e a escrita. Regressão coberta por
+  `test_save_opportunity_concurrent_with_qualification_update_never_reverts_it`
+  (20 rodadas de `save_opportunity`/`update_opportunity_qualification`
+  concorrentes via `asyncio.gather`).
+- **Frontend, respostas de PATCH fora de ordem**: mudar Alcance e
+  Criticidade rapidamente dispara 2 `PATCH` independentes; se a resposta
+  do mais antigo chegasse depois, revertia silenciosamente o valor mais
+  novo na tela. Corrigido com um contador de sequência
+  (`SeverityQualification`, `frontend/src/OpportunityTable.tsx`) que
+  descarta qualquer resposta que não seja a do último `save` disparado.
+- **Sugestão adotada**: `scope_note`/`criticality` continuam string
+  aberta no domínio (decisão documentada acima), mas a rota `PATCH` é
+  acessível por qualquer cliente HTTP, não só a UI — um `Literal` em
+  `OpportunityQualificationIn` fecha esse ponto de entrada (valor fora
+  das 3 opções vira 422, nunca degrada silenciosamente pra
+  "não avaliado").
+
+### Critério de sucesso
+
+- [x] `severity_band` correto pra cada uma das 9 combinações + fallback.
+- [x] `POST /sync` nunca apaga `scope_note`/`criticality`/`severity_note`
+      já preenchidos manualmente (regressão coberta por teste, inclusive
+      concorrente).
+- [x] `PATCH /opportunities/{id}` funcional, 404 amigável se não existir,
+      422 pra valor fora das 3 opções.
+- [x] UI com os 2 dropdowns + observação opcional, nunca texto livre pro
+      que vira critério de banda.
+- [x] Suíte completa passa (backend + frontend).
+
 ### Correção pós-shipping — threshold de recência (consulta ao Pipeline Analyst)
 
 Por instrução do usuário ("sempre... puxar antes as skills de

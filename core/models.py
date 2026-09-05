@@ -150,6 +150,16 @@ class Opportunity(BaseModel):
     evidence_summary: str | None = None
     discovery_prompt: str | None = None
     synced_at: datetime = Field(default_factory=_now)
+    # Fase C, Fatia 5 — quantificação de gap por severidade. 100% manual
+    # (sem fonte automática) — preenchido pelo vendedor na revisão da
+    # oportunidade via dropdown (UI restringe às opções, núcleo fica
+    # genérico/string aberta). `severity_note` é opcional, rastro de
+    # auditoria, nunca um 3º eixo de classificação. Banda de severidade
+    # nunca é persistida aqui — sempre derivada (core/opportunity_engine.py
+    # compute_severity_band), pra nunca dessincronizar do que gerou ela.
+    scope_note: str | None = None
+    criticality: str | None = None
+    severity_note: str | None = None
 
 
 class Portfolio(BaseModel):

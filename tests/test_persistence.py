@@ -20,6 +20,7 @@ from core.repository import (
     list_company_signals, list_contacts, list_opportunities, list_opportunity_status_changes,
     list_rules, list_vendors, save_company, save_company_signal, save_contact, save_opportunity,
     save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
+    update_opportunity_qualification,
 )
 
 
@@ -138,6 +139,118 @@ def test_end_to_end_portfolio_to_rule_engine_to_persisted_opportunity():
             assert len(persisted) == 1
             assert persisted[0].status == OpportunityStatus.DETECTED
             assert persisted[0].evidence == ["veeam_vbr", "m365"]
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_qualification_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+
+            async with session_factory() as session:
+                updated = await update_opportunity_qualification(
+                    session, opportunity.id, "parcial", "critico_interno", "Só afeta a filial SP.",
+                )
+
+            assert updated.scope_note == "parcial"
+            assert updated.criticality == "critico_interno"
+            assert updated.severity_note == "Só afeta a filial SP."
+
+            async with session_factory() as session:
+                persisted = await list_opportunities(session, company_id=company.id)
+            assert persisted[0].scope_note == "parcial"
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_qualification_returns_none_for_unknown_id():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                result = await update_opportunity_qualification(session, "id-inexistente", "isolado", "nao_critico", None)
+            assert result is None
+
+    asyncio.run(run())
+
+
+def test_save_opportunity_never_overwrites_manually_filled_qualification():
+    """Regressão crítica encontrada pelo agente Plan antes de shipar esta
+    fatia: o motor (save_opportunity, chamado a cada /sync) nunca sabe de
+    scope_note/criticality/severity_note — sem proteção, o segundo sync
+    apagaria o que o vendedor preencheu manualmente entre uma sincronização
+    e outra."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)  # 1º sync
+
+            async with session_factory() as session:
+                await update_opportunity_qualification(
+                    session, opportunity.id, "generalizado", "critico_exposto", "Preenchido pelo vendedor.",
+                )
+
+            # 2º sync reavaliando a mesma oportunidade (motor nunca seta os 3 campos manuais)
+            async with session_factory() as session:
+                await save_opportunity(session, opportunity)
+
+            async with session_factory() as session:
+                persisted = await list_opportunities(session, company_id=company.id)
+            assert persisted[0].scope_note == "generalizado"
+            assert persisted[0].criticality == "critico_exposto"
+            assert persisted[0].severity_note == "Preenchido pelo vendedor."
+
+    asyncio.run(run())
+
+
+def test_save_opportunity_concurrent_with_qualification_update_never_reverts_it():
+    """Regressão do TOCTOU apontado na revisão de código: a versão anterior de
+    save_opportunity lia o registro existente e só depois fazia merge — entre
+    as duas awaits, um update_opportunity_qualification concorrente podia ser
+    sobrescrito pelos valores antigos lidos antes dele. Upsert atômico
+    (INSERT ... ON CONFLICT DO UPDATE sem os 3 campos manuais no SET) fecha a
+    janela; roda save_opportunity e update_opportunity_qualification em
+    paralelo repetidas vezes pra garantir que a ordem de conclusão nunca
+    reverte o campo manual."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)  # cria a linha
+
+            for _ in range(20):
+                async def do_save():
+                    async with session_factory() as session:
+                        await save_opportunity(session, opportunity)
+
+                async def do_update():
+                    async with session_factory() as session:
+                        await update_opportunity_qualification(
+                            session, opportunity.id, "generalizado", "critico_exposto", "Preenchido pelo vendedor.",
+                        )
+
+                await asyncio.gather(do_save(), do_update())
+
+                async with session_factory() as session:
+                    persisted = await list_opportunities(session, company_id=company.id)
+                assert persisted[0].scope_note == "generalizado"
+                assert persisted[0].criticality == "critico_exposto"
 
     asyncio.run(run())
 
@@ -366,4 +479,8 @@ if __name__ == "__main__":
     test_opportunity_rich_evidence_fields_round_trip()
     test_company_last_activity_at_round_trip()
     test_contact_seniority_tier_round_trip()
+    test_update_opportunity_qualification_round_trip()
+    test_update_opportunity_qualification_returns_none_for_unknown_id()
+    test_save_opportunity_never_overwrites_manually_filled_qualification()
+    test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
     print("OK — todos os testes de persistência passaram")

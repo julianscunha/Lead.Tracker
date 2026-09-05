@@ -25,6 +25,19 @@ export const styles = `
 .lt-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; }
 .lt-badge--customer { background: hsl(var(--success) / 0.15); color: hsl(var(--success)); }
 .lt-badge--prospect { background: hsl(var(--bg-subtle)); color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
+.lt-badge--severity-baixo { background: hsl(var(--success) / 0.15); color: hsl(var(--success)); }
+.lt-badge--severity-medio { background: hsl(var(--warning) / 0.15); color: hsl(var(--warning)); }
+.lt-badge--severity-alto { background: hsl(var(--warning) / 0.25); color: hsl(var(--warning)); }
+.lt-badge--severity-critico { background: hsl(var(--danger) / 0.15); color: hsl(var(--danger)); }
+.lt-badge--severity-nao_avaliado { background: hsl(var(--bg-subtle)); color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
+
+.lt-severity { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px; }
+.lt-severity label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: hsl(var(--text-muted)); }
+.lt-severity select, .lt-severity textarea {
+  font-size: 12px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
+}
+.lt-severity textarea { min-width: 220px; min-height: 32px; resize: vertical; font-family: inherit; }
 
 .lt-expand-btn { all: unset; cursor: pointer; padding: 4px; border-radius: 4px; }
 .lt-expand-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }

@@ -20,6 +20,10 @@ export const sampleOpportunities: OpportunityRow[] = [
     currentProducts: ['Veeam VBR', 'Microsoft 365'],
     recommendedProducts: ['VDC365'],
     recommendedServices: [],
+    scopeNote: null,
+    criticality: null,
+    severityNote: null,
+    severityBand: 'nao_avaliado',
   },
   {
     id: 'opp-2',
@@ -39,6 +43,10 @@ export const sampleOpportunities: OpportunityRow[] = [
     currentProducts: ['VMware VVF'],
     recommendedProducts: [],
     recommendedServices: ['Assessment de DR'],
+    scopeNote: null,
+    criticality: null,
+    severityNote: null,
+    severityBand: 'nao_avaliado',
   },
   {
     id: 'opp-3',
@@ -58,5 +66,9 @@ export const sampleOpportunities: OpportunityRow[] = [
     currentProducts: ['AWS'],
     recommendedProducts: [],
     recommendedServices: ['FinOps'],
+    scopeNote: null,
+    criticality: null,
+    severityNote: null,
+    severityBand: 'nao_avaliado',
   },
 ]
