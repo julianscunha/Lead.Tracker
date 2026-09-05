@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Snapshot diário de oportunidades e detecção de zumbi** (Fase D,
+  segundo módulo): nova tabela `opportunity_snapshots`, recalculada por
+  inteiro no fim de todo `POST /sync` — o dashboard (próximos módulos) vai
+  ler daqui, nunca das tabelas transacionais em tempo real. Oportunidade
+  parada há mais de 30 dias no mesmo estágio (sem `dismissed`, que nunca é
+  zumbi) é marcada `is_zombie`. Corrigido um achado crítico da revisão de
+  código: a primeira versão usava `synced_at` como proxy de "última
+  atividade", mas esse campo é reescrito a cada `/sync` que ainda detecta
+  a mesma oportunidade — isso neutralizaria o zumbi pra exatamente as
+  oportunidades nunca revisadas por ninguém. Novo campo
+  `Opportunity.first_detected_at`, gravado só na criação, nunca mais
+  tocado, resolve isso. Ver `docs/specs/fase-d-dashboard-acionavel.md`.
+
 - **Transição manual de status da oportunidade** (Fase D, primeiro módulo):
   dropdown de status na linha expansível, sem máquina de estados no
   domínio — mas pular 2+ estágios de uma vez ou reabrir uma oportunidade

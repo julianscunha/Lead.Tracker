@@ -12,8 +12,8 @@ from backend.sync import sync_all_enabled_sources, sync_source
 from core.db import create_engine, init_db, make_session_factory
 from core.models import Company, CompanySignal, Contact, CorrelationRule, Portfolio, SourceRef
 from core.repository import (
-    list_companies, list_contacts, list_opportunities, save_company, save_company_signal,
-    save_portfolio, save_rule,
+    list_companies, list_contacts, list_latest_snapshot, list_opportunities, save_company,
+    save_company_signal, save_portfolio, save_rule,
 )
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
@@ -298,6 +298,45 @@ def test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources():
     asyncio.run(run())
 
 
+def test_sync_all_enabled_sources_recomputes_daily_snapshot_reflecting_generated_opportunity():
+    """Fase D: o snapshot diário é recalculado no fim de TODO /sync, mesmo
+    passando por sync_all_enabled_sources (não só sync_source isolado) — é
+    o caminho real que a rota POST /sync usa."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company])
+            source = SourceDescriptor(
+                id="fake", label="Fake", enabled_key="FAKE_ENABLED", implemented=True, build=lambda env: provider,
+            )
+
+            rule = CorrelationRule(
+                id="veeam_m365_sem_vdc365", opportunity_type="cross-sell",
+                requires=["veeam_vbr", "m365"], absent=["vdc365"],
+                justification="Tem Veeam VBR e M365, sem VDC365.",
+            )
+            async with session_factory() as session:
+                await save_rule(session, rule)
+                await save_portfolio(session, Portfolio(company_id=company.id, product_ids=["veeam_vbr", "m365"]))
+
+            import backend.sync as sync_module
+            original_sources = sync_module.SOURCES
+            sync_module.SOURCES = [source]
+            try:
+                await sync_all_enabled_sources(session_factory, {"FAKE_ENABLED": "true"})
+            finally:
+                sync_module.SOURCES = original_sources
+
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+            assert len(snapshot) == 1
+            assert snapshot[0].stage.value == "detected"
+            assert snapshot[0].is_zombie is False
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_sync_source_persists_companies_and_contacts()
     test_sync_source_dedups_companies_from_same_provider()
@@ -310,4 +349,5 @@ if __name__ == "__main__":
     test_sync_generates_no_opportunity_when_company_has_no_portfolio()
     test_sync_generates_opportunity_from_open_company_signal()
     test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources()
+    test_sync_all_enabled_sources_recomputes_daily_snapshot_reflecting_generated_opportunity()
     print("OK — todos os testes de sincronização passaram")

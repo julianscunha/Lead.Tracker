@@ -43,10 +43,10 @@ def test_init_db_creates_tables_even_without_explicit_db_models_import():
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     table_count = int(result.stdout.strip())
-    # 10 tabelas: vendors, products, services, companies, contacts, opportunities,
+    # 11 tabelas: vendors, products, services, companies, contacts, opportunities,
     # portfolios, company_signals, opportunity_status_changes (Fase B),
-    # correlation_rules (Fase C).
-    assert table_count == 10, f"esperava 10 tabelas, criou {table_count} — regressão do bug de metadata vazio"
+    # correlation_rules (Fase C), opportunity_snapshots (Fase D).
+    assert table_count == 11, f"esperava 11 tabelas, criou {table_count} — regressão do bug de metadata vazio"
 
 
 if __name__ == "__main__":

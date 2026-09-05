@@ -9,7 +9,7 @@ Repository[T] genérico esconderia a diferença de campos entre elas.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -17,14 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
     CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, OpportunityORM,
-    OpportunityStatusChangeORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
+    OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
 )
 from core.models import (
-    Company, CompanySignal, ContextNote, Contact, CorrelationRule, Opportunity, OpportunityStatus,
-    OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef,
+    Company, CompanySignal, ContextNote, Contact, CorrelationRule, Opportunity, OpportunitySnapshot,
+    OpportunityStatus, OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef,
     StatusChangeRequiresJustificationError, Vendor,
 )
-from core.opportunity_engine import requires_status_change_justification
+from core.opportunity_engine import is_zombie_opportunity, requires_status_change_justification
 
 
 def _sources_to_json(sources: list[SourceRef]) -> list[dict]:
@@ -215,6 +215,7 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         sources=_sources_from_json(row.sources), status=OpportunityStatus(row.status),
         risk_flag=row.risk_flag, evidence_summary=row.evidence_summary,
         discovery_prompt=row.discovery_prompt, synced_at=_ensure_utc(row.synced_at),
+        first_detected_at=_ensure_utc(row.first_detected_at),
         scope_note=row.scope_note, criticality=row.criticality, severity_note=row.severity_note,
     )
 
@@ -236,7 +237,16 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
     do `SET`, rodar `/sync` de novo pra uma empresa cujo portfólio não
     mudou resetaria pra `detected` qualquer oportunidade já avançada
     manualmente. Só entra no `INSERT` inicial (nova oportunidade nasce em
-    `detected`); depois disso, `status` só muda por `update_opportunity_status`."""
+    `detected`); depois disso, `status` só muda por `update_opportunity_status`.
+
+    `first_detected_at` também fica fora do `SET` (achado da revisão de
+    código do snapshot diário): `synced_at`, ao contrário, É atualizado a
+    cada `/sync` que ainda detecta a oportunidade — usá-lo como proxy de
+    "há quanto tempo parada" faria uma oportunidade nunca-triada parecer
+    sempre fresca, o motor "renovaria" o timestamp indefinidamente e o
+    zumbi nunca dispararia pra exatamente a população que deveria capturar.
+    `first_detected_at` é gravado só no `INSERT` e nunca mais tocado — é a
+    base real do fallback de zumbi em `recompute_daily_snapshot`."""
     engine_columns = dict(
         company_id=opportunity.company_id, type=opportunity.type,
         vendor_id=opportunity.vendor_id, product_id=opportunity.product_id, service_id=opportunity.service_id,
@@ -247,7 +257,10 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
         risk_flag=opportunity.risk_flag, evidence_summary=opportunity.evidence_summary,
         discovery_prompt=opportunity.discovery_prompt, synced_at=opportunity.synced_at,
     )
-    stmt = sqlite_insert(OpportunityORM).values(id=opportunity.id, status=opportunity.status.value, **engine_columns)
+    stmt = sqlite_insert(OpportunityORM).values(
+        id=opportunity.id, status=opportunity.status.value,
+        first_detected_at=opportunity.first_detected_at, **engine_columns,
+    )
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
     await session.execute(stmt)
     await session.commit()
@@ -386,6 +399,82 @@ async def update_opportunity_status(
     ))
     await session.commit()
     return _opportunity_from_row(row)
+
+
+# ── OpportunitySnapshot ──────────────────────────────────────────────────────
+
+async def recompute_daily_snapshot(session: AsyncSession, today: date | None = None) -> None:
+    """Chamada uma vez no fim de todo `POST /sync` (nunca por leitura do
+    dashboard) — grava uma linha por oportunidade viva pro dia de hoje.
+    Upsert atômico por `id` determinístico (`opportunity_id:snapshot_date`):
+    rodar `/sync` várias vezes no mesmo dia sobrescreve a mesma linha, nunca
+    duplica. `last_touch_at` vem do histórico real de transição quando
+    existe; sem isso (oportunidade nunca mudou de status manualmente), usa
+    `Opportunity.first_detected_at` como proxy (nunca `synced_at`, que o
+    motor atualiza a cada `/sync` — ver docstring de `save_opportunity`).
+    Todo `OpportunityStatusChange` é buscado numa única query (não uma por
+    oportunidade, achado de performance da revisão de código — antes era
+    O(n) consultas rodando dentro da mesma transação de escrita).
+
+    Corrida com uma escrita concorrente (ex. alguém chamando
+    `update_opportunity_status` no meio deste loop) é aceitável: o
+    snapshot é uma foto aproximada do fim do sync, não uma transação
+    distribuída — na pior hipótese a linha do dia fica com o estágio de
+    um instante atrás e se autocorrige no próximo `/sync`."""
+    today = today or date.today()
+    now = datetime.now(timezone.utc)
+    opportunities = await list_opportunities(session)
+    companies = {c.id: c for c in await list_companies(session)}
+
+    all_changes = (await session.execute(select(OpportunityStatusChangeORM))).scalars().all()
+    latest_change_by_opportunity: dict[str, datetime] = {}
+    for change in all_changes:
+        entered_at = _ensure_utc(change.entered_at)
+        current = latest_change_by_opportunity.get(change.opportunity_id)
+        if current is None or entered_at > current:
+            latest_change_by_opportunity[change.opportunity_id] = entered_at
+
+    for o in opportunities:
+        last_touch_at = latest_change_by_opportunity.get(o.id, o.first_detected_at)
+        zombie = is_zombie_opportunity(o.status.value, last_touch_at, now)
+        company = companies.get(o.company_id)
+        source = o.sources[0].type if o.sources else None
+        row_columns = dict(
+            opportunity_id=o.id, snapshot_date=today, stage=o.status.value,
+            financial_potential=o.financial_potential, confidence_score=o.confidence_score,
+            rep_id=company.rep_id if company else None, segment=company.segment if company else None,
+            source=source, is_zombie=zombie,
+        )
+        stmt = sqlite_insert(OpportunitySnapshotORM).values(id=f"{o.id}:{today.isoformat()}", **row_columns)
+        stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=row_columns)
+        await session.execute(stmt)
+    await session.commit()
+
+
+def _snapshot_from_row(row: OpportunitySnapshotORM) -> OpportunitySnapshot:
+    return OpportunitySnapshot(
+        id=row.id, opportunity_id=row.opportunity_id, snapshot_date=row.snapshot_date,
+        stage=OpportunityStatus(row.stage), financial_potential=row.financial_potential,
+        confidence_score=row.confidence_score, rep_id=row.rep_id, segment=row.segment,
+        source=row.source, is_zombie=row.is_zombie,
+    )
+
+
+async def list_latest_snapshot(session: AsyncSession) -> list[OpportunitySnapshot]:
+    """O dashboard sempre lê daqui — nunca das tabelas transacionais em
+    tempo real (decisão de arquitetura do roadmap). Devolve o snapshot mais
+    recente disponível (não necessariamente hoje: se `/sync` não rodou
+    ainda hoje, mostra o último dia calculado em vez de fingir dado
+    inexistente)."""
+    latest_date = (await session.execute(select(OpportunitySnapshotORM.snapshot_date).order_by(
+        OpportunitySnapshotORM.snapshot_date.desc(),
+    ).limit(1))).scalar_one_or_none()
+    if latest_date is None:
+        return []
+    rows = (await session.execute(
+        select(OpportunitySnapshotORM).where(OpportunitySnapshotORM.snapshot_date == latest_date)
+    )).scalars().all()
+    return [_snapshot_from_row(r) for r in rows]
 
 
 # ── CorrelationRule ──────────────────────────────────────────────────────────

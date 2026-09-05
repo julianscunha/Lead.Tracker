@@ -10,7 +10,7 @@ específicas.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from uuid import uuid4
 
@@ -155,6 +155,15 @@ class Opportunity(BaseModel):
     evidence_summary: str | None = None
     discovery_prompt: str | None = None
     synced_at: datetime = Field(default_factory=_now)
+    # Fase D — carimbo de criação, gravado só uma vez (achado da revisão de
+    # código: synced_at é atualizado a cada /sync que ainda detecta a
+    # oportunidade, então usá-lo como proxy de "há quanto tempo parada" faz
+    # uma oportunidade nunca-triada parecer sempre fresca — o motor
+    # re-detecta e "renova" o timestamp indefinidamente). Nunca reescrito
+    # depois da criação (mesmo padrão insert-only de status/scope_note em
+    # save_opportunity) — é a base real do fallback de zumbi quando não há
+    # OpportunityStatusChange.
+    first_detected_at: datetime = Field(default_factory=_now)
     # Fase C, Fatia 5 — quantificação de gap por severidade. 100% manual
     # (sem fonte automática) — preenchido pelo vendedor na revisão da
     # oportunidade via dropdown (UI restringe às opções, núcleo fica
@@ -204,6 +213,26 @@ class OpportunityStatusChange(BaseModel):
     # reabre um "dismissed" (decisão do Sales Coach: sem isso vira "pipeline
     # mentiroso"; opcional nos demais casos, nunca burocracia desnecessária).
     note: str | None = None
+
+
+class OpportunitySnapshot(BaseModel):
+    """Foto diária de uma oportunidade viva (Fase D) — fonte de leitura do
+    dashboard, nunca as tabelas transacionais em tempo real (decisão de
+    arquitetura do roadmap: reescrever histórico quando um rep muda de
+    território, ou 3 cálculos divergentes de MTD/YTD, são os problemas que
+    ler direto da tabela evita). Recalculada por inteiro no fim de todo
+    `POST /sync`. `financial_potential`/`confidence_score` nunca
+    pré-multiplicados — bruto e ponderado sempre deriváveis da mesma linha."""
+    id: str = Field(default_factory=_new_id)
+    opportunity_id: str
+    snapshot_date: date
+    stage: OpportunityStatus
+    financial_potential: float | None = None
+    confidence_score: float | None = None
+    rep_id: str | None = None
+    segment: str | None = None
+    source: str | None = None
+    is_zombie: bool = False
 
 
 class RuleError(Exception):

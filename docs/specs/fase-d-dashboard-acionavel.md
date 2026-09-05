@@ -137,3 +137,113 @@ convertida em 422 amigável. Regressão coberta por
 - [x] UI com dropdown de status + campo de justificativa condicional.
 - [x] Suíte completa passa (backend + frontend), verificado ao vivo contra
       o módulo instalado.
+
+## Módulos 2+3 — Snapshot diário e detecção de zumbi
+
+Implementados juntos (decisão do agente `Plan`): o esquema de snapshot já
+embute a coluna `is_zombie`, então não fazia sentido entregar a tabela sem
+a lógica que a preenche.
+
+### Objetivo
+
+Fundação de leitura pro resto da Fase D (funil/potencial ponderado/cortes,
+módulo 4, e aging, módulo 5): uma tabela de snapshot diário, recalculada
+por inteiro no fim de todo `POST /sync` — nunca uma agregação em tempo real
+nas tabelas transacionais (decisão de arquitetura do roadmap, evita
+reescrever histórico quando um rep muda de território e evita 3 cálculos
+divergentes de MTD/YTD). "Zumbi" é uma oportunidade parada há muito tempo
+no MESMO estágio — conceito à parte do SLA de aging (módulo 5), que ainda
+não existe.
+
+### Achado crítico da revisão de código — `synced_at` não serve de proxy de "última atividade"
+
+Primeira versão usava `Opportunity.synced_at` como fallback de
+`last_touch_at` quando não havia `OpportunityStatusChange` (o caso comum:
+o módulo de transição de status acabou de ser criado, então praticamente
+nenhuma oportunidade tem histórico ainda). Problema: `synced_at` é
+reescrito a cada `/sync` que ainda detecta a mesma oportunidade
+(`_build_opportunity` sempre gera um objeto novo com `synced_at=agora`, e
+até este achado `save_opportunity` incluía a coluna no `SET` do upsert).
+Resultado: uma oportunidade nunca revisada por ninguém, parada em
+`detected` há 6 meses, nunca seria marcada zumbi — o motor "renovava" o
+timestamp a cada ciclo de sync, neutralizando a feature exatamente pra
+população que ela deveria capturar.
+
+**Correção**: novo campo `Opportunity.first_detected_at`, gravado só no
+`INSERT` inicial (mesmo padrão insert-only de `status`/`scope_note`) —
+`save_opportunity` nunca mais o reescreve depois da criação, mesmo quando
+o motor re-detecta a mesma oportunidade em sync futuros. Fallback de zumbi
+passa a usar esse campo, nunca `synced_at`.
+
+### Outros achados da revisão
+
+- **N+1 corrigido**: a primeira versão buscava `OpportunityStatusChange`
+  numa query por oportunidade, dentro do loop de recálculo — rodando sobre
+  TODAS as oportunidades do banco a cada `/sync`, isso escalaria mal
+  (diferente do N+1 já aceito em `_account_health_map`, que não faz
+  consulta nenhuma dentro do loop). Corrigido: uma única query busca todo
+  `OpportunityStatusChange`, agrupado em memória por `opportunity_id`.
+- **Corrida com escrita concorrente**: aceitável, documentado no docstring
+  de `recompute_daily_snapshot` — não é a mesma classe de TOCTOU já
+  corrigida 3 vezes nesta fase (aquelas eram lost-update na MESMA linha;
+  aqui é uma foto aproximada de fim de sync que se autocorrige no ciclo
+  seguinte).
+- **Recalcular mesmo sem nenhuma fonte sincronizada**: intencional, não
+  gatear em `results` não vazio — um dia com todas as fontes desligadas
+  mas com transições manuais de status (`update_opportunity_status`) ainda
+  precisa de snapshot atualizado.
+
+### Design
+
+- `core/models.py`: `Opportunity.first_detected_at` novo (insert-only).
+  `OpportunitySnapshot` (Pydantic).
+- `core/db_models.py`: `OpportunityORM.first_detected_at`.
+  `OpportunitySnapshotORM` — `id` determinístico
+  (`opportunity_id:snapshot_date`), uma linha por (oportunidade, dia).
+- `core/opportunity_engine.py`: `is_zombie_opportunity(status,
+  last_touch_at, now) -> bool` — pura, `dismissed` nunca é zumbi, 30 dias
+  fixo (`_ZOMBIE_DAYS`, piso conservador do Pipeline Analyst enquanto não
+  há histórico suficiente pra calibrar por mediana real de estágio).
+- `core/repository.py`:
+  - `save_opportunity`: `first_detected_at` excluído do `SET` do upsert.
+  - `recompute_daily_snapshot(session, today=None)` — 1 query pra todas as
+    oportunidades, 1 query pra todas as empresas, 1 query pra todo
+    `OpportunityStatusChange` (agrupado em memória), upsert atômico por
+    oportunidade.
+  - `list_latest_snapshot(session)` — devolve a data mais recente
+    disponível, nunca força "hoje" (se `/sync` não rodou ainda hoje, mostra
+    o último dia calculado em vez de fingir dado inexistente).
+- `backend/sync.py`: `recompute_daily_snapshot` chamado no fim de
+  `sync_all_enabled_sources`, sempre (mesmo com zero fontes sincronizadas).
+
+### Não objetivo destes módulos
+
+- Nenhuma UI ainda — só a infraestrutura de leitura (módulo 8 consome).
+- Nenhum cálculo de funil/conversão/potencial ponderado aqui — isso é o
+  módulo 4 (`snapshot-aggregator`), que lê desta tabela.
+
+### Teste
+
+- `is_zombie_opportunity`: estagnação além de 30 dias, `dismissed` nunca
+  zumbi, datetime naive não quebra.
+- `recompute_daily_snapshot`: reflete estado atual (potencial/confiança/
+  rep/segmento/fonte/zumbi); idempotente no mesmo dia (upsert, não
+  duplica); zumbi via fallback de `first_detected_at`; **regressão do
+  achado crítico** — zumbi sobrevive a um 2º `save_opportunity` (simulando
+  re-sync) que só reescreve `synced_at`, nunca `first_detected_at`.
+- `list_latest_snapshot`: vazio quando nunca rodou.
+- `sync_all_enabled_sources`: recalcula snapshot refletindo oportunidade
+  gerada nesta mesma chamada.
+- `test_db_table_registration`: contagem de tabelas atualizada (10 → 11).
+
+### Critério de sucesso
+
+- [x] Snapshot recalculado no fim de todo `/sync`, idempotente no mesmo
+      dia.
+- [x] Zumbi nunca "se cura" sozinho por re-sync automático — só sai desse
+      estado por transição manual de status ou por avançar de estágio.
+- [x] Sem N+1 sensível a volume de oportunidades históricas.
+- [x] Dashboard (módulo 4, ainda não implementado) terá de onde ler sem
+      tocar as tabelas transacionais.
+- [x] Suíte completa passa, verificado ao vivo contra o módulo instalado
+      (`POST /sync` roda sem erro em banco vazio, tabela nova criada).

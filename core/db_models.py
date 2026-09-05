@@ -3,9 +3,9 @@
 automaticamente, sem precisar de tabela associativa pra isso aqui."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Float, String
+from sqlalchemy import JSON, Boolean, Date, Float, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -92,6 +92,7 @@ class OpportunityORM(Base):
     evidence_summary: Mapped[str | None] = mapped_column(String, nullable=True)
     discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
     synced_at: Mapped[datetime] = mapped_column()
+    first_detected_at: Mapped[datetime] = mapped_column()
     scope_note: Mapped[str | None] = mapped_column(String, nullable=True)
     criticality: Mapped[str | None] = mapped_column(String, nullable=True)
     severity_note: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -128,6 +129,28 @@ class OpportunityStatusChangeORM(Base):
     status: Mapped[str] = mapped_column(String)
     entered_at: Mapped[datetime] = mapped_column()
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class OpportunitySnapshotORM(Base):
+    """Fase D — foto diária de cada oportunidade viva, recalculada no fim
+    de todo `POST /sync` (nunca em tempo real a partir das tabelas
+    transacionais, decisão de arquitetura do roadmap). `id` determinístico
+    (`f"{opportunity_id}:{snapshot_date}"`) faz o upsert do dia ser
+    idempotente — rodar `/sync` várias vezes no mesmo dia nunca duplica
+    linha. `financial_potential`/`confidence_score` guardados separados
+    (nunca pré-multiplicados) pra bruto e ponderado continuarem deriváveis
+    da mesma linha, nunca dessincronizados."""
+    __tablename__ = "opportunity_snapshots"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    opportunity_id: Mapped[str] = mapped_column(String)
+    snapshot_date: Mapped[date] = mapped_column(Date)
+    stage: Mapped[str] = mapped_column(String)
+    financial_potential: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rep_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    segment: Mapped[str | None] = mapped_column(String, nullable=True)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_zombie: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CorrelationRuleORM(Base):

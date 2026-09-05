@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.db import create_engine, init_db, make_session_factory
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
     Company, CompanySignal, Contact, ContextNote, Opportunity, OpportunityStatus,
@@ -17,10 +17,11 @@ from core.models import (
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
     get_company, get_opportunity, get_portfolio_by_company, list_active_rules, list_companies,
-    list_company_signals, list_contacts, list_opportunities, list_opportunity_status_changes,
-    list_rules, list_vendors, save_company, save_company_signal, save_contact, save_opportunity,
-    save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
-    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
+    list_opportunity_status_changes, list_rules, list_vendors, recompute_daily_snapshot, save_company,
+    save_company_signal, save_contact, save_opportunity, save_opportunity_status_change, save_portfolio,
+    save_rule, save_vendor, update_company_renewal_date, update_opportunity_qualification,
+    update_opportunity_status,
 )
 
 
@@ -307,6 +308,133 @@ def test_update_opportunity_status_checks_justification_against_the_real_current
             async with session_factory() as session:
                 persisted = await get_opportunity(session, opportunity.id)
             assert persisted.status == OpportunityStatus.DISMISSED  # nunca mudou
+
+    asyncio.run(run())
+
+
+def test_recompute_daily_snapshot_reflects_current_opportunity_state():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas", rep_id="rep-1", segment="enterprise")
+            opportunity = Opportunity(
+                company_id=company.id, type="cross-sell", financial_potential=10000, confidence_score=0.8,
+                sources=[SourceRef(type="salesforce")],
+            )
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await recompute_daily_snapshot(session, today=date(2026, 9, 5))
+
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+            assert len(snapshot) == 1
+            row = snapshot[0]
+            assert row.opportunity_id == opportunity.id
+            assert row.snapshot_date == date(2026, 9, 5)
+            assert row.stage == OpportunityStatus.DETECTED
+            assert row.financial_potential == 10000
+            assert row.confidence_score == 0.8
+            assert row.rep_id == "rep-1"
+            assert row.segment == "enterprise"
+            assert row.source == "salesforce"
+            assert row.is_zombie is False  # synced_at recente, sem histórico de status
+
+    asyncio.run(run())
+
+
+def test_recompute_daily_snapshot_twice_same_day_upserts_not_duplicates():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await recompute_daily_snapshot(session, today=date(2026, 9, 5))
+                await update_opportunity_status(session, opportunity.id, OpportunityStatus.QUALIFIED)
+                await recompute_daily_snapshot(session, today=date(2026, 9, 5))  # mesmo dia, 2º /sync
+
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+            assert len(snapshot) == 1  # upsert, nunca duplica
+            assert snapshot[0].stage == OpportunityStatus.QUALIFIED  # reflete o estado mais recente
+
+    asyncio.run(run())
+
+
+def test_recompute_daily_snapshot_flags_zombie_via_status_history_fallback_to_first_detected_at():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            old = datetime.now(timezone.utc) - timedelta(days=45)
+            opportunity = Opportunity(
+                company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")],
+                first_detected_at=old,
+            )
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await recompute_daily_snapshot(session)
+
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+            assert snapshot[0].is_zombie is True  # sem histórico de status, usa first_detected_at (45 dias > 30)
+
+    asyncio.run(run())
+
+
+def test_recompute_daily_snapshot_zombie_survives_repeated_resync_never_touched_by_a_human():
+    """Regressão do achado crítico da revisão de código: synced_at é
+    reescrito a cada /sync que ainda detecta a oportunidade — se o fallback
+    de zumbi usasse esse campo, uma oportunidade nunca triada por ninguém
+    pareceria sempre "fresca" porque o motor renova o timestamp a cada
+    ciclo, e o zumbi nunca dispararia pra exatamente a população que deveria
+    capturar. first_detected_at nunca é reescrito, então 2 re-syncs
+    (equivalente a rodar /sync várias vezes ao longo de semanas) não deve
+    mudar o resultado."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            old = datetime.now(timezone.utc) - timedelta(days=45)
+            opportunity = Opportunity(
+                company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")],
+                first_detected_at=old,
+            )
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)  # 1º sync — grava first_detected_at
+
+            # simula um 2º /sync bem depois: mesmo objeto de domínio, mas
+            # synced_at "renovado" pra agora (exatamente o que o motor faz)
+            resynced = opportunity.model_copy(update={"synced_at": datetime.now(timezone.utc)})
+            async with session_factory() as session:
+                await save_opportunity(session, resynced)
+                await recompute_daily_snapshot(session)
+
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.first_detected_at == old  # nunca reescrito pelo 2º sync
+            assert snapshot[0].is_zombie is True  # continua zumbi, não "renovou" com o re-sync
+
+    asyncio.run(run())
+
+
+def test_list_latest_snapshot_returns_empty_when_no_snapshot_ever_ran():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                snapshot = await list_latest_snapshot(session)
+            assert snapshot == []
 
     asyncio.run(run())
 
@@ -675,6 +803,11 @@ if __name__ == "__main__":
     test_update_opportunity_status_returns_none_for_unknown_id()
     test_update_opportunity_status_same_status_is_noop_and_writes_no_history()
     test_update_opportunity_status_checks_justification_against_the_real_current_status()
+    test_recompute_daily_snapshot_reflects_current_opportunity_state()
+    test_recompute_daily_snapshot_twice_same_day_upserts_not_duplicates()
+    test_recompute_daily_snapshot_flags_zombie_via_status_history_fallback_to_first_detected_at()
+    test_recompute_daily_snapshot_zombie_survives_repeated_resync_never_touched_by_a_human()
+    test_list_latest_snapshot_returns_empty_when_no_snapshot_ever_ran()
     test_save_opportunity_never_resets_manually_advanced_status_on_resync()
     test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
     print("OK — todos os testes de persistência passaram")

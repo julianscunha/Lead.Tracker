@@ -19,7 +19,7 @@ from core.normalization import dedup_key, merge_companies, merge_pair
 from core.opportunity_engine import evaluate_rules
 from core.repository import (
     get_portfolio_by_company, list_active_rules, list_companies, list_company_signals,
-    list_products, list_services, save_company, save_contact, save_opportunity,
+    list_products, list_services, recompute_daily_snapshot, save_company, save_contact, save_opportunity,
 )
 from providers.base import ProviderError
 
@@ -134,4 +134,12 @@ async def sync_all_enabled_sources(
         if env.get(source.enabled_key) != "true":
             continue
         results.append(await sync_source(session_factory, source, env))
+
+    # Fase D — snapshot diário recalculado no fim de TODO /sync (mesmo sem
+    # nenhuma fonte habilitada rodar de fato), nunca em tempo real na leitura
+    # do dashboard. Reflete o estado de todas as oportunidades já
+    # persistidas, não só as tocadas nesta rodada.
+    async with session_factory() as session:
+        await recompute_daily_snapshot(session)
+
     return results

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import (
     CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
-    compute_severity_band, evaluate_rules, requires_status_change_justification,
+    compute_severity_band, evaluate_rules, is_zombie_opportunity, requires_status_change_justification,
 )
 
 
@@ -405,6 +405,26 @@ def test_requires_status_change_justification_same_status_is_false():
     assert requires_status_change_justification("dismissed", "dismissed") is False
 
 
+def test_is_zombie_opportunity_flags_stagnation_beyond_30_days():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    fresh = now - timedelta(days=10)
+    stale = now - timedelta(days=31)
+    assert is_zombie_opportunity("qualified", fresh, now) is False
+    assert is_zombie_opportunity("qualified", stale, now) is True
+
+
+def test_is_zombie_opportunity_dismissed_is_never_zombie():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    stale = now - timedelta(days=400)
+    assert is_zombie_opportunity("dismissed", stale, now) is False
+
+
+def test_is_zombie_opportunity_handles_naive_last_touch_at():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    naive_stale = datetime(2026, 7, 1)  # sem tzinfo
+    assert is_zombie_opportunity("qualified", naive_stale, now) is True
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -447,4 +467,7 @@ if __name__ == "__main__":
     test_requires_status_change_justification_dismissed_reopen_is_always_true()
     test_requires_status_change_justification_advancing_to_dismissed_is_false()
     test_requires_status_change_justification_same_status_is_false()
+    test_is_zombie_opportunity_flags_stagnation_beyond_30_days()
+    test_is_zombie_opportunity_dismissed_is_never_zombie()
+    test_is_zombie_opportunity_handles_naive_last_touch_at()
     print("OK — todos os testes do motor de oportunidades passaram")

@@ -86,9 +86,34 @@ def requires_status_change_justification(old_status: str, new_status: str) -> bo
     return False
 
 
+# Fase D — oportunidade zumbi: parada há muito tempo no MESMO estágio,
+# conceito à parte do SLA de aging (item diferente da tabela de cadência de
+# QBR/aging: "nunca saiu de detected" vs. "estagnou em qualquer estágio").
+# 30 dias é o piso conservador recomendado (Pipeline Analyst) enquanto não
+# existe histórico suficiente pra calibrar por mediana real de estágio.
+_ZOMBIE_DAYS = 30
+
+
+def is_zombie_opportunity(status: str, last_touch_at: datetime, now: datetime) -> bool:
+    """`dismissed` nunca é zumbi — já saiu do funil, não está "parado" nele.
+    `last_touch_at` é a última transição real de status
+    (`OpportunityStatusChange.entered_at`) quando existe; sem histórico
+    (oportunidade nunca teve transição manual), quem chama passa
+    `Opportunity.first_detected_at` como proxy — nunca `synced_at` (esse é
+    reescrito a cada `/sync` que ainda detecta a oportunidade, o que
+    neutralizaria o zumbi pra exatamente quem nunca foi triado). Degradado,
+    mas nunca finge saúde boa por falta de dado (mesmo princípio de
+    `compute_account_health`)."""
+    if status == "dismissed":
+        return False
+    if last_touch_at.tzinfo is None:
+        last_touch_at = last_touch_at.replace(tzinfo=timezone.utc)
+    return (now - last_touch_at).days > _ZOMBIE_DAYS
+
+
 __all__ = [
     "CorrelationRule", "RuleError", "compute_account_health", "compute_qbr_suggested_days",
-    "compute_severity_band", "evaluate_rules", "requires_status_change_justification",
+    "compute_severity_band", "evaluate_rules", "is_zombie_opportunity", "requires_status_change_justification",
 ]
 
 
