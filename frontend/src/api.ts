@@ -146,6 +146,10 @@ interface OpportunityApiRow {
   criticality: OpportunityRow['criticality']
   severity_note: string | null
   severity_band: OpportunityRow['severityBand']
+  renewal_date: string | null
+  account_health: OpportunityRow['accountHealth']
+  qbr_suggested_days: number
+  qbr_reason: string
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -160,6 +164,7 @@ export function derivePriority(score: number | null): OpportunityRow['priority']
 function fromApiRow(r: OpportunityApiRow): OpportunityRow {
   return {
     id: r.id,
+    companyId: r.company_id,
     companyName: r.company_name,
     isCustomer: r.is_customer,
     opportunityScore: r.opportunity_score,
@@ -182,6 +187,10 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     criticality: r.criticality,
     severityNote: r.severity_note,
     severityBand: r.severity_band,
+    renewalDate: r.renewal_date,
+    accountHealth: r.account_health,
+    qbrSuggestedDays: r.qbr_suggested_days,
+    qbrReason: r.qbr_reason,
   }
 }
 
@@ -208,6 +217,15 @@ export async function updateOpportunityQualification(
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const data: OpportunityApiRow = await resp.json()
   return fromApiRow(data)
+}
+
+export async function updateCompanyRenewalDate(companyId: string, renewalDate: string | null): Promise<void> {
+  const resp = await fetch(`${BASE}/companies/${companyId}/renewal-date`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ renewal_date: renewalDate }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
 }
 
 export interface SyncResult {

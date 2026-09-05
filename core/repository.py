@@ -128,12 +128,21 @@ def _company_from_row(row: CompanyORM) -> Company:
         attempted_solutions=_notes_from_json(row.attempted_solutions),
         strategic_context=_note_from_json(row.strategic_context),
         last_activity_at=_ensure_utc(row.last_activity_at) if row.last_activity_at else None,
+        renewal_date=_ensure_utc(row.renewal_date) if row.renewal_date else None,
     )
 
 
 async def save_company(session: AsyncSession, company: Company) -> None:
-    await _upsert(session, CompanyORM(
-        id=company.id, name=company.name, legal_name=company.legal_name, website=company.website,
+    """Caminho de escrita do sync (chamado por backend/sync.py com o objeto
+    já reconciliado por merge_pair). Upsert atômico (mesmo padrão de
+    save_opportunity, mesma classe de TOCTOU encontrada aqui por revisão de
+    código): `renewal_date` nunca entra no SET do upsert, mesmo que o
+    `Company` recebido carregue um valor — o objeto em memória do sync pode
+    ter sido capturado antes de um `update_company_renewal_date` concorrente
+    confirmar, e um merge de linha inteira reverteria a edição manual mais
+    recente. `renewal_date` só é gravado por `update_company_renewal_date`."""
+    engine_columns = dict(
+        name=company.name, legal_name=company.legal_name, website=company.website,
         is_customer=company.is_customer, customer_status=company.customer_status,
         sources=_sources_to_json(company.sources), created_at=company.created_at, updated_at=company.updated_at,
         rep_id=company.rep_id, segment=company.segment, region=company.region,
@@ -141,12 +150,31 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         attempted_solutions=_notes_to_json(company.attempted_solutions),
         strategic_context=_note_to_json(company.strategic_context),
         last_activity_at=company.last_activity_at,
-    ))
+    )
+    stmt = sqlite_insert(CompanyORM).values(id=company.id, renewal_date=None, **engine_columns)
+    stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
+    await session.execute(stmt)
+    await session.commit()
 
 
 async def get_company(session: AsyncSession, company_id: str) -> Company | None:
     row = await session.get(CompanyORM, company_id)
     return _company_from_row(row) if row else None
+
+
+async def update_company_renewal_date(
+    session: AsyncSession, company_id: str, renewal_date: datetime | None,
+) -> Company | None:
+    """Único caminho de escrita de renewal_date (manual, cadência de QBR) —
+    só essa coluna, nunca session.merge() da linha inteira. Sem o risco de
+    TOCTOU do save_opportunity original: um UPDATE de coluna única não
+    reconstrói o resto da linha, não há nada pra sobrescrever."""
+    row = await session.get(CompanyORM, company_id)
+    if row is None:
+        return None
+    row.renewal_date = renewal_date
+    await session.commit()
+    return _company_from_row(row)
 
 
 async def list_companies(session: AsyncSession) -> list[Company]:

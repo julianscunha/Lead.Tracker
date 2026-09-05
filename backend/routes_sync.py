@@ -7,6 +7,7 @@ catálogo (produto/serviço) pro editor de regras.
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from typing import Literal
@@ -27,11 +28,11 @@ from core.dashboard_metrics import (
     financial_potential_by_vendor, funnel_counts, opportunities_by_service,
 )
 from core.errors import DomainError, ErrorCategory
-from core.models import Company, CorrelationRule, Product, RuleError, Service
-from core.opportunity_engine import compute_severity_band
+from core.models import Company, CorrelationRule, Opportunity, OpportunityStatus, Product, RuleError, Service
+from core.opportunity_engine import compute_account_health, compute_qbr_suggested_days, compute_severity_band
 from core.repository import (
-    list_companies, list_opportunities, list_products, list_rules, list_services,
-    list_vendors, save_rule, update_opportunity_qualification,
+    list_companies, list_company_signals, list_opportunities, list_products, list_rules,
+    list_services, list_vendors, save_rule, update_company_renewal_date, update_opportunity_qualification,
 )
 
 router = APIRouter(tags=["lead_tracker-data"])
@@ -68,6 +69,10 @@ class OpportunityOut(BaseModel):
     criticality: str | None
     severity_note: str | None
     severity_band: str
+    renewal_date: datetime | None
+    account_health: str
+    qbr_suggested_days: int
+    qbr_reason: str
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -78,6 +83,10 @@ class OpportunityQualificationIn(BaseModel):
     scope_note: Literal["isolado", "parcial", "generalizado"] | None = None
     criticality: Literal["nao_critico", "critico_interno", "critico_exposto"] | None = None
     severity_note: str | None = None
+
+
+class CompanyRenewalDateIn(BaseModel):
+    renewal_date: datetime | None = None
 
 
 class RuleIn(BaseModel):
@@ -106,10 +115,61 @@ async def get_companies() -> list[Company]:
         return await list_companies(session)
 
 
+async def _account_health_map(
+    session, opportunities: list[Opportunity], companies: dict[str, Company],
+) -> dict[str, tuple[str, int, str]]:
+    """Saúde/cadência de QBR é por conta, não por oportunidade — calculada
+    uma vez por empresa presente na lista e reaproveitada em toda linha
+    daquela empresa (mesmo padrão de company_name/is_customer, que já se
+    repetem hoje). "Aberta" pra fins de confidence médio = qualquer status
+    != dismissed (dismissed é a única baixa explícita do fluxo)."""
+    now = datetime.now(timezone.utc)
+    by_company: dict[str, list[Opportunity]] = {}
+    for o in opportunities:
+        by_company.setdefault(o.company_id, []).append(o)
+
+    result: dict[str, tuple[str, int, str]] = {}
+    for company_id, opps in by_company.items():
+        company = companies.get(company_id)
+        open_confidences = [
+            o.confidence_score for o in opps
+            if o.status != OpportunityStatus.DISMISSED and o.confidence_score is not None
+        ]
+        avg_open_confidence = sum(open_confidences) / len(open_confidences) if open_confidences else None
+
+        recency_days: int | None = None
+        renewal_days: int | None = None
+        if company is not None:
+            if company.last_activity_at is not None:
+                last_activity_at = company.last_activity_at
+                if last_activity_at.tzinfo is None:
+                    last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
+                recency_days = (now - last_activity_at).days
+            if company.renewal_date is not None:
+                renewal_date = company.renewal_date
+                if renewal_date.tzinfo is None:
+                    renewal_date = renewal_date.replace(tzinfo=timezone.utc)
+                renewal_days = (renewal_date - now).days
+
+        signals = await list_company_signals(session, company_id)
+        open_signal_count = sum(1 for s in signals if s.status == "open")
+
+        health = compute_account_health(recency_days, avg_open_confidence)
+        days, reason = compute_qbr_suggested_days(health, renewal_days, open_signal_count)
+        result[company_id] = (health, days, reason)
+    return result
+
+
 def _to_opportunity_out(
     o, companies: dict[str, Company], products: dict[str, str], services: dict[str, str],
+    health_map: dict[str, tuple[str, int, str]],
 ) -> OpportunityOut:
     company = companies.get(o.company_id)
+    # health_map é sempre construído a partir da mesma lista de oportunidades
+    # que esta função itera — o fallback abaixo é inalcançável hoje; existe
+    # só como rede de segurança caso um chamador futuro passe listas
+    # desalinhadas, nunca deve mascarar um bug de wiring silenciosamente.
+    health, qbr_days, qbr_reason = health_map.get(o.company_id, ("dados_insuficientes", 90, "revisao_de_rotina"))
     return OpportunityOut(
         id=o.id, company_id=o.company_id,
         company_name=company.name if company else "(empresa removida)",
@@ -123,6 +183,8 @@ def _to_opportunity_out(
         risk_flag=o.risk_flag, scope_note=o.scope_note, criticality=o.criticality,
         severity_note=o.severity_note,
         severity_band=compute_severity_band(o.scope_note, o.criticality),
+        renewal_date=company.renewal_date if company else None,
+        account_health=health, qbr_suggested_days=qbr_days, qbr_reason=qbr_reason,
     )
 
 
@@ -133,8 +195,9 @@ async def get_opportunities(company_id: str | None = None) -> list[OpportunityOu
         companies = {c.id: c for c in await list_companies(session)}
         products = {p.id: p.name for p in await list_products(session)}
         services = {s.id: s.name for s in await list_services(session)}
+        health_map = await _account_health_map(session, opportunities, companies)
 
-    return [_to_opportunity_out(o, companies, products, services) for o in opportunities]
+    return [_to_opportunity_out(o, companies, products, services, health_map) for o in opportunities]
 
 
 @router.patch("/opportunities/{opportunity_id}")
@@ -148,8 +211,18 @@ async def update_opportunity_qualification_route(opportunity_id: str, body: Oppo
         companies = {c.id: c for c in await list_companies(session)}
         products = {p.id: p.name for p in await list_products(session)}
         services = {s.id: s.name for s in await list_services(session)}
+        health_map = await _account_health_map(session, [updated], companies)
 
-    return _to_opportunity_out(updated, companies, products, services)
+    return _to_opportunity_out(updated, companies, products, services, health_map)
+
+
+@router.patch("/companies/{company_id}/renewal-date")
+async def update_company_renewal_date_route(company_id: str, body: CompanyRenewalDateIn) -> Company:
+    async with session_factory() as session:
+        updated = await update_company_renewal_date(session, company_id, body.renewal_date)
+        if updated is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa não encontrada."))
+    return updated
 
 
 @router.get("/products")

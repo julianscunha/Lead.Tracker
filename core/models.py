@@ -61,6 +61,11 @@ class Company(BaseModel):
     # Fase C, Fatia 4a — proxy de momentum (recência de atividade no CRM).
     # Ausente = fria, nunca um terceiro estado "desconhecido".
     last_activity_at: datetime | None = None
+    # Fase C, cadência de QBR — data de fim de contrato, 100% manual por ora
+    # (nenhum provider traz isso hoje). merge_pair nunca lista este campo no
+    # update=, então um /sync nunca o zera — mesmo padrão de proteção que
+    # scope_note/criticality/severity_note têm em Opportunity.
+    renewal_date: datetime | None = None
 
 
 class Contact(BaseModel):

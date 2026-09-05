@@ -528,3 +528,105 @@ recomendou calibrar o corte quente/morno pela mediana real de
 intervalo-entre-atividades dos deals fechados do usuário (não temos esse
 dado ainda) — os números acima são o ponto de partida, não um valor
 definitivo; revisitar quando existir essa métrica.
+
+## Fatia 6 — Cadência de revisão de conta (QBR)
+
+### Objetivo
+
+Último item do roadmap da Fase C: sugerir de quanto em quanto tempo revisar
+uma conta, por regra determinística (tabela saúde × janela de renovação),
+nunca um calendário fixo igual pra todo mundo.
+
+### Decisões tomadas (consulta a Account Strategist + Pipeline Analyst + Plan, por instrução do usuário)
+
+Os dois primeiros agentes convergiram no essencial e divergiram só em
+detalhe de corte — usei a versão do Pipeline Analyst (reaproveita o corte
+de 270 dias já existente na régua de recência, evita contar sinal aberto
+duas vezes). Decisões fechadas com o usuário antes de codar:
+
+- **Saúde da conta** (`compute_account_health`): derivada, nunca manual —
+  pior dos dois eixos (recência de `Company.last_activity_at`, reaproveita
+  as faixas de `_warmth_multiplier`; confidence médio das oportunidades
+  não-`dismissed` da conta). `dados_insuficientes` só quando os dois eixos
+  faltam — nunca "verde" por ausência de sinal ruim. Rejeitei o desenho
+  alternativo do Account Strategist (contar `CompanySignal` aberto dentro
+  da própria saúde) porque duplicaria o mesmo fato — sinais abertos já são
+  o 3º eixo da tabela de cadência.
+- **Janela de renovação**: `Company.renewal_date` novo (opcional, manual
+  por ora — nenhum provider traz isso). 4 faixas: ≤30d / 31-120d / 121-270d
+  / sem data ou >270d.
+- **Sinais abertos**: não é eixo cruzado pleno (explodiria a tabela: 3
+  saúde × 4 janela × N sinais) — é modificador de escalonamento: ≥2
+  `CompanySignal` abertos empurram a linha da tabela uma posição mais
+  urgente. Vermelha já é o teto, escalonar não piora além disso.
+- **Tabela final** (`_QBR_TABLE`, `core/opportunity_engine.py`): 3 saúde ×
+  4 janela = 12 células fixas + a regra de escalonamento. Célula "verde +
+  31-120 dias" é a única com valor dinâmico ("alinhada à renovação" = os
+  dias reais até `renewal_date`, nunca um número fixo desconectado do
+  calendário do contrato).
+
+### Decisão de arquitetura (consulta ao agente `Plan`)
+
+**Onde exibir, dado que não existe tela de Company:** reaproveitar a linha
+expansível de `Opportunity` já existente (`OpportunityTable.tsx`), que já
+mostra `company_name`/`is_customer` repetidos por linha — sem tela nova.
+Saúde/cadência embutidas em `OpportunityOut` (mesmo padrão de
+`severity_band`), calculadas uma vez por empresa e reaproveitadas em toda
+oportunidade daquela empresa. Uma tela dedicada de Company fica pra uma
+fatia futura, decisão consciente, não omissão.
+
+**Nenhuma rota de leitura nova além do embutido** — uma rota tipo "contas
+que precisam de QBR" seria derivável do mesmo `GET /opportunities` no
+frontend; YAGNI até existir um caso de uso real que precise de agregação
+no servidor.
+
+**Achado real da revisão de código, mesma classe do bug de `save_opportunity`
+já corrigido na Fatia 5**: `update_company_renewal_date` (escrita manual
+dedicada de `renewal_date`) é uma escrita segura, coluna única, sem
+`session.merge()` da linha inteira. Mas `save_company` (caminho do sync)
+continuava fazendo upsert da linha inteira construída a partir de um objeto
+capturado em memória no início do `/sync` — se um `PATCH
+/companies/{id}/renewal-date` comitasse durante a janela em que o `/sync`
+já estava rodando (real, não teórico: o sync processa várias empresas,
+cada `save_company` é um `await` que cede o loop), o `save_company` final
+reverteria `renewal_date` pro valor antigo capturado antes do PATCH.
+**Correção**: `save_company` também virou upsert atômico (`INSERT ... ON
+CONFLICT DO UPDATE`) que nunca lista `renewal_date` no `SET` — a coluna só
+é gravada por `update_company_renewal_date`, nunca pelo caminho do motor,
+mesmo padrão de dois-caminhos-de-escrita-separados da Fatia 5.
+
+### Não objetivo desta fatia
+
+- Nenhuma tela dedicada de Company — decisão consciente (ver "Decisão de
+  arquitetura" acima), não omissão.
+- Nenhuma fonte automática de `renewal_date` — 100% manual, como decidido.
+
+### Teste
+
+- `compute_account_health`: pior dos dois eixos, cada eixo isolado, e
+  `dados_insuficientes` só quando os dois faltam.
+- `compute_qbr_suggested_days`: vermelha sempre urgente, verde alinha à
+  data real de renovação, `dados_insuficientes` tratado como amarela,
+  escalonamento por ≥2 sinais abertos (inclusive o teto em vermelha).
+- `update_company_renewal_date`: round-trip; `None` pra id inexistente.
+- Regressão do achado da revisão: `save_company` chamado com um snapshot
+  capturado ANTES de um `update_company_renewal_date` concorrente nunca
+  reverte o valor mais novo.
+- Rota `PATCH /companies/{id}/renewal-date`: round-trip refletido em `GET
+  /opportunities`; 404 amigável pra id inexistente.
+- `GET /opportunities`: `account_health`/`qbr_suggested_days`/`qbr_reason`
+  embutidos e corretos pro cenário sem dado (verde só por 1 eixo presente).
+
+### Critério de sucesso
+
+- [x] `compute_account_health`/`compute_qbr_suggested_days` corretos pra
+      todos os casos de borda testados.
+- [x] `save_company` nunca reverte `renewal_date` preenchido manualmente,
+      mesmo com sync concorrente (achado da revisão, corrigido).
+- [x] `PATCH /companies/{id}/renewal-date` funcional, 404 amigável.
+- [x] `GET /opportunities` embute saúde/cadência sem rota nova.
+- [x] UI reaproveita a linha expansível existente, sem tela nova.
+- [x] Suíte completa passa (backend + frontend), verificado ao vivo contra
+      o módulo instalado.
+
+Isso fecha todos os itens planejados da Fase C do roadmap.

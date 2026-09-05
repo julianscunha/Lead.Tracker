@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react'
-import { generateEmailDraft, updateOpportunityQualification, type EmailDraft } from './api'
-import type { Criticality, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
+import { generateEmailDraft, updateCompanyRenewalDate, updateOpportunityQualification, type EmailDraft } from './api'
+import type { AccountHealth, Criticality, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
 const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
   { value: 'isolado', label: 'Isolado (poucas licenças/sistemas)' },
@@ -16,6 +16,23 @@ const CRITICALITY_OPTIONS: { value: Criticality; label: string }[] = [
 
 const SEVERITY_LABEL: Record<SeverityBand, string> = {
   baixo: 'Baixo', medio: 'Médio', alto: 'Alto', critico: 'Crítico', nao_avaliado: 'Não avaliado',
+}
+
+const HEALTH_LABEL: Record<AccountHealth, string> = {
+  verde: 'Saudável', amarela: 'Atenção', vermelha: 'Crítica', dados_insuficientes: 'Dados insuficientes',
+}
+
+const QBR_REASON_LABEL: Record<string, string> = {
+  imediata: 'revisão imediata — saúde da conta em estado crítico',
+  revisao_de_risco: 'saúde comprometida, sem renovação próxima o bastante pra justificar revisão imediata',
+  revisao_antes_da_renovacao: 'renovação próxima e a saúde não está em verde — vale revisar antes de decidir',
+  revisao_de_acompanhamento: 'acompanhamento de rotina, saúde em atenção',
+  revisao_de_rotina: 'nenhum sinal de urgência — cadência de rotina',
+  alinhada_a_renovacao: 'conta saudável — revisão alinhada à data de renovação',
+}
+
+function toDateInputValue(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : ''
 }
 
 const PRIORITY_WEIGHT: Record<OpportunityRow['priority'], number> = { alta: 3, média: 2, baixa: 1 }
@@ -127,7 +144,52 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
   )
 }
 
-function RowDetail({ row, onQualificationUpdated }: { row: OpportunityRow; onQualificationUpdated: (updated: OpportunityRow) => void }) {
+function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow; onRenewalDateUpdated: () => void }) {
+  const [renewalDate, setRenewalDate] = useState(toDateInputValue(row.renewalDate))
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const requestSeq = useRef(0)
+
+  const save = async (value: string) => {
+    setSaveError(null)
+    const seq = ++requestSeq.current
+    try {
+      await updateCompanyRenewalDate(row.companyId, value || null)
+      if (seq !== requestSeq.current) return
+      onRenewalDateUpdated()
+    } catch (err) {
+      if (seq !== requestSeq.current) return
+      setSaveError(err instanceof Error ? err.message : 'Falha ao salvar a data de renovação.')
+    }
+  }
+
+  return (
+    <div className="lt-severity">
+      <span className={`lt-badge lt-badge--health-${row.accountHealth}`}>
+        Saúde da conta: {HEALTH_LABEL[row.accountHealth]}
+      </span>
+      <span className="lt-hint">
+        Próxima revisão sugerida: {row.qbrSuggestedDays === 0 ? 'imediata' : `em ${row.qbrSuggestedDays} dias`}
+        {' '}({QBR_REASON_LABEL[row.qbrReason] ?? row.qbrReason})
+      </span>
+      <label>
+        Data de renovação do contrato
+        <input
+          type="date"
+          value={renewalDate}
+          onChange={e => setRenewalDate(e.target.value)}
+          onBlur={() => save(renewalDate)}
+        />
+      </label>
+      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+    </div>
+  )
+}
+
+function RowDetail({ row, onQualificationUpdated, onRenewalDateUpdated }: {
+  row: OpportunityRow
+  onQualificationUpdated: (updated: OpportunityRow) => void
+  onRenewalDateUpdated: () => void
+}) {
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [draft, setDraft] = useState<EmailDraft | null>(null)
@@ -186,6 +248,7 @@ function RowDetail({ row, onQualificationUpdated }: { row: OpportunityRow; onQua
           <dt>Insight</dt>
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
         </dl>
+        <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
         <SeverityQualification row={row} onUpdated={onQualificationUpdated} />
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
@@ -209,9 +272,10 @@ function RowDetail({ row, onQualificationUpdated }: { row: OpportunityRow; onQua
   )
 }
 
-export function OpportunityTable({ rows, onQualificationUpdated }: {
+export function OpportunityTable({ rows, onQualificationUpdated, onRenewalDateUpdated }: {
   rows: OpportunityRow[]
   onQualificationUpdated: (updated: OpportunityRow) => void
+  onRenewalDateUpdated: () => void
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
@@ -273,7 +337,9 @@ export function OpportunityTable({ rows, onQualificationUpdated }: {
               <td>{row.priority}</td>
               <td>{row.sources.map(s => s.type).join(', ')}</td>
             </tr>
-            {expandedId === row.id && <RowDetail row={row} onQualificationUpdated={onQualificationUpdated} />}
+            {expandedId === row.id && (
+              <RowDetail row={row} onQualificationUpdated={onQualificationUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
+            )}
           </Fragment>
         ))}
       </tbody>

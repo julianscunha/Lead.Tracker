@@ -123,6 +123,49 @@ Alcance e criticidade juntos já bastam pra separar "vale a pena tratar
 com urgência" de "fica pra depois" — outros fatores (prazo, orçamento,
 quem decide) já têm campo próprio em outros lugares da oportunidade.
 
+## Saúde da conta e cadência de revisão sugerida
+
+**O que é:** com que urgência vale revisar uma conta — em vez de um
+calendário fixo ("revisar toda conta a cada 90 dias"), o sistema sugere um
+prazo específico por conta, combinando três informações: a saúde atual da
+conta, quanto falta pra renovação do contrato (quando essa data existe) e
+quantos sinais de risco/expansão ainda estão em aberto.
+
+**De onde vem a saúde da conta ("Saudável" / "Atenção" / "Crítica" /
+"Dados insuficientes"):** sempre o pior entre dois indicadores, nunca uma
+média (uma média deixaria passar um problema sério escondido atrás de um
+número bom) — nunca preenchida manualmente, sempre recalculada na leitura:
+
+- **Recência de atividade** — mesma régua de quente/morno/muito frio já
+  usada na confiança da oportunidade (ver seção acima).
+- **Confiança média das oportunidades em aberto daquela conta** — alta
+  (≥70%), média (40-69%) ou baixa (abaixo de 40%).
+
+Conta sem nenhuma oportunidade em aberto **e** sem nenhuma atividade
+registrada cai em **"Dados insuficientes"** — o sistema nunca assume que
+uma conta está saudável só porque não há informação nenhuma sobre ela.
+
+**Por que a contagem de sinais abertos não entra na saúde:** um sinal de
+risco/expansão em aberto (`CompanySignal` — renovação próxima, troca de
+contato-chave, etc.) já entra como uma informação separada na tabela de
+cadência (próximo parágrafo). Contar o mesmo sinal duas vezes — uma na
+saúde, outra na cadência — inflaria artificialmente a urgência.
+
+**Como vira "revisar em X dias":** tabela fixa cruzando saúde × prazo até a
+renovação (até 30 dias / 31 a 120 dias / 121 a 270 dias / sem data
+cadastrada ou mais de 270 dias). Conta com saúde crítica sempre pede
+revisão imediata ou quase; conta saudável com renovação próxima tem a
+revisão alinhada à própria data de renovação (nunca um número solto
+desconectado do calendário real do contrato); conta saudável sem renovação
+próxima cai numa cadência de rotina mais espaçada. **2 ou mais sinais em
+aberto** empurram a conta pra uma linha mais urgente da tabela, qualquer
+que seja a saúde.
+
+**De onde vem a data de renovação:** hoje é 100% preenchida manualmente na
+tela da oportunidade (nenhuma fonte automática traz isso ainda) — conta sem
+essa data preenchida simplesmente não usa a parte "alinhada à renovação" da
+lógica, cai só na combinação saúde + sinais abertos.
+
 ## Os números não são definitivos
 
 Todo threshold e toda fórmula deste documento é revisável — nada aqui é

@@ -20,7 +20,7 @@ from core.repository import (
     list_company_signals, list_contacts, list_opportunities, list_opportunity_status_changes,
     list_rules, list_vendors, save_company, save_company_signal, save_contact, save_opportunity,
     save_opportunity_status_change, save_portfolio, save_rule, save_vendor,
-    update_opportunity_qualification,
+    update_company_renewal_date, update_opportunity_qualification,
 )
 
 
@@ -273,6 +273,70 @@ def test_company_last_activity_at_round_trip():
     asyncio.run(run())
 
 
+def test_update_company_renewal_date_round_trip():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            when = datetime(2026, 12, 1, tzinfo=timezone.utc)
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                updated = await update_company_renewal_date(session, company.id, when)
+            assert updated.renewal_date == when
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.renewal_date == when
+
+    asyncio.run(run())
+
+
+def test_update_company_renewal_date_returns_none_for_unknown_id():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                result = await update_company_renewal_date(session, "id-inexistente", datetime.now(timezone.utc))
+            assert result is None
+
+    asyncio.run(run())
+
+
+def test_save_company_never_reverts_renewal_date_from_a_stale_in_memory_snapshot():
+    """Regressão do TOCTOU apontado na revisão de código: backend/sync.py
+    mantém o Company em memória (capturado ANTES de qualquer edição manual
+    concorrente) durante todo o /sync, só chamando save_company no fim. Se
+    um update_company_renewal_date comitar nesse meio-tempo, um save_company
+    que fizesse merge da linha inteira reverteria a edição pro valor antigo
+    capturado em memória — upsert atômico que nunca lista renewal_date no
+    SET fecha essa janela, igual ao fix já aplicado em save_opportunity."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+
+            # snapshot capturado ANTES da edição manual — simula o que
+            # backend/sync.py mantém em memória durante um /sync em andamento
+            stale_snapshot = company.model_copy(update={"last_activity_at": datetime.now(timezone.utc)})
+
+            when = datetime(2026, 12, 1, tzinfo=timezone.utc)
+            async with session_factory() as session:
+                await update_company_renewal_date(session, company.id, when)  # edição concorrente "chega primeiro"
+
+            async with session_factory() as session:
+                await save_company(session, stale_snapshot)  # sync termina com o snapshot antigo (renewal_date=None)
+
+            async with session_factory() as session:
+                after = await get_company(session, company.id)
+            assert after.renewal_date == when
+
+    asyncio.run(run())
+
+
 def test_contact_seniority_tier_round_trip():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -478,6 +542,9 @@ if __name__ == "__main__":
     test_opportunity_risk_flag_round_trips()
     test_opportunity_rich_evidence_fields_round_trip()
     test_company_last_activity_at_round_trip()
+    test_update_company_renewal_date_round_trip()
+    test_update_company_renewal_date_returns_none_for_unknown_id()
+    test_save_company_never_reverts_renewal_date_from_a_stale_in_memory_snapshot()
     test_contact_seniority_tier_round_trip()
     test_update_opportunity_qualification_round_trip()
     test_update_opportunity_qualification_returns_none_for_unknown_id()

@@ -44,7 +44,31 @@ _SEVERITY_TABLE: dict[tuple[str, str], str] = {
     ("generalizado", "critico_exposto"): "critico",
 }
 
-__all__ = ["CorrelationRule", "RuleError", "compute_severity_band", "evaluate_rules"]
+# Cadência de QBR — saúde/renovação → dias sugeridos, revisado com os
+# agentes especialistas Account Strategist e Pipeline Analyst. "verde" é o
+# melhor estado, "vermelha" o pior — ordem usada tanto pra tirar o pior dos
+# dois eixos de saúde quanto pra escalonar a linha da tabela de cadência.
+_HEALTH_ORDER = ["verde", "amarela", "vermelha"]
+
+_QBR_TABLE: dict[tuple[str, str], tuple[int | None, str]] = {
+    ("vermelha", "ate_30"): (0, "imediata"),
+    ("vermelha", "31_120"): (0, "imediata"),
+    ("vermelha", "121_270"): (15, "revisao_de_risco"),
+    ("vermelha", "sem_data_ou_longa"): (15, "revisao_de_risco"),
+    ("amarela", "ate_30"): (7, "revisao_antes_da_renovacao"),
+    ("amarela", "31_120"): (30, "revisao_de_acompanhamento"),
+    ("amarela", "121_270"): (60, "revisao_de_acompanhamento"),
+    ("amarela", "sem_data_ou_longa"): (90, "revisao_de_rotina"),
+    ("verde", "ate_30"): (0, "alinhada_a_renovacao"),
+    ("verde", "31_120"): (None, "alinhada_a_renovacao"),  # None = usa os dias reais até a renovação
+    ("verde", "121_270"): (90, "revisao_de_rotina"),
+    ("verde", "sem_data_ou_longa"): (180, "revisao_de_rotina"),
+}
+
+__all__ = [
+    "CorrelationRule", "RuleError", "compute_account_health", "compute_qbr_suggested_days",
+    "compute_severity_band", "evaluate_rules",
+]
 
 
 def compute_severity_band(scope_note: str | None, criticality: str | None) -> str:
@@ -56,6 +80,68 @@ def compute_severity_band(scope_note: str | None, criticality: str | None) -> st
     if scope_note is None or criticality is None:
         return "nao_avaliado"
     return _SEVERITY_TABLE.get((scope_note, criticality), "nao_avaliado")
+
+
+def _recency_health_tier(recency_days: int | None) -> str | None:
+    if recency_days is None:
+        return None
+    if recency_days <= _WARM_WINDOW_DAYS:
+        return "verde"
+    return "amarela" if recency_days <= _LUKEWARM_WINDOW_DAYS else "vermelha"
+
+
+def _confidence_health_tier(avg_open_confidence: float | None) -> str | None:
+    if avg_open_confidence is None:
+        return None
+    if avg_open_confidence >= 0.7:
+        return "verde"
+    return "amarela" if avg_open_confidence >= 0.4 else "vermelha"
+
+
+def compute_account_health(recency_days: int | None, avg_open_confidence: float | None) -> str:
+    """Saúde da conta pra cadência de QBR — pior valor (nunca média) entre
+    recência de atividade (reaproveita as mesmas faixas de
+    _warmth_multiplier) e confidence_score médio das oportunidades abertas
+    da conta. Revisado com o agente especialista Pipeline Analyst: nunca
+    deriva de contagem de CompanySignal aberto — isso já é o 3º eixo da
+    tabela de cadência (compute_qbr_suggested_days), contar de novo aqui
+    duplicaria o mesmo fato. Conta sem nenhuma das duas informações (nunca
+    teve atividade registrada E não tem oportunidade aberta) cai em
+    "dados_insuficientes", nunca "verde" por ausência de sinal ruim."""
+    recency_tier = _recency_health_tier(recency_days)
+    confidence_tier = _confidence_health_tier(avg_open_confidence)
+    tiers = [t for t in (recency_tier, confidence_tier) if t is not None]
+    if not tiers:
+        return "dados_insuficientes"
+    return max(tiers, key=_HEALTH_ORDER.index)
+
+
+def _renewal_band(renewal_days: int | None) -> str:
+    if renewal_days is None or renewal_days > _LUKEWARM_WINDOW_DAYS:
+        return "sem_data_ou_longa"
+    if renewal_days <= 30:
+        return "ate_30"
+    return "31_120" if renewal_days <= 120 else "121_270"
+
+
+def compute_qbr_suggested_days(health: str, renewal_days: int | None, open_signal_count: int) -> tuple[int, str]:
+    """Dias sugeridos até a próxima revisão de conta + rótulo do motivo —
+    tabela fixa saúde × janela de renovação (_QBR_TABLE), nunca uma conta
+    calendário fixo. "dados_insuficientes" é tratado como "amarela"
+    conservadora (não afirma saúde boa por falta de dado, mas também não
+    trava a conta em urgência máxima). ≥2 CompanySignal abertos escalona
+    a linha uma posição pra mais urgente (mesma tabela, não um eixo cruzado
+    à parte — evitaria explosão combinatória, decisão do Pipeline Analyst).
+    Quando a tabela marca "alinhada à renovação" (verde, renovação em
+    31-120 dias) o número de dias sugeridos é o próprio prazo até a
+    renovação, nunca um valor fixo desconectado da data real."""
+    row = "amarela" if health == "dados_insuficientes" else health
+    if open_signal_count >= 2:
+        row = _HEALTH_ORDER[min(len(_HEALTH_ORDER) - 1, _HEALTH_ORDER.index(row) + 1)]
+    days, reason = _QBR_TABLE[(row, _renewal_band(renewal_days))]
+    if days is None:
+        days = max(renewal_days, 0) if renewal_days is not None else 0
+    return days, reason
 
 
 def _deterministic_opportunity_id(company_id: str, rule_id: str, evidence: list[str]) -> str:

@@ -4,6 +4,20 @@
 
 ### Adicionado
 
+- **Cadência de revisão de conta (QBR)**: última capacidade planejada da
+  Fase C. A linha expansível de cada oportunidade ganha a saúde da conta
+  (Saudável/Atenção/Crítica/Dados insuficientes, sempre derivada — pior
+  entre recência de atividade e confiança média das oportunidades abertas,
+  nunca uma média que esconderia um problema) e uma sugestão de prazo pra
+  próxima revisão, combinando saúde × prazo até a renovação do contrato ×
+  nº de sinais de risco/expansão em aberto — tabela fixa, nunca calendário
+  igual pra toda conta. Novo campo manual `Company.renewal_date` e rota
+  `PATCH /companies/{id}/renewal-date`. Revisão de código encontrou a mesma
+  classe de risco já corrigida na severidade: `save_company` (caminho do
+  sync) também virou upsert atômico que nunca sobrescreve `renewal_date`
+  preenchido manualmente. Ver `docs/criterios-de-qualificacao.md` para o
+  detalhamento da tabela. Fecha todos os itens planejados da Fase C.
+
 - **Quantificação de gap por severidade**: tela de oportunidade ganha
   dois dropdowns (Alcance, Criticidade) e uma observação opcional,
   preenchidos manualmente pelo vendedor — sem fonte automática, sem

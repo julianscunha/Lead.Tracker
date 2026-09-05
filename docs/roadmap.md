@@ -213,6 +213,7 @@ final sem esta — é o fio que liga tudo que já existe isolado e testado.
   de prontas — por isso vem antes de qualquer uma delas, não depois.
 
 ### Fase C — Motor de regras ampliado
+**Status:** concluída (spec: `docs/specs/fase-c-motor-de-regras.md`).
 Depende da Fase B e da Fase B.1 (precisa de dado real fluindo pelo pipeline
 pra uma regra nova ter o que avaliar).
 

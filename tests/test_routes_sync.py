@@ -17,7 +17,7 @@ import main as backend_main
 from backend import routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
 from core.models import Company, Opportunity, OpportunityStatus, Product, Service, SourceRef
-from core.repository import save_company, save_opportunity, save_product, save_service
+from core.repository import save_company, save_opportunity, save_product, save_service, update_company_renewal_date
 
 app = FastAPI()
 app.include_router(backend_main.router)
@@ -183,6 +183,63 @@ def test_get_opportunities_includes_severity_band_not_avaliado_by_default():
         assert body["criticality"] is None
 
 
+def test_get_opportunities_embeds_account_health_and_qbr_suggestion():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", confidence_score=0.9,
+            sources=[SourceRef(type="rule_engine")],
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        body = client.get("/modules/lead_tracker/opportunities").json()[0]
+        # sem last_activity_at mas com confidence 0.9 de oportunidade aberta -> só o eixo de
+        # confiança conta (nunca "dados_insuficientes" quando há pelo menos um dado real)
+        assert body["account_health"] == "verde"
+        assert body["renewal_date"] is None
+        assert isinstance(body["qbr_suggested_days"], int)
+        assert body["qbr_reason"]
+
+
+def test_patch_company_renewal_date_round_trips_and_reflects_in_opportunities():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/companies/{company.id}/renewal-date",
+            json={"renewal_date": "2026-12-01T00:00:00+00:00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["renewal_date"].startswith("2026-12-01")
+
+        body = client.get("/modules/lead_tracker/opportunities").json()[0]
+        assert body["renewal_date"].startswith("2026-12-01")
+
+
+def test_patch_company_renewal_date_returns_friendly_404_for_unknown_id():
+    with _TempDb():
+        resp = client.patch(
+            "/modules/lead_tracker/companies/id-inexistente/renewal-date",
+            json={"renewal_date": None},
+        )
+        assert resp.status_code == 404
+        assert "não encontrada" in resp.json()["detail"]
+
+
 def test_patch_opportunity_qualification_updates_and_recomputes_severity_band():
     with _TempDb() as db:
         import asyncio
@@ -292,6 +349,9 @@ if __name__ == "__main__":
     test_sync_endpoint_reads_isolated_env_never_the_real_module_env()
     test_get_opportunities_includes_risk_flag()
     test_get_opportunities_includes_severity_band_not_avaliado_by_default()
+    test_get_opportunities_embeds_account_health_and_qbr_suggestion()
+    test_patch_company_renewal_date_round_trips_and_reflects_in_opportunities()
+    test_patch_company_renewal_date_returns_friendly_404_for_unknown_id()
     test_patch_opportunity_qualification_updates_and_recomputes_severity_band()
     test_patch_opportunity_qualification_returns_friendly_404_for_unknown_id()
     test_patch_opportunity_qualification_rejects_value_outside_the_three_options()

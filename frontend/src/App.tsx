@@ -16,17 +16,25 @@ function OpportunitiesView() {
   const [exportError, setExportError] = useState<string | null>(null)
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
 
-  useEffect(() => {
+  const reload = () => {
     listOpportunities()
       .then(setRows)
       .catch(err => setLoadError(err instanceof Error ? err.message : 'Não consegui carregar as oportunidades.'))
-  }, [])
+  }
+
+  useEffect(reload, [])
 
   const filtered = rows ? applyFilters(rows, filters) : []
 
   const handleQualificationUpdated = (updated: OpportunityRow) => {
     setRows(prev => prev && prev.map(r => (r.id === updated.id ? updated : r)))
   }
+
+  // renewal_date fica em Company, não em Opportunity — a rota que grava não
+  // devolve o OpportunityOut recalculado (account_health/qbr dependem de
+  // toda a conta), então recarrega a lista inteira em vez de tentar
+  // recalcular a saúde da conta no frontend.
+  const handleRenewalDateUpdated = () => reload()
 
   const handleExport = async (kind: 'pdf' | 'excel') => {
     setExportError(null)
@@ -66,7 +74,11 @@ function OpportunitiesView() {
           Nenhuma oportunidade ainda — rode uma sincronização em Configurações.
         </p>
       ) : (
-        <OpportunityTable rows={filtered} onQualificationUpdated={handleQualificationUpdated} />
+        <OpportunityTable
+          rows={filtered}
+          onQualificationUpdated={handleQualificationUpdated}
+          onRenewalDateUpdated={handleRenewalDateUpdated}
+        />
       )}
     </div>
   )

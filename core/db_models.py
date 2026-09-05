@@ -56,6 +56,7 @@ class CompanyORM(Base):
     attempted_solutions: Mapped[list] = mapped_column(JSON, default=list)
     strategic_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     last_activity_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    renewal_date: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class ContactORM(Base):

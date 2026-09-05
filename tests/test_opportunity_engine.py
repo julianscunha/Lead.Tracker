@@ -7,7 +7,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import datetime, timedelta, timezone
 
 from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
-from core.opportunity_engine import CorrelationRule, RuleError, compute_severity_band, evaluate_rules
+from core.opportunity_engine import (
+    CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
+    compute_severity_band, evaluate_rules,
+)
 
 
 VDC365_RULE = CorrelationRule(
@@ -323,6 +326,56 @@ def test_naive_last_activity_at_never_crashes_the_engine():
     assert result[0].confidence_score == VDC365_RULE.confidence_score
 
 
+def test_compute_account_health_takes_the_worse_of_recency_and_confidence():
+    assert compute_account_health(recency_days=10, avg_open_confidence=0.9) == "verde"
+    assert compute_account_health(recency_days=10, avg_open_confidence=0.3) == "vermelha"
+    assert compute_account_health(recency_days=300, avg_open_confidence=0.9) == "vermelha"
+    assert compute_account_health(recency_days=150, avg_open_confidence=0.5) == "amarela"
+
+
+def test_compute_account_health_only_one_axis_present_still_works():
+    assert compute_account_health(recency_days=10, avg_open_confidence=None) == "verde"
+    assert compute_account_health(recency_days=None, avg_open_confidence=0.2) == "vermelha"
+
+
+def test_compute_account_health_is_dados_insuficientes_never_verde_by_absence():
+    assert compute_account_health(recency_days=None, avg_open_confidence=None) == "dados_insuficientes"
+
+
+def test_compute_qbr_suggested_days_vermelha_is_always_urgent():
+    days, reason = compute_qbr_suggested_days("vermelha", renewal_days=10, open_signal_count=0)
+    assert days == 0
+    assert reason == "imediata"
+
+    days, _ = compute_qbr_suggested_days("vermelha", renewal_days=None, open_signal_count=0)
+    assert days == 15
+
+
+def test_compute_qbr_suggested_days_verde_aligns_to_real_renewal_date():
+    days, reason = compute_qbr_suggested_days("verde", renewal_days=75, open_signal_count=0)
+    assert days == 75
+    assert reason == "alinhada_a_renovacao"
+
+    days, _ = compute_qbr_suggested_days("verde", renewal_days=None, open_signal_count=0)
+    assert days == 180
+
+
+def test_compute_qbr_suggested_days_dados_insuficientes_treated_as_amarela():
+    days, reason = compute_qbr_suggested_days("dados_insuficientes", renewal_days=None, open_signal_count=0)
+    assert (days, reason) == compute_qbr_suggested_days("amarela", renewal_days=None, open_signal_count=0)
+
+
+def test_compute_qbr_suggested_days_two_or_more_open_signals_escalates_one_row():
+    calm = compute_qbr_suggested_days("verde", renewal_days=None, open_signal_count=0)
+    escalated = compute_qbr_suggested_days("verde", renewal_days=None, open_signal_count=2)
+    assert escalated == compute_qbr_suggested_days("amarela", renewal_days=None, open_signal_count=0)
+    assert escalated != calm
+
+    # vermelha já é o pior estado — escalonar não pode piorar além disso
+    already_worst = compute_qbr_suggested_days("vermelha", renewal_days=None, open_signal_count=5)
+    assert already_worst == compute_qbr_suggested_days("vermelha", renewal_days=None, open_signal_count=0)
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -352,4 +405,11 @@ if __name__ == "__main__":
     test_naive_last_activity_at_never_crashes_the_engine()
     test_compute_severity_band_covers_all_nine_combinations()
     test_compute_severity_band_falls_back_to_nao_avaliado_when_any_field_blank()
+    test_compute_account_health_takes_the_worse_of_recency_and_confidence()
+    test_compute_account_health_only_one_axis_present_still_works()
+    test_compute_account_health_is_dados_insuficientes_never_verde_by_absence()
+    test_compute_qbr_suggested_days_vermelha_is_always_urgent()
+    test_compute_qbr_suggested_days_verde_aligns_to_real_renewal_date()
+    test_compute_qbr_suggested_days_dados_insuficientes_treated_as_amarela()
+    test_compute_qbr_suggested_days_two_or_more_open_signals_escalates_one_row()
     print("OK — todos os testes do motor de oportunidades passaram")
