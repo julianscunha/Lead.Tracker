@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Trava anti-spam de prospecção geográfica** (Fase E, módulo 5
+  `anti-spam-promotion-gate`): `select_promotions` decide quais sinais
+  geográficos pontuados (módulo 4) viram `Company`/`Opportunity` real —
+  score mínimo de 0.75 e cap de 20 promoções por representante/dia
+  (ambos configuráveis via `GET`/`PUT /settings/config/geo-promotion`),
+  decididos em consulta ao agente Outbound Strategist. Busca nunca é
+  bloqueada pela cota — excedente elegível vira `deferred` (evidência
+  suficiente, só sem cota agora), distinto de `rejected` (evidência
+  insuficiente, nunca vira registro). Ver
+  `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Pontuação determinística de sinal geográfico** (Fase E, módulo 4
   `geo-scoring-rules`): `score_place_signal` pontua `PlaceSignal` (módulo
   2) em 3 camadas — `business_status` fechado é descarte determinístico

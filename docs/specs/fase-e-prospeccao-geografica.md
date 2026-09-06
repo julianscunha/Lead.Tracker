@@ -296,3 +296,68 @@ adicionais também cobriram `category_matches` com string vazia e
 - [x] `BUSINESS_STATUS_UNSPECIFIED` tratado como "não sabemos", nunca
       como fechado.
 - [x] Suíte completa e revisão de código sem pendências.
+
+## Módulo 5 — `anti-spam-promotion-gate`
+
+Consulta ao agente Outbound Strategist antes de implementar — cap
+errado aqui é o risco mais caro da fase (gerar contato real em
+excesso). Decisões registradas no docstring de `core/geo_promotion.py`:
+
+1. **Score mínimo de promoção = 0.75** (configurável), acima do "bate
+   categoria puro" (0.7, módulo 4) — exige sinal extra (reviews/rating)
+   além de match de categoria.
+2. **Cap de 20 promoções por rep/dia** (configurável). Elegível
+   (score ≥ mínimo) mas cota esgotada → `deferred` (nunca promovido por
+   ESTA seleção, mas com evidência suficiente — distinto de rejeitado).
+   Score insuficiente ou `None` (descarte do módulo 4) → `rejected`,
+   nunca vira registro.
+3. **Um contador único diário por rep** — "o mais restritivo vale" nos
+   dois eixos (lote/dia), então um contador só tem o mesmo efeito com
+   menos estado.
+4. **A busca nunca é bloqueada pela cota** — todo sinal é classificado
+   (`promoted`/`deferred`/`rejected`); a cota só limita quantos entram
+   em `promoted`. Buscar/pontuar é grátis, não é "contato".
+
+`select_promotions()` é só a função de DECISÃO pura — não cria
+`Company`/`Opportunity` de verdade nem consulta o banco pra saber
+"quantos já foram promovidos hoje" (responsabilidade de quem chamar,
+a ser conectado pelo módulo 6, wizard, ainda não construído — ele é
+quem sabe qual rep está rodando a busca).
+
+Configuração via `GET`/`PUT /settings/config/geo-promotion` (mesmo
+padrão de `aging-sla-days`).
+
+**Achados da revisão de código**: nenhum bloqueante — 2 lacunas de
+cobertura de teste apontadas (score exatamente no limite mínimo;
+fronteiras válidas 0.0/1.0/cap=1) foram fechadas antes deste commit,
+mesmo com o veredito já sendo aprovação.
+
+### Não objetivo deste módulo
+
+- Nenhuma criação de `Company`/`Opportunity` a partir de um sinal
+  promovido — isso é módulo 6.
+- Nenhuma contagem de "já promovido hoje" a partir do banco — parâmetro
+  de entrada, responsabilidade de quem chama.
+
+### Teste
+
+- `parse_promotion_min_score`/`parse_promotion_daily_cap`: default
+  seguro pra ausente/inválido/fora de faixa; aceita as duas fronteiras
+  válidas (0.0/1.0 pro score, cap positivo).
+- `select_promotions`: score abaixo do mínimo sempre `rejected`; score
+  exatamente no mínimo é elegível (fronteira inclusiva); `None` nunca
+  consome cota; dentro da cota promove todos; cota esgotada nunca
+  bloqueia a busca (excedente vira `deferred`, nunca `rejected`);
+  quota inconsistente (`already_promoted_today` > cap) nunca gera
+  quantidade negativa nem erro; prioriza maior score quando a cota é
+  limitada.
+- Rota: round-trip, fronteiras válidas aceitas, valores inválidos
+  (score fora de 0-1, cap não-positivo) rejeitados com 422.
+
+### Critério de sucesso
+
+- [x] Descarte (`rejected`) e adiamento por cota (`deferred`) nunca se
+      confundem.
+- [x] Busca nunca bloqueada pela cota.
+- [x] Maior score sempre priorizado quando a cota é limitada.
+- [x] Suíte completa e revisão de código sem pendências.

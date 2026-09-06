@@ -20,6 +20,10 @@ from backend.http_errors import raise_http
 from backend.settings import SOURCES, get_source
 from core.config import load_env, set_env_values
 from core.errors import DomainError, ErrorCategory
+from core.geo_promotion import (
+    GEO_PROMOTION_DAILY_CAP_ENV_KEY, GEO_PROMOTION_MIN_SCORE_ENV_KEY, parse_promotion_daily_cap,
+    parse_promotion_min_score,
+)
 from core.opportunity_engine import AGING_SLA_ENV_KEY, parse_aging_sla_days
 from providers.base import ConnectionTestResult, ProviderError
 
@@ -93,6 +97,29 @@ async def update_aging_sla_days(body: AgingSlaConfig) -> AgingSlaConfig:
         raise_http(DomainError(ErrorCategory.INVALID_DATA, "O prazo precisa ser de pelo menos 1 dia."))
     set_env_values(_ENV_PATH, {AGING_SLA_ENV_KEY: str(body.days)})
     return AgingSlaConfig(days=body.days)
+
+
+class GeoPromotionConfig(BaseModel):
+    min_score: float
+    daily_cap: int
+
+
+@router.get("/config/geo-promotion")
+async def get_geo_promotion_config() -> GeoPromotionConfig:
+    env = load_env(_ENV_PATH)
+    return GeoPromotionConfig(min_score=parse_promotion_min_score(env), daily_cap=parse_promotion_daily_cap(env))
+
+
+@router.put("/config/geo-promotion")
+async def update_geo_promotion_config(body: GeoPromotionConfig) -> GeoPromotionConfig:
+    if not (0.0 <= body.min_score <= 1.0):
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, "O score mínimo precisa estar entre 0.0 e 1.0."))
+    if body.daily_cap < 1:
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, "O limite diário precisa ser de pelo menos 1."))
+    set_env_values(_ENV_PATH, {
+        GEO_PROMOTION_MIN_SCORE_ENV_KEY: str(body.min_score), GEO_PROMOTION_DAILY_CAP_ENV_KEY: str(body.daily_cap),
+    })
+    return GeoPromotionConfig(min_score=body.min_score, daily_cap=body.daily_cap)
 
 
 @router.get("")

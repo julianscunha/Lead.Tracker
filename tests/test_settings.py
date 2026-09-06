@@ -141,6 +141,45 @@ def test_put_aging_sla_days_rejects_non_positive_value():
         assert "dia" in resp.json()["detail"]
 
 
+def test_get_geo_promotion_config_defaults_when_not_configured():
+    with _TempEnv():
+        resp = client.get("/modules/lead_tracker/settings/config/geo-promotion")
+        assert resp.status_code == 200
+        assert resp.json() == {"min_score": 0.75, "daily_cap": 20}
+
+
+def test_put_geo_promotion_config_persists_and_round_trips():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/geo-promotion", json={"min_score": 0.8, "daily_cap": 30})
+        assert resp.status_code == 200
+        assert resp.json() == {"min_score": 0.8, "daily_cap": 30}
+
+        resp = client.get("/modules/lead_tracker/settings/config/geo-promotion")
+        assert resp.json() == {"min_score": 0.8, "daily_cap": 30}
+
+
+def test_put_geo_promotion_config_accepts_range_boundaries():
+    with _TempEnv():
+        resp_low = client.put("/modules/lead_tracker/settings/config/geo-promotion", json={"min_score": 0.0, "daily_cap": 1})
+        assert resp_low.status_code == 200
+        resp_high = client.put("/modules/lead_tracker/settings/config/geo-promotion", json={"min_score": 1.0, "daily_cap": 20})
+        assert resp_high.status_code == 200
+
+
+def test_put_geo_promotion_config_rejects_score_out_of_range():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/geo-promotion", json={"min_score": 1.5, "daily_cap": 20})
+        assert resp.status_code == 422
+        assert "score" in resp.json()["detail"]
+
+
+def test_put_geo_promotion_config_rejects_non_positive_cap():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/geo-promotion", json={"min_score": 0.75, "daily_cap": 0})
+        assert resp.status_code == 422
+        assert "limite" in resp.json()["detail"]
+
+
 if __name__ == "__main__":
     test_list_settings_returns_all_sources_with_defaults()
     test_secret_field_never_returns_value_in_claro()
@@ -152,4 +191,9 @@ if __name__ == "__main__":
     test_get_aging_sla_days_defaults_to_7_when_not_configured()
     test_put_aging_sla_days_persists_and_round_trips()
     test_put_aging_sla_days_rejects_non_positive_value()
+    test_get_geo_promotion_config_defaults_when_not_configured()
+    test_put_geo_promotion_config_persists_and_round_trips()
+    test_put_geo_promotion_config_accepts_range_boundaries()
+    test_put_geo_promotion_config_rejects_score_out_of_range()
+    test_put_geo_promotion_config_rejects_non_positive_cap()
     print("OK — todos os testes de configurações de fontes passaram")
