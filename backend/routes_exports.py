@@ -143,5 +143,5 @@ async def email_draft(body: EmailDraftRequest) -> dict:
 
     return {
         "subject": draft.subject, "greeting": draft.greeting, "body": draft.body, "cta": draft.cta,
-        "primary_reason": draft.primary_reason,
+        "primary_reason": draft.primary_reason, "differentiator": draft.differentiator, "ps": draft.ps,
     }

@@ -91,3 +91,96 @@ sem `primary_reason` explícito, o campo fica `None` mesmo que
       de saída — provado por teste, não só por inspeção.
 - [x] Retrocompatível — nenhuma chamada existente quebra.
 - [x] Revisão de código sem achados Críticos pendentes.
+
+## Módulo 2 — `differentiator-and-ps-fields`
+
+Consulta ao agente Sales Engineer antes de implementar (decisões
+abaixo confirmadas, não reabrir). Dois campos opcionais no rascunho
+de e-mail: `differentiator` (releitura persuasiva de um fato já
+presente em evidence/portfolio) e `ps` (P.S. reforçando o ponto mais
+forte do corpo).
+
+**5 guard-rails determinísticos** (`ai/email_guardrails.py`, função
+pura `validate_persuasive_field`, nunca chama IA, testável com assert
+simples):
+1. Limite de 1 frase por campo.
+2. Blocklist de termos absolutos/superlativos ("líder de mercado",
+   "comprovad-", "garantid-", "sempre", "nunca", "100%", ...).
+3. Todo número/percentual citado precisa ter match literal
+   (normalizando vírgula/ponto decimal) em evidence+portfolio.
+4. Comparativo ("mais"/"melhor"/"maior"/...) sem número âncora no
+   mesmo texto é rejeitado.
+5. Menção a fonte externa não citada ("segundo", "estudo", "pesquisa
+   mostra", "fonte:", "dados indicam") é rejeitada.
+
+**Comportamento na reprovação**: descarta só o campo (fica `None`),
+nunca a geração inteira — `differentiator`/`ps` são opcionais, o
+e-mail já é funcional sem eles.
+
+**Decisão de escopo consciente**: uma 6ª camada ("whitelist de
+entidades de portfólio" — garantir que produto citado está no
+portfólio DESTA oportunidade, não em qualquer produto do catálogo
+geral) ficou de fora — exigiria threading do catálogo completo através
+da cadeia de chamadas, que hoje só recebe um `portfolio: dict` opaco.
+As 5 camadas acima já dão cobertura sem essa complexidade extra.
+
+**Achados da revisão de código** (2 Importantes, ambos corrigidos; 1
+bug adicional encontrado durante o próprio ciclo de correção, também
+corrigido):
+1. `_flatten_strings` descartava silenciosamente número nativo
+   (`int`/`float`) dentro do portfolio — como o `portfolio: dict`
+   chega via JSON real (Pydantic deserializa número como `int`/`float`
+   nativo, não string), um `differentiator` citando corretamente um
+   preço real (`{"price": 1500}`) seria rejeitado como "número não
+   encontrado", um falso positivo que quebra a feature no caminho mais
+   comum. Corrigido: `_flatten_strings` converte `int`/`float`
+   (excluindo `bool`, que é subclasse de `int` em Python) pra string
+   antes de descartar.
+2. `_flatten_strings` era recursiva sem limite de profundidade, e
+   `_validated` (`ai/email_draft.py`) não tinha `try/except` ao redor
+   do guard-rail — um portfolio anormalmente aninhado podia estourar
+   `RecursionError` e derrubar a geração INTEIRA do e-mail (violando a
+   garantia central: "campo reprovado é descartado, nunca a geração
+   inteira"). Corrigido: guard de profundidade em `_flatten_strings`
+   (corta em 20 níveis) + `try/except Exception` em `_validated` que
+   trata qualquer falha do guard-rail como reprovação do campo, nunca
+   como erro fatal.
+3. **Bug adicional** (encontrado testando o fix acima, não pela
+   revisão): o split de "frases" (`re.split(r"[.!?]+", text)`) contava
+   o ponto decimal de um número (`"4.5"`) como fim de frase — todo
+   `differentiator`/`ps` legítimo citando um número com ponto decimal
+   seria rejeitado como "mais de uma frase". Corrigido com lookaround
+   (`(?<!\d)[.!?]+(?!\d)`) que nunca conta um ponto entre dígitos como
+   fim de frase.
+
+### Não objetivo deste módulo
+
+- Whitelist de entidades de portfólio (6ª camada) — decisão consciente
+  de escopo, documentada acima.
+- Normalização de separador de milhar (`"1.500"` vs `"1500"`) —
+  limitação aceita e testada explicitamente
+  (`test_decimal_point_in_number_never_counts_as_sentence_boundary`
+  cobre o caso de ponto decimal; separador de milhar continua rejeitando,
+  intencional, não corrigir sem um caso de uso real que o exija).
+
+### Teste
+
+- `validate_persuasive_field` (`tests/test_email_guardrails.py`, 15
+  testes): as 5 checagens cobertas individualmente; normalização de
+  vírgula/ponto decimal; número nativo (`int`/`float`) e `bool`
+  explicitamente excluído; profundidade de recursão nunca derruba;
+  ponto decimal nunca conta como fim de frase.
+- `parse_email_draft`/`generate_email_draft` (`tests/test_email_draft.py`,
+  9 testes novos): campo que passa é mantido; campo reprovado é
+  descartado mantendo o resto do rascunho intacto; número inventado é
+  rejeitado; ausência dos campos não quebra nada; exceção não tratada
+  no guard-rail descarta só o campo (regressão do achado 2); fluxo
+  ponta a ponta com provider mockado nos dois sentidos (aceita/rejeita).
+
+### Critério de sucesso
+
+- [x] Nenhum caminho onde `differentiator`/`ps` cite fato ausente de
+      evidence/portfolio sem ser descartado.
+- [x] Falha no guard-rail (qualquer exceção) nunca derruba a geração
+      inteira — provado por teste, não só por inspeção.
+- [x] Revisão de código sem achados Importantes pendentes.

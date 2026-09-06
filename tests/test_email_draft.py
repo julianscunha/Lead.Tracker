@@ -134,6 +134,80 @@ def test_generate_email_draft_falls_back_to_justification_when_no_primary_reason
     asyncio.run(run())
 
 
+def test_parse_email_draft_keeps_differentiator_that_passes_guardrails():
+    draft = parse_email_draft(
+        {**VALID_DRAFT, "differentiator": "Vocês já usam Veeam VBR sem VDC365 configurado."},
+        evidence=["Veeam VBR presente", "VDC365 ausente"], portfolio={},
+    )
+    assert draft.differentiator == "Vocês já usam Veeam VBR sem VDC365 configurado."
+
+
+def test_parse_email_draft_discards_differentiator_that_fails_guardrails_keeps_rest_of_draft():
+    """Achado do Sales Engineer: campo reprovado é descartado, nunca derruba
+    o resto do rascunho (subject/body/cta continuam intactos)."""
+    draft = parse_email_draft(
+        {**VALID_DRAFT, "differentiator": "Somos líder de mercado comprovado."},
+        evidence=[], portfolio={},
+    )
+    assert draft.differentiator is None
+    assert draft.subject == VALID_DRAFT["subject"]
+    assert draft.body == VALID_DRAFT["body"]
+
+
+def test_parse_email_draft_discards_ps_with_invented_number():
+    draft = parse_email_draft(
+        {**VALID_DRAFT, "ps": "Isso reduz custos em 90%."}, evidence=["nenhum dado de redução"], portfolio={},
+    )
+    assert draft.ps is None
+
+
+def test_parse_email_draft_guardrail_exception_discards_only_that_field():
+    """Achado da revisão de código: qualquer exceção dentro do guard-rail
+    (ex.: RecursionError num portfolio anormal) nunca pode derrubar a
+    geração inteira — só descarta o campo persuasivo."""
+    import ai.email_draft as email_draft_module
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("guard-rail explodiu")
+
+    original = email_draft_module.validate_persuasive_field
+    email_draft_module.validate_persuasive_field = _boom
+    try:
+        draft = parse_email_draft({**VALID_DRAFT, "differentiator": "qualquer coisa"}, evidence=[], portfolio={})
+    finally:
+        email_draft_module.validate_persuasive_field = original
+    assert draft.differentiator is None
+    assert draft.subject == VALID_DRAFT["subject"]
+
+
+def test_parse_email_draft_without_differentiator_or_ps_leaves_them_none():
+    draft = parse_email_draft(VALID_DRAFT)
+    assert draft.differentiator is None
+    assert draft.ps is None
+
+
+def test_generate_email_draft_validates_differentiator_against_real_evidence_end_to_end():
+    async def run():
+        client = _client_returning_content({**VALID_DRAFT, "differentiator": "Isso reduz custos em 40%."})
+        provider = OpenAIProvider(api_key="k", client=client)
+        draft = await generate_email_draft(
+            provider, "Aurora", "cross-sell", ["redução de 40% documentada"], "just.", {},
+        )
+        assert draft.differentiator == "Isso reduz custos em 40%."
+
+    asyncio.run(run())
+
+
+def test_generate_email_draft_discards_differentiator_not_backed_by_real_evidence_end_to_end():
+    async def run():
+        client = _client_returning_content({**VALID_DRAFT, "differentiator": "Isso reduz custos em 40%."})
+        provider = OpenAIProvider(api_key="k", client=client)
+        draft = await generate_email_draft(provider, "Aurora", "cross-sell", ["evidência sem número"], "just.", {})
+        assert draft.differentiator is None
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_build_email_request_never_lets_ai_send_never_invents_outside_evidence()
     test_parse_email_draft_extracts_all_four_fields()
@@ -147,4 +221,11 @@ if __name__ == "__main__":
     test_parse_email_draft_never_falls_back_to_structured_when_no_primary_reason_given()
     test_generate_email_draft_echoes_primary_reason_end_to_end()
     test_generate_email_draft_falls_back_to_justification_when_no_primary_reason_given()
+    test_parse_email_draft_keeps_differentiator_that_passes_guardrails()
+    test_parse_email_draft_discards_differentiator_that_fails_guardrails_keeps_rest_of_draft()
+    test_parse_email_draft_discards_ps_with_invented_number()
+    test_parse_email_draft_guardrail_exception_discards_only_that_field()
+    test_parse_email_draft_without_differentiator_or_ps_leaves_them_none()
+    test_generate_email_draft_validates_differentiator_against_real_evidence_end_to_end()
+    test_generate_email_draft_discards_differentiator_not_backed_by_real_evidence_end_to_end()
     print("OK — todos os testes de rascunho de e-mail passaram")

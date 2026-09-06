@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Diferencial persuasivo com guard-rails determinísticos** (Fase G,
+  módulo 2 `differentiator-and-ps-fields`): `EmailDraft` ganha
+  `differentiator`/`ps` opcionais, validados por 5 checagens
+  determinísticas (limite de 1 frase, blocklist de superlativos,
+  número precisa ter match literal em evidence/portfolio, comparativo
+  exige número âncora, sem menção a fonte externa não citada) — campo
+  que reprova é descartado, nunca derruba o resto do rascunho.
+  Decisões de guard-rail em consulta ao agente Sales Engineer. Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Motivo principal no rascunho de e-mail** (Fase G, módulo 1
   `primary-reason-field`, inicia a Fase G): `EmailDraft` ganha
   `primary_reason`, sempre eco do motivo determinístico de entrada
