@@ -36,17 +36,22 @@ from core.models import (
     OpportunityStatus, PeriodType, Product, RepTarget, RuleError, Service,
     StatusChangeRequiresJustificationError,
 )
+from core.geo_discovery import build_discovery_records
+from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
+from core.geo_scoring import score_place_signal
 from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
     is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
-    get_icp_profile, list_companies, list_company_signals, list_latest_snapshot, list_opportunities,
-    list_products, list_rep_targets, list_rules, list_services, list_vendors, save_icp_profile,
-    save_rep_target, save_rule, update_company_renewal_date, update_opportunity_qualification,
-    update_opportunity_status,
+    count_geo_discoveries_today, get_icp_profile, list_companies, list_company_signals,
+    list_latest_snapshot, list_opportunities, list_products, list_rep_targets, list_rules, list_services,
+    list_vendors, save_company, save_icp_profile, save_opportunity, save_rep_target, save_rule,
+    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
+from providers.base import ProviderError
+from providers.google_maps import GoogleMapsProvider
 
 router = APIRouter(tags=["lead_tracker-data"])
 
@@ -447,6 +452,88 @@ async def get_icp_suggestion_route() -> ICPSuggestionOut | None:
         industry_hint=suggestion.industry_hint, industry_hint_share=suggestion.industry_hint_share,
         company_size_hint=suggestion.company_size_hint, company_size_hint_share=suggestion.company_size_hint_share,
         sample_size=suggestion.sample_size, confidence=suggestion.confidence,
+    )
+
+
+class GeoDiscoveryRequest(BaseModel):
+    rep_id: str = Field(min_length=1)
+    reference_product_id: str | None = None
+    search_origin_address: str = Field(min_length=1)
+    radius_km: float = Field(gt=0)
+    place_category: str | None = None
+    company_size_hint: str | None = None
+
+
+class PromotedDiscoveryOut(BaseModel):
+    company_id: str
+    company_name: str
+    opportunity_id: str
+    score: float
+
+
+class GeoDiscoveryResultOut(BaseModel):
+    promoted: list[PromotedDiscoveryOut]
+    deferred_count: int
+    rejected_count: int
+
+
+@router.post("/geo-discovery/run")
+async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
+    """Orquestra a esteira completa (Fase E, módulo 6, `icp-wizard-ui`):
+    `discover()` (módulo 2) → `score_place_signal` (módulo 4) →
+    `select_promotions` (módulo 5) → persiste só quem foi promovido.
+    Nunca bloqueia por cota esgotada (achado do módulo 5) — sempre roda
+    a busca inteira, classifica tudo, e devolve as 3 contagens pro
+    wizard mostrar em linguagem comercial ("prontos para contato" /
+    "na fila para amanhã" / "fora do critério").
+
+    ponytail: contagem e escrita da cota diária não são atômicas — duas
+    requisições concorrentes pro MESMO rep podem cada uma ler "0
+    promovidas hoje" e promover até o cap inteiro cada, estourando a
+    cota combinada. Aceitável pra esta fatia (ferramenta de uso manual,
+    um rep clicando "Buscar agora" por vez) — upgrade se concorrência
+    real aparecer: lock consultivo por rep, ou constraint de unicidade
+    que force serialização no banco."""
+    env = load_env(routes_settings._ENV_PATH)
+    try:
+        # Construção de GoogleMapsProvider também levanta ProviderError
+        # (chave ausente) — de propósito dentro do mesmo try do discover().
+        provider = GoogleMapsProvider(env.get("GOOGLE_MAPS_API_KEY", ""))
+        signals = await provider.discover(body.search_origin_address, body.radius_km, body.place_category)
+    except ProviderError as exc:
+        raise_http(exc)
+
+    scored = [(signal, score_place_signal(signal, body.place_category)) for signal in signals]
+    min_score = parse_promotion_min_score(env)
+    daily_cap = parse_promotion_daily_cap(env)
+
+    async with session_factory() as session:
+        # Achado da revisão de código: date.today() é a data LOCAL do
+        # servidor, mas Company.created_at é sempre gravado em UTC
+        # (core/models.py::_now) — comparar os dois desalinha a cota
+        # perto da meia-noite em qualquer servidor fora de UTC. A cota
+        # diária (garantia central do módulo 5) precisa da mesma
+        # referência de fuso nos dois lados.
+        already_promoted_today = await count_geo_discoveries_today(
+            session, body.rep_id, datetime.now(timezone.utc).date(),
+        )
+        decision = select_promotions(scored, min_score, daily_cap, already_promoted_today)
+
+        score_by_place_id = {signal.place_id: score for signal, score in scored if score is not None}
+        promoted_out: list[PromotedDiscoveryOut] = []
+        for signal in decision.promoted:
+            score = score_by_place_id[signal.place_id]
+            company, opportunity = build_discovery_records(
+                signal, score, body.rep_id, body.company_size_hint, body.reference_product_id,
+            )
+            await save_company(session, company)
+            await save_opportunity(session, opportunity)
+            promoted_out.append(PromotedDiscoveryOut(
+                company_id=company.id, company_name=company.name, opportunity_id=opportunity.id, score=score,
+            ))
+
+    return GeoDiscoveryResultOut(
+        promoted=promoted_out, deferred_count=len(decision.deferred), rejected_count=len(decision.rejected),
     )
 
 

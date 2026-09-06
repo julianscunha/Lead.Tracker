@@ -350,6 +350,102 @@ export async function getDashboardMetrics(periodType: PeriodType = 'monthly'): P
   }
 }
 
+// ── Prospecção geográfica (Fase E) ────────────────────────────────────────────
+
+export interface ICPProfileData {
+  referenceProductId: string | null
+  placeCategory: string | null
+  companySizeHint: string | null
+  radiusKm: number | null
+  searchOriginAddress: string | null
+}
+
+function icpProfileFromApi(d: {
+  reference_product_id: string | null; place_category: string | null; company_size_hint: string | null
+  radius_km: number | null; search_origin_address: string | null
+}): ICPProfileData {
+  return {
+    referenceProductId: d.reference_product_id, placeCategory: d.place_category,
+    companySizeHint: d.company_size_hint, radiusKm: d.radius_km, searchOriginAddress: d.search_origin_address,
+  }
+}
+
+export async function getIcpProfile(): Promise<ICPProfileData> {
+  const resp = await fetch(`${BASE}/icp-profile`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return icpProfileFromApi(await resp.json())
+}
+
+export async function updateIcpProfile(profile: ICPProfileData): Promise<ICPProfileData> {
+  const resp = await fetch(`${BASE}/icp-profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      reference_product_id: profile.referenceProductId, place_category: profile.placeCategory,
+      company_size_hint: profile.companySizeHint, radius_km: profile.radiusKm,
+      search_origin_address: profile.searchOriginAddress,
+    }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return icpProfileFromApi(await resp.json())
+}
+
+export interface ICPSuggestion {
+  industryHint: string | null
+  industryHintShare: number | null
+  companySizeHint: string | null
+  companySizeHintShare: number | null
+  sampleSize: number
+  confidence: 'low' | 'high'
+}
+
+export async function getIcpSuggestion(): Promise<ICPSuggestion | null> {
+  const resp = await fetch(`${BASE}/icp-suggestion`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const d = await resp.json()
+  if (d === null) return null
+  return {
+    industryHint: d.industry_hint, industryHintShare: d.industry_hint_share,
+    companySizeHint: d.company_size_hint, companySizeHintShare: d.company_size_hint_share,
+    sampleSize: d.sample_size, confidence: d.confidence,
+  }
+}
+
+export interface GeoDiscoveryRequest {
+  repId: string
+  referenceProductId: string | null
+  searchOriginAddress: string
+  radiusKm: number
+  placeCategory: string | null
+  companySizeHint: string | null
+}
+
+export interface GeoDiscoveryResult {
+  promoted: { companyId: string; companyName: string; opportunityId: string; score: number }[]
+  deferredCount: number
+  rejectedCount: number
+}
+
+export async function runGeoDiscovery(request: GeoDiscoveryRequest): Promise<GeoDiscoveryResult> {
+  const resp = await fetch(`${BASE}/geo-discovery/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rep_id: request.repId, reference_product_id: request.referenceProductId,
+      search_origin_address: request.searchOriginAddress, radius_km: request.radiusKm,
+      place_category: request.placeCategory, company_size_hint: request.companySizeHint,
+    }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const d = await resp.json()
+  return {
+    promoted: d.promoted.map((p: { company_id: string; company_name: string; opportunity_id: string; score: number }) => ({
+      companyId: p.company_id, companyName: p.company_name, opportunityId: p.opportunity_id, score: p.score,
+    })),
+    deferredCount: d.deferred_count, rejectedCount: d.rejected_count,
+  }
+}
+
 // ── Regras e catálogo (Fase C) ────────────────────────────────────────────────
 // Espelham core/models.py direto (mesmo padrão de SourceStatus) — sem
 // adaptador camelCase, é tela de configuração, não de resultado.

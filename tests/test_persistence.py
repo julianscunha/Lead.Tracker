@@ -17,12 +17,12 @@ from core.models import (
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules, rep_target_id
 from core.repository import (
-    get_company, get_icp_profile, get_opportunity, get_portfolio_by_company, list_active_rules,
-    list_companies, list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
-    list_opportunity_status_changes, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot,
-    save_company, save_company_signal, save_contact, save_icp_profile, save_opportunity,
-    save_opportunity_status_change, save_portfolio, save_rep_target, save_rule, save_vendor,
-    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    count_geo_discoveries_today, get_company, get_icp_profile, get_opportunity, get_portfolio_by_company,
+    list_active_rules, list_companies, list_company_signals, list_contacts, list_latest_snapshot,
+    list_opportunities, list_opportunity_status_changes, list_rep_targets, list_rules, list_vendors,
+    recompute_daily_snapshot, save_company, save_company_signal, save_contact, save_icp_profile,
+    save_opportunity, save_opportunity_status_change, save_portfolio, save_rep_target, save_rule,
+    save_vendor, update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -1079,6 +1079,67 @@ def test_save_icp_profile_is_singleton_never_duplicates():
     asyncio.run(run())
 
 
+def test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            today = date.today()
+            geo_company = Company(name="Descoberta", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
+            manual_company = Company(name="Manual", rep_id="rep-1", sources=[SourceRef(type="manual")])
+            other_rep_company = Company(name="Outro rep", rep_id="rep-2", sources=[SourceRef(type="google_maps")])
+
+            async with session_factory() as session:
+                await save_company(session, geo_company)
+                await save_company(session, manual_company)
+                await save_company(session, other_rep_company)
+                count = await count_geo_discoveries_today(session, "rep-1", today)
+
+            assert count == 1  # só geo_company: mesmo rep, fonte google_maps, hoje
+
+    asyncio.run(run())
+
+
+def test_count_geo_discoveries_today_ignores_other_days():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            old_company = Company(
+                name="Antiga", rep_id="rep-1", sources=[SourceRef(type="google_maps")],
+                created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            )
+            async with session_factory() as session:
+                await save_company(session, old_company)
+                count = await count_geo_discoveries_today(session, "rep-1", date.today())
+            assert count == 0
+
+    asyncio.run(run())
+
+
+def test_count_geo_discoveries_today_compares_against_utc_date_not_local():
+    """Regressão do achado da revisão de código: a rota chamava
+    `date.today()` (data LOCAL do servidor) em vez de
+    `datetime.now(timezone.utc).date()` — desalinhava a cota diária
+    perto da meia-noite em qualquer servidor fora de UTC. Este teste
+    trava o contrato da FUNÇÃO em si: `created_at` gravado logo após a
+    meia-noite UTC de hoje precisa contar como "hoje" quando comparado
+    contra a data UTC de hoje, não uma data local arbitrária."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            utc_today = datetime.now(timezone.utc).date()
+            just_after_utc_midnight = datetime.combine(utc_today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(minutes=5)
+            company = Company(
+                name="Recém após meia-noite UTC", rep_id="rep-1", sources=[SourceRef(type="google_maps")],
+                created_at=just_after_utc_midnight,
+            )
+            async with session_factory() as session:
+                await save_company(session, company)
+                count = await count_geo_discoveries_today(session, "rep-1", utc_today)
+            assert count == 1
+
+    asyncio.run(run())
+
+
 def test_list_rep_targets_filters_by_period():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -1121,6 +1182,9 @@ if __name__ == "__main__":
     test_get_icp_profile_returns_none_before_first_save()
     test_save_icp_profile_round_trips()
     test_save_icp_profile_is_singleton_never_duplicates()
+    test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep()
+    test_count_geo_discoveries_today_ignores_other_days()
+    test_count_geo_discoveries_today_compares_against_utc_date_not_local()
     test_list_rep_targets_filters_by_period()
     test_opportunity_rich_evidence_fields_round_trip()
     test_company_last_activity_at_round_trip()

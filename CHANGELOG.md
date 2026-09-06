@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Wizard de prospecção geográfica** (Fase E, módulo 6 `icp-wizard-ui`
+  — fecha a esteira geográfica ponta a ponta): novo assistente de 4
+  passos (rep+produto → endereço+raio → revisar sugestão → confirmar e
+  buscar), fluxo desenhado em consulta ao agente Sales Engineer.
+  `POST /geo-discovery/run` orquestra `discover()` → `score_place_signal`
+  → `select_promotions` → persiste só os promovidos como
+  `Company`/`Opportunity` reais. Resultado em linguagem comercial
+  ("Prontos para contato" / "Na fila para amanhã" / "Fora do critério"),
+  nunca termos técnicos. Revisão de código corrigiu um bug real (cota
+  diária comparando data local do servidor contra `created_at` em UTC) e
+  documentou um TOCTOU de baixo risco aceito conscientemente. Ver
+  `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Trava anti-spam de prospecção geográfica** (Fase E, módulo 5
   `anti-spam-promotion-gate`): `select_promotions` decide quais sinais
   geográficos pontuados (módulo 4) viram `Company`/`Opportunity` real —

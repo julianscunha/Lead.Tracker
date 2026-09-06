@@ -198,6 +198,23 @@ async def list_companies(session: AsyncSession) -> list[Company]:
     return [_company_from_row(r) for r in rows]
 
 
+async def count_geo_discoveries_today(session: AsyncSession, rep_id: str, today: date) -> int:
+    """Fase E, módulo 6 — cota diária de `anti-spam-promotion-gate`
+    (módulo 5) é sobre PROMOÇÃO (`Company` nova criada via descoberta
+    geográfica), não sobre oportunidade em geral. `sources` é JSON — sem
+    índice pra filtrar por tipo de fonte no SQL, mas o volume por rep/dia
+    é sempre pequeno (cap default 20), então filtrar em Python depois de
+    já restringir por `rep_id` é barato o bastante."""
+    rows = (await session.execute(select(CompanyORM).where(CompanyORM.rep_id == rep_id))).scalars().all()
+    count = 0
+    for row in rows:
+        if _ensure_utc(row.created_at).date() != today:
+            continue
+        if any(s.get("type") == "google_maps" for s in (row.sources or [])):
+            count += 1
+    return count
+
+
 # ── Contact ──────────────────────────────────────────────────────────────────
 
 async def save_contact(session: AsyncSession, contact: Contact) -> None:

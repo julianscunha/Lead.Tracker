@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { exportOpportunitiesExcel, exportOpportunitiesPdf, listOpportunities } from './api'
 import { Dashboard } from './dashboard/Dashboard'
 import { applyFilters, defaultFilters, Filters, summarizeFilters, type FilterState } from './Filters'
+import { GeoDiscoveryWizard } from './GeoDiscoveryWizard'
 import { OpportunityTable } from './OpportunityTable'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { styles } from './styles'
 import type { OpportunityRow } from './types'
 
-type Tab = 'dashboard' | 'oportunidades' | 'configuracoes'
+type Tab = 'dashboard' | 'oportunidades' | 'prospeccao' | 'configuracoes'
 
 function OpportunitiesView() {
   const [rows, setRows] = useState<OpportunityRow[] | null>(null)
@@ -97,12 +98,16 @@ export function App() {
         <button type="button" role="tab" aria-selected={tab === 'oportunidades'} className="lt-tab" onClick={() => setTab('oportunidades')}>
           Oportunidades
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'prospeccao'} className="lt-tab" onClick={() => setTab('prospeccao')}>
+          Prospecção
+        </button>
         <button type="button" role="tab" aria-selected={tab === 'configuracoes'} className="lt-tab" onClick={() => setTab('configuracoes')}>
           Configurações
         </button>
       </div>
       {tab === 'dashboard' && <Dashboard />}
       {tab === 'oportunidades' && <OpportunitiesView />}
+      {tab === 'prospeccao' && <GeoDiscoveryWizard />}
       {tab === 'configuracoes' && <SettingsScreen />}
     </div>
   )

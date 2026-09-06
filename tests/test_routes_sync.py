@@ -675,6 +675,123 @@ def test_post_rule_without_any_evidence_mechanism_returns_friendly_error():
         assert "evidência" in resp.json()["detail"]
 
 
+class _StubGoogleMapsProvider:
+    """Substitui GoogleMapsProvider real em POST /geo-discovery/run —
+    nunca bate na rede de verdade em teste (CLAUDE.md: providers sempre
+    mockados). `signals` é lido de uma variável de módulo pra cada teste
+    poder configurar o cenário sem precisar de injeção de dependência."""
+    signals: list = []
+    raise_error: Exception | None = None
+
+    def __init__(self, api_key: str):
+        pass
+
+    async def discover(self, origin_address, radius_km, place_category):
+        if _StubGoogleMapsProvider.raise_error:
+            raise _StubGoogleMapsProvider.raise_error
+        return _StubGoogleMapsProvider.signals
+
+
+class _GeoDiscoveryStub:
+    """Troca routes_sync.GoogleMapsProvider pelo stub, restaurando ao
+    sair — mesmo padrão de _TempDb pra session_factory/_ENV_PATH."""
+
+    def __enter__(self):
+        self._original = routes_sync.GoogleMapsProvider
+        routes_sync.GoogleMapsProvider = _StubGoogleMapsProvider
+        _StubGoogleMapsProvider.signals = []
+        _StubGoogleMapsProvider.raise_error = None
+        return self
+
+    def __exit__(self, *exc):
+        routes_sync.GoogleMapsProvider = self._original
+
+
+def _place_signal(place_id: str, category: str = "car_dealer", business_status: str = "OPERATIONAL", rating=None, review_count: int = 0):
+    from providers.google_maps import PlaceSignal
+    return PlaceSignal(
+        place_id=place_id, name=f"Lugar {place_id}", category=category, business_status=business_status,
+        rating=rating, review_count=review_count, formatted_address=None,
+    )
+
+
+def test_run_geo_discovery_promotes_signals_above_threshold():
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.signals = [_place_signal("a", rating=5.0, review_count=50)]  # 0.7+0.15+0.15=1.0
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "rep-1", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 5.0,
+            "place_category": "car_dealer",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["promoted"]) == 1
+        assert body["promoted"][0]["score"] == 1.0
+        assert body["deferred_count"] == 0
+        assert body["rejected_count"] == 0
+
+        opps = client.get("/modules/lead_tracker/opportunities").json()
+        assert len(opps) == 1
+        assert opps[0]["status"] == "detected"
+
+
+def test_run_geo_discovery_rejects_signal_below_threshold_never_persists_it():
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.signals = [_place_signal("a", category="restaurant")]  # categoria não bate: 0.2
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "rep-1", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 5.0,
+            "place_category": "car_dealer",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["promoted"] == []
+        assert body["rejected_count"] == 1
+
+        opps = client.get("/modules/lead_tracker/opportunities").json()
+        assert opps == []
+
+
+def test_run_geo_discovery_defers_excess_over_daily_cap_never_blocks_search():
+    with _TempDb() as db, _GeoDiscoveryStub():
+        import asyncio
+        # já promoveu 20 hoje (cap default) pro mesmo rep — próxima descoberta deveria ir pra "deferred"
+        async def seed():
+            async with db.session_factory() as session:
+                for i in range(20):
+                    await save_company(session, Company(name=f"Já promovida {i}", rep_id="rep-1", sources=[SourceRef(type="google_maps")]))
+        asyncio.run(seed())
+
+        _StubGoogleMapsProvider.signals = [_place_signal("a", rating=5.0, review_count=50)]
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "rep-1", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 5.0,
+            "place_category": "car_dealer",
+        })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["promoted"] == []
+        assert body["deferred_count"] == 1
+        assert body["rejected_count"] == 0
+
+
+def test_run_geo_discovery_provider_error_returns_friendly_status_never_500():
+    from providers.base import ProviderError
+    from core.errors import ErrorCategory
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.raise_error = ProviderError("Endereço não encontrado.", category=ErrorCategory.INVALID_DATA)
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "rep-1", "search_origin_address": "endereço inexistente", "radius_km": 5.0,
+        })
+        assert resp.status_code == 422
+        assert "Endereço" in resp.json()["detail"]
+
+
+def test_run_geo_discovery_rejects_missing_rep_id_and_non_positive_radius():
+    with _TempDb(), _GeoDiscoveryStub():
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 0,
+        })
+        assert resp.status_code == 422
+
+
 if __name__ == "__main__":
     test_get_companies_returns_empty_list_on_fresh_install()
     test_get_companies_returns_persisted_company()
@@ -711,4 +828,9 @@ if __name__ == "__main__":
     test_get_products_and_services_return_catalog()
     test_post_rule_creates_and_get_rules_lists_it()
     test_post_rule_without_any_evidence_mechanism_returns_friendly_error()
+    test_run_geo_discovery_promotes_signals_above_threshold()
+    test_run_geo_discovery_rejects_signal_below_threshold_never_persists_it()
+    test_run_geo_discovery_defers_excess_over_daily_cap_never_blocks_search()
+    test_run_geo_discovery_provider_error_returns_friendly_status_never_500()
+    test_run_geo_discovery_rejects_missing_rep_id_and_non_positive_radius()
     print("OK — todos os testes HTTP de dado real passaram")

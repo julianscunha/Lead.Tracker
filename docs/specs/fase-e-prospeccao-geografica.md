@@ -361,3 +361,84 @@ mesmo com o veredito já sendo aprovação.
 - [x] Busca nunca bloqueada pela cota.
 - [x] Maior score sempre priorizado quando a cota é limitada.
 - [x] Suíte completa e revisão de código sem pendências.
+
+## Módulo 6 — `icp-wizard-ui`
+
+Consulta ao agente Sales Engineer antes de desenhar o fluxo (UX é
+decisão de negócio, não técnica). Wizard de 4 passos:
+
+1. **Rep + produto de referência** — dado mais barato de capturar antes
+   de qualquer cálculo, e sem rep nem dá pra aplicar o cap depois.
+2. **Endereço de origem + raio** (slider, não input numérico cru) —
+   pré-preenchido do `ICPProfile` se já existir; erro de geocodificação
+   interrompe aqui (nunca deixa avançar pro passo 3 com origem inválida).
+3. **Revisar critério sugerido** (`derive_icp_suggestion`, módulo 3) —
+   `confidence="high"`: mostra a sugestão como confirmação, sem
+   qualificador de incerteza. `confidence="low"`: fala em número
+   concreto de clientes de referência, nunca em "baixa confiança"/jargão
+   estatístico. Sem sugestão nenhuma: mesmos campos em branco, é o mesmo
+   passo degradado, nunca um caminho de erro separado.
+4. **Confirmar e buscar** — resumo em uma frase, botão único "Buscar
+   agora" (desabilitado durante a chamada, evita duplo-clique disparando
+   duas buscas).
+
+**Backend** — `POST /geo-discovery/run` orquestra toda a esteira:
+`discover()` (módulo 2) → `score_place_signal` (módulo 4) →
+`count_geo_discoveries_today` (nova função) → `select_promotions`
+(módulo 5) → só `promoted` vira `Company`/`Opportunity` real via
+`build_discovery_records` (novo, `core/geo_discovery.py`, função pura).
+Resultado apresentado em linguagem comercial, nunca os termos técnicos:
+`promoted` → "Prontos para contato", `deferred` → "Na fila para amanhã"
+(enquadrado como benefício — mais achados que a cota, não falha do
+sistema), `rejected` → "Fora do critério" (só some se zero).
+
+**Achados da revisão de código** (2, Important, ambos corrigidos):
+1. `count_geo_discoveries_today` era chamada com `date.today()` (data
+   LOCAL do servidor) em vez de `datetime.now(timezone.utc).date()` —
+   `Company.created_at` é sempre gravado em UTC, então servidor fora de
+   UTC desalinharia a cota diária perto da meia-noite (a garantia
+   central do módulo 5). Corrigido + teste de regressão que trava o
+   contrato contra um `created_at` logo após a meia-noite UTC.
+2. TOCTOU não documentado na cota diária: duas requisições concorrentes
+   pro MESMO rep podiam cada uma ler "0 promovidas hoje" e promover até
+   o cap inteiro cada. Aceito como risco pra esta fatia (ferramenta de
+   uso manual, baixa concorrência real) mas registrado explicitamente
+   com comentário `ponytail:` no código, nomeando o teto e o caminho de
+   upgrade (lock consultivo por rep / constraint de unicidade).
+
+### Não objetivo deste módulo
+
+- Nenhum lock/serialização real da cota diária — documentado como
+  `ponytail:`, não resolvido.
+- Nenhuma retomada de wizard abandonado a meio caminho (Sales Engineer:
+  adicionar só se usuários abandonarem com frequência nos passos 2/3).
+- Nenhum parsing de `formatted_address` em `Address` estruturado ao
+  criar a `Company` — fica `None`; o nome do lugar já identifica a
+  empresa o suficiente pra revisão manual do rep.
+
+### Teste
+
+- `build_discovery_records` (função pura): `is_customer=False`;
+  propaga rep/segmento/produto; marca fonte `google_maps` em `Company`
+  e `Opportunity`; liga `opportunity.company_id` à empresa recém-criada;
+  carrega score e evidência não-vazia; nasce em `detected`.
+- `count_geo_discoveries_today`: conta só `google_maps` do rep certo,
+  ignora outras fontes/reps/dias; contrato de comparação UTC travado por
+  teste de fronteira.
+- Rota completa (`GoogleMapsProvider` mockado): promove acima do
+  threshold; rejeita abaixo sem persistir nada; adia excedente da cota
+  sem bloquear a busca; erro do provider vira HTTP amigável antes de
+  qualquer escrita; validação de `rep_id`/`radius_km` na fronteira.
+- Frontend: `tsc --noEmit` e `vite build` limpos; nenhum termo técnico
+  (`promoted`/`deferred`/`rejected`) em texto visível ao usuário
+  (conferido manualmente, sem framework de teste de componente — mesmo
+  limite já registrado no módulo 8 da Fase D).
+
+### Critério de sucesso
+
+- [x] Cota diária compara sempre a mesma referência de fuso (UTC) nos
+      dois lados.
+- [x] Risco de concorrência aceito e documentado, nunca silencioso.
+- [x] Nenhum termo técnico vaza pra UI.
+- [x] Suíte completa (24 arquivos) e revisão de código sem pendências
+      após os 2 achados corrigidos.
