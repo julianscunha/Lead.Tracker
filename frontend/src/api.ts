@@ -620,15 +620,19 @@ export type SemanticFieldRole = 'industry_hint' | 'deal_size_hint' | 'renewal_da
 export interface FieldCatalogItem {
   sourceFieldApiName: string
   sourceFieldLabel: string
-  fieldType: string
+  fieldType: string | null
   role: SemanticFieldRole | null
+  broken: boolean
+  brokenMessage: string | null
 }
 
 interface FieldCatalogItemApi {
   source_field_api_name: string
   source_field_label: string
-  field_type: string
+  field_type: string | null
   role: SemanticFieldRole | null
+  broken: boolean
+  broken_message: string | null
 }
 
 export async function getFieldCatalog(forceRefresh = false): Promise<FieldCatalogItem[]> {
@@ -637,7 +641,7 @@ export async function getFieldCatalog(forceRefresh = false): Promise<FieldCatalo
   const data: FieldCatalogItemApi[] = await resp.json()
   return data.map(d => ({
     sourceFieldApiName: d.source_field_api_name, sourceFieldLabel: d.source_field_label,
-    fieldType: d.field_type, role: d.role,
+    fieldType: d.field_type, role: d.role, broken: d.broken, brokenMessage: d.broken_message,
   }))
 }
 

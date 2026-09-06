@@ -319,6 +319,25 @@ def test_delete_field_mapping_unknown_field_never_errors():
         assert resp.status_code == 200
 
 
+def test_get_field_catalog_flags_mapping_whose_field_disappeared():
+    """Fase F, módulo 6 (mapping-health-check) — campo mapeado que sumiu do
+    catálogo atual aparece como linha própria, marcada broken=True, com a
+    mensagem de negócio (nunca o nome técnico do campo)."""
+    with _TempEnvAndDb():
+        client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Segmento__c", "source_field_label": "Segmento", "role": "industry_hint",
+        })
+        with _FieldCatalogStub():
+            _StubSalesforceProvider.fields = []  # campo sumiu
+            resp = client.get("/modules/lead_tracker/settings/salesforce/field-catalog")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["broken"] is True
+        assert body[0]["source_field_api_name"] == "Segmento__c"
+        assert "removido ou renomeado" in body[0]["broken_message"]
+
+
 def test_get_field_catalog_without_credentials_returns_friendly_error():
     with _TempEnvAndDb():
         resp = client.get("/modules/lead_tracker/settings/salesforce/field-catalog")
@@ -348,5 +367,6 @@ if __name__ == "__main__":
     test_put_field_mapping_same_field_updates_role_never_duplicates()
     test_delete_field_mapping_unmaps_it()
     test_delete_field_mapping_unknown_field_never_errors()
+    test_get_field_catalog_flags_mapping_whose_field_disappeared()
     test_get_field_catalog_without_credentials_returns_friendly_error()
     print("OK — todos os testes de configurações de fontes passaram")

@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Detecção de mapeamento quebrado** (Fase F, módulo 6
+  `mapping-health-check`, fecha a Fase F): quando um campo mapeado é
+  removido/renomeado no Salesforce, o Lead.Tracker avisa em vez de
+  falhar silenciosamente — badge "Campo removido" na tela de
+  mapeamento com a frase de negócio (nunca o nome técnico do campo),
+  e o `health_check()` do módulo reporta o problema nos detalhes sem
+  nunca marcar o módulo como não-saudável (o sync continua
+  funcionando pros demais campos). Decisões de linguagem/severidade
+  em consulta ao agente Sales Engineer. Ver
+  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+
 - **Tela de mapeamento de campo personalizado** (Fase F, módulo 5
   `mapping-config-ui`, única tela desta fase): nova seção em
   Configurações — tabela de campos personalizados do Salesforce com

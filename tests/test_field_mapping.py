@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.field_mapping import split_custom_fields
+from core.field_mapping import detect_broken_mappings, split_custom_fields
 from core.models import FieldMapping, SemanticFieldRole
 
 
@@ -134,6 +134,34 @@ def test_split_multiple_roles_at_once():
     assert remaining == {"Obs__c": "livre"}
 
 
+def test_detect_broken_mappings_flags_field_missing_from_catalog():
+    broken = detect_broken_mappings(
+        [_mapping("Segmento__c", SemanticFieldRole.INDUSTRY_HINT)], catalog_field_names=set(),
+    )
+    assert len(broken) == 1
+    assert broken[0].source_field_api_name == "Segmento__c"
+    assert "removido ou renomeado" in broken[0].business_message()
+    assert "Segmento__c" not in broken[0].business_message()  # nunca mostra nome técnico ao usuário
+
+
+def test_detect_broken_mappings_never_flags_field_present_in_catalog():
+    broken = detect_broken_mappings(
+        [_mapping("Segmento__c", SemanticFieldRole.INDUSTRY_HINT)], catalog_field_names={"Segmento__c"},
+    )
+    assert broken == []
+
+
+def test_detect_broken_mappings_no_mappings_is_empty():
+    assert detect_broken_mappings([], catalog_field_names=set()) == []
+
+
+def test_detect_broken_mappings_business_message_names_the_role_never_the_api_field():
+    broken = detect_broken_mappings(
+        [_mapping("Valor_Estimado__c", SemanticFieldRole.DEAL_SIZE_HINT)], catalog_field_names=set(),
+    )
+    assert "Porte estimado do negócio" in broken[0].business_message()
+
+
 if __name__ == "__main__":
     test_split_writes_industry_hint_to_industry_column()
     test_split_parses_iso_date_string_for_renewal_date()
@@ -149,4 +177,8 @@ if __name__ == "__main__":
     test_split_mapping_for_field_not_present_in_custom_fields_is_ignored()
     test_split_no_mappings_leaves_everything_as_raw_context()
     test_split_multiple_roles_at_once()
+    test_detect_broken_mappings_flags_field_missing_from_catalog()
+    test_detect_broken_mappings_never_flags_field_present_in_catalog()
+    test_detect_broken_mappings_no_mappings_is_empty()
+    test_detect_broken_mappings_business_message_names_the_role_never_the_api_field()
     print("OK — todos os testes de divisão de campo mapeado passaram")

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { getFieldCatalog, unmapField, upsertFieldMapping, type FieldCatalogItem, type SemanticFieldRole } from '../api'
 
 // Fase F, módulo 5 (`mapping-config-ui`) — decisões de linguagem/UX em
@@ -32,7 +32,16 @@ export function FieldMappingSection() {
     try {
       if (role === '') {
         await unmapField(field.sourceFieldApiName)
-        setFields(prev => prev!.map(f => (f.sourceFieldApiName === field.sourceFieldApiName ? { ...f, role: null } : f)))
+        setFields(prev => {
+          // Linha quebrada (campo já sumiu do Salesforce) só existe na
+          // tela por causa do mapeamento — sem ele, não é mais um campo
+          // real nem um mapeamento pendente; remove em vez de deixar um
+          // "fantasma" com badge some/mensagem que não limpa (achado de
+          // revisão de código). Linha normal (campo ainda existe) só
+          // limpa o papel, continua na lista.
+          if (field.broken) return prev!.filter(f => f.sourceFieldApiName !== field.sourceFieldApiName)
+          return prev!.map(f => (f.sourceFieldApiName === field.sourceFieldApiName ? { ...f, role: null } : f))
+        })
       } else {
         const { reassignedFromApiName, reassignedFromLabel } = await upsertFieldMapping(
           field.sourceFieldApiName, field.sourceFieldLabel, role,
@@ -83,21 +92,34 @@ export function FieldMappingSection() {
           </thead>
           <tbody>
             {sorted.map(f => (
-              <tr key={f.sourceFieldApiName}>
-                <td>{f.sourceFieldLabel}</td>
-                <td>
-                  <select
-                    value={f.role ?? ''}
-                    disabled={savingField === f.sourceFieldApiName}
-                    onChange={e => handleRoleChange(f, e.target.value as SemanticFieldRole | '')}
-                  >
-                    <option value="">—</option>
-                    {(Object.keys(ROLE_LABEL) as SemanticFieldRole[]).map(role => (
-                      <option key={role} value={role}>{ROLE_LABEL[role]}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
+              <Fragment key={f.sourceFieldApiName}>
+                <tr>
+                  <td>
+                    {f.broken && <span className="lt-badge lt-badge--severity-critico">Campo removido</span>} {f.sourceFieldLabel}
+                  </td>
+                  <td>
+                    <select
+                      value={f.role ?? ''}
+                      disabled={savingField === f.sourceFieldApiName}
+                      onChange={e => handleRoleChange(f, e.target.value as SemanticFieldRole | '')}
+                    >
+                      <option value="">—</option>
+                      {/* Linha quebrada só permite desmapear — reatribuir um
+                          papel a um campo que já sumiu do Salesforce não
+                          resolve nada, só confundiria (achado de revisão de
+                          código). */}
+                      {!f.broken && (Object.keys(ROLE_LABEL) as SemanticFieldRole[]).map(role => (
+                        <option key={role} value={role}>{ROLE_LABEL[role]}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+                {f.broken && (
+                  <tr>
+                    <td colSpan={2}><p className="lt-hint" role="alert">{f.brokenMessage}</p></td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

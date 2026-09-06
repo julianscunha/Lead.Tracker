@@ -26,6 +26,7 @@ from core.geo_promotion import (
     GEO_PROMOTION_DAILY_CAP_ENV_KEY, GEO_PROMOTION_MIN_SCORE_ENV_KEY, parse_promotion_daily_cap,
     parse_promotion_min_score,
 )
+from core.field_mapping import detect_broken_mappings
 from core.models import FieldMapping, SemanticFieldRole
 from core.opportunity_engine import AGING_SLA_ENV_KEY, field_mapping_id, parse_aging_sla_days
 from core.repository import delete_field_mapping, list_field_mappings, save_field_mapping
@@ -181,8 +182,10 @@ _FIELD_MAPPING_PROVIDER_ID = "salesforce"
 class FieldCatalogItem(BaseModel):
     source_field_api_name: str
     source_field_label: str
-    field_type: str
+    field_type: str | None = None
     role: SemanticFieldRole | None = None
+    broken: bool = False
+    broken_message: str | None = None
 
 
 @router.get("/salesforce/field-catalog")
@@ -190,7 +193,13 @@ async def get_salesforce_field_catalog(force_refresh: bool = False) -> list[Fiel
     """Sales Engineer consultado (docs/specs/fase-f-mapeamento-campo-personalizado.md,
     módulo 5): a tela nunca mostra o campo cru sem contexto — cada linha já
     chega com o papel atualmente mapeado (ou nenhum), pra tabela renderizar
-    direto sem uma segunda chamada."""
+    direto sem uma segunda chamada.
+
+    Módulo 6 (`mapping-health-check`): mapeamento cujo campo sumiu do
+    catálogo atual (removido/renomeado no Salesforce) ainda aparece como
+    linha própria, marcada `broken=True` — Sales Engineer consultado: o
+    aviso precisa aparecer aqui, não só no health_check técnico do Core,
+    porque é o único lugar que o vendedor/admin de vendas realmente abre."""
     env = load_env(_ENV_PATH)
     source = _require_source(_FIELD_MAPPING_PROVIDER_ID)
     try:
@@ -202,14 +211,23 @@ async def get_salesforce_field_catalog(force_refresh: bool = False) -> list[Fiel
     async with session_factory() as session:
         mappings = await list_field_mappings(session, _FIELD_MAPPING_PROVIDER_ID)
     role_by_field = {m.source_field_api_name: m.role for m in mappings}
+    catalog_field_names = {f.name for f in fields}
 
-    return [
+    items = [
         FieldCatalogItem(
             source_field_api_name=f.name, source_field_label=f.label, field_type=f.type,
             role=role_by_field.get(f.name),
         )
         for f in fields
     ]
+    items.extend(
+        FieldCatalogItem(
+            source_field_api_name=b.source_field_api_name, source_field_label=b.source_field_label,
+            role=b.role, broken=True, broken_message=b.business_message(),
+        )
+        for b in detect_broken_mappings(mappings, catalog_field_names)
+    )
+    return items
 
 
 class FieldMappingRequest(BaseModel):

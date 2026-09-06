@@ -367,3 +367,94 @@ determinístico direto (`field_mapping_id`), sem query.
       não-único (rótulo) pra decidir qual linha mudou.
 - [x] As 6 decisões de UX do Sales Engineer implementadas fielmente.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 6 — `mapping-health-check`
+
+Último módulo da fase. Consulta ao agente Sales Engineer (decisões
+abaixo confirmadas, não reabrir):
+
+1. **Frase**: "O campo que alimenta '[Rótulo do papel]' foi removido
+   ou renomeado no Salesforce e parou de ser atualizado. Isso não é
+   um erro do Lead.Tracker — foi uma alteração feita direto no
+   Salesforce. Vá em Configurações > Mapeamento de Campos e escolha
+   um novo campo para continuar recebendo essa informação." — nomeia
+   o PAPEL de negócio, nunca o nome técnico do campo (`Segmento__c`).
+2. **Severidade**: aviso, nunca falha do módulo — `health_check()`
+   continua `is_healthy=True` mesmo com mapeamento quebrado (sync
+   continua funcionando pros outros campos). `HealthResult` do SDK é
+   binário (sem terceiro nível "warning" nativo): usa `HealthResult.ok`
+   com `broken_field_mappings` nos `details`.
+3. **Mudança de tipo do campo** (mantendo o nome): fora do escopo
+   desta fatia, decisão consciente — exigiria guardar o tipo original
+   no `FieldMapping` no momento do mapeamento (schema novo não
+   justificado ainda pra um aviso que o próprio Sales Engineer tratou
+   como opcional).
+4. **Onde aparece**: também na tela de mapeamento (módulo 5), do lado
+   do campo problemático — não só no health_check técnico do Core,
+   porque é o único lugar que o vendedor/admin realmente abre.
+
+**Detecção**: `detect_broken_mappings(mappings, catalog_field_names: set[str])`
+(`core/field_mapping.py`, função pura) — nunca importa
+`providers/salesforce.py` (direção de dependência Provider→Domain,
+nunca o inverso); quem já tem permissão de importar provider
+(`backend/main.py`) monta o `set[str]` de nomes do catálogo atual e
+passa pra função. `GET /settings/salesforce/field-catalog` (módulo 5)
+sintetiza uma linha própria pra cada mapeamento órfão, marcada
+`broken=True`, já que o catálogo real só lista campos que EXISTEM
+agora.
+
+**Achados da revisão de código** (2 Importantes, ambos corrigidos):
+1. `_check_field_mappings_health()` não passava `force_refresh=True`
+   pro catálogo — "funcionava por acidente" porque cada chamada cria
+   uma instância nova do provider (cache do módulo 1 nunca sobrevive
+   entre chamadas mesmo). Já era decisão registrada na spec do módulo
+   1 ("health check não pode confiar em cache desatualizado"); se um
+   dia o `build` virar singleton/cacheado por outro motivo, o health
+   check passaria a confiar silenciosamente num catálogo de até 1h
+   desatualizado. Corrigido: `force_refresh=True` explícito.
+2. Desmapear uma linha quebrada (selecionar "—") só zerava `role` no
+   estado local do frontend — `broken`/`brokenMessage` continuavam
+   `true`/preenchidos, deixando um "fantasma" com o badge e a
+   mensagem completa na tela mesmo depois do problema resolvido, até
+   um refresh manual. Corrigido: linha quebrada é REMOVIDA da lista
+   ao desmapear (não faz sentido continuar mostrando um campo que já
+   sumiu do Salesforce sem mapeamento nenhum); dropdown de linha
+   quebrada também passou a permitir só "—" — reatribuir um papel a
+   um campo que já não existe não corrige nada, só confundiria.
+
+### Não objetivo deste módulo
+
+- Detecção de mudança de TIPO do campo (mantendo o nome) — decisão
+  consciente de escopo, não esquecimento.
+- Terceiro nível de severidade no `health_check()` — `HealthResult`
+  do SDK é binário; usar `is_healthy=False` pra isso violaria a
+  decisão 2 do Sales Engineer (aviso não é falha do módulo).
+
+### Teste
+
+- `detect_broken_mappings`/`business_message` (`tests/test_field_mapping.py`,
+  4 testes): campo ausente é flagado; campo presente nunca é; lista
+  vazia; mensagem nunca vaza o nome técnico do campo (prova direta,
+  não só inspeção visual).
+- `_check_field_mappings_health`/`health_check()` (`tests/test_health_check.py`,
+  5 testes, novo arquivo): sem mapeamento nunca chama o catálogo
+  (custo zero); campo sumido é flagado; campo presente fica limpo;
+  `health_check()` inteiro permanece `is_healthy=True` com o aviso
+  nos `details`; Salesforce indisponível nunca derruba o health check.
+- `GET /field-catalog` (`tests/test_settings.py`, 1 teste): linha
+  órfã aparece marcada `broken=True` com a mensagem certa.
+- Frontend: `tsc --noEmit` e `vite build` limpos; suíte de componente
+  (29 testes) inalterada.
+
+### Critério de sucesso
+
+- [x] Campo removido do Salesforce nunca falha silenciosamente — vira
+      aviso visível na tela de mapeamento e no health_check técnico.
+- [x] `health_check()` nunca reporta `is_healthy=False` por causa de
+      um mapeamento quebrado.
+- [x] Health check sempre usa catálogo fresco (`force_refresh=True`),
+      nunca cache potencialmente desatualizado.
+- [x] Revisão de código sem achados Importantes pendentes.
+- [x] **Fase F completa**: os 6 módulos do mapa de capacidades
+      confirmado pelo usuário estão implementados, testados,
+      revisados, documentados, sincronizados e verificados ao vivo.

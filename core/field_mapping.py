@@ -17,6 +17,7 @@ outra).
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -82,3 +83,51 @@ def split_custom_fields(
         if parsed is not None:
             updates[_ROLE_TO_COMPANY_FIELD[mapping.role]] = parsed
     return updates, remaining
+
+
+# Fase F, módulo 6 (`mapping-health-check`) — Sales Engineer consultado
+# (docs/specs/fase-f-mapeamento-campo-personalizado.md): só detecta campo
+# REMOVIDO do catálogo (nunca importa `providers/salesforce.py` aqui — o
+# chamador, que já tem permissão de importar provider, passa só os nomes de
+# campo do catálogo atual, um `set[str]` puro). Mudança de TIPO do campo
+# (mantendo o nome) fica fora do escopo desta fatia — exigiria guardar o
+# tipo original no `FieldMapping` no momento do mapeamento, schema novo não
+# justificado ainda pra um aviso "mais brando" que o próprio Sales Engineer
+# tratou como opcional.
+ROLE_LABEL_PT: dict[SemanticFieldRole, str] = {
+    SemanticFieldRole.INDUSTRY_HINT: "Setor / segmento do cliente",
+    SemanticFieldRole.DEAL_SIZE_HINT: "Porte estimado do negócio",
+    SemanticFieldRole.RENEWAL_DATE: "Data de renovação do contrato",
+}
+
+
+@dataclass
+class BrokenFieldMapping:
+    source_field_api_name: str
+    source_field_label: str
+    role: SemanticFieldRole
+
+    def business_message(self) -> str:
+        """Frase exata definida em consulta ao Sales Engineer — nunca
+        jargão de API ("not found", nome técnico do campo), sempre o papel
+        de negócio e a ação seguinte."""
+        role_label = ROLE_LABEL_PT[self.role]
+        return (
+            f"O campo que alimenta \"{role_label}\" foi removido ou renomeado no Salesforce e parou de ser "
+            "atualizado. Isso não é um erro do Lead.Tracker — foi uma alteração feita direto no Salesforce. "
+            "Vá em Configurações > Mapeamento de Campos e escolha um novo campo para continuar recebendo essa "
+            "informação."
+        )
+
+
+def detect_broken_mappings(mappings: list[FieldMapping], catalog_field_names: set[str]) -> list[BrokenFieldMapping]:
+    """Compara mapeamentos salvos contra o catálogo ATUAL de campos — campo
+    mapeado que sumiu do catálogo (removido/renomeado no Salesforce, fora
+    do controle do Lead.Tracker) vira um aviso, nunca falha silenciosa."""
+    return [
+        BrokenFieldMapping(
+            source_field_api_name=m.source_field_api_name, source_field_label=m.source_field_label, role=m.role,
+        )
+        for m in mappings
+        if m.source_field_api_name not in catalog_field_names
+    ]
