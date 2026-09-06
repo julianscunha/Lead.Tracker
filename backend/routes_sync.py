@@ -32,17 +32,19 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, Opportunity, OpportunityStatus,
-    PeriodType, Product, RepTarget, RuleError, Service, StatusChangeRequiresJustificationError,
+    Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
+    OpportunityStatus, PeriodType, Product, RepTarget, RuleError, Service,
+    StatusChangeRequiresJustificationError,
 )
 from core.opportunity_engine import (
     compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
     is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
-    list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_products,
-    list_rep_targets, list_rules, list_services, list_vendors, save_rep_target, save_rule,
-    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    get_icp_profile, list_companies, list_company_signals, list_latest_snapshot, list_opportunities,
+    list_products, list_rep_targets, list_rules, list_services, list_vendors, save_icp_profile,
+    save_rep_target, save_rule, update_company_renewal_date, update_opportunity_qualification,
+    update_opportunity_status,
 )
 
 router = APIRouter(tags=["lead_tracker-data"])
@@ -140,6 +142,20 @@ class RepTargetOut(BaseModel):
     period_type: str
     period_key: str
     target_amount: float
+
+
+class ICPProfileIn(BaseModel):
+    reference_product_id: str | None = None
+    place_category: str | None = None
+    company_size_hint: str | None = None
+    radius_km: float | None = Field(default=None, ge=0)
+
+
+class ICPProfileOut(BaseModel):
+    reference_product_id: str | None
+    place_category: str | None
+    company_size_hint: str | None
+    radius_km: float | None
 
 
 class RuleIn(BaseModel):
@@ -365,6 +381,35 @@ async def get_rep_targets(period_type: Literal["monthly", "quarterly"] = "monthl
         RepTargetOut(rep_id=t.rep_id, period_type=t.period_type.value, period_key=t.period_key, target_amount=t.target_amount)
         for t in targets
     ]
+
+
+@router.get("/icp-profile")
+async def get_icp_profile_route() -> ICPProfileOut:
+    async with session_factory() as session:
+        profile = await get_icp_profile(session)
+    if profile is None:
+        # Sem configuração ainda — corpo vazio (todo mundo None) é o
+        # estado esperado antes do primeiro save, nunca 404: é um
+        # singleton de configuração, não um recurso que "não existe".
+        return ICPProfileOut(reference_product_id=None, place_category=None, company_size_hint=None, radius_km=None)
+    return ICPProfileOut(
+        reference_product_id=profile.reference_product_id, place_category=profile.place_category,
+        company_size_hint=profile.company_size_hint, radius_km=profile.radius_km,
+    )
+
+
+@router.put("/icp-profile")
+async def update_icp_profile_route(body: ICPProfileIn) -> ICPProfileOut:
+    profile = ICPProfile(
+        reference_product_id=body.reference_product_id, place_category=body.place_category,
+        company_size_hint=body.company_size_hint, radius_km=body.radius_km,
+    )
+    async with session_factory() as session:
+        await save_icp_profile(session, profile)
+    return ICPProfileOut(
+        reference_product_id=profile.reference_product_id, place_category=profile.place_category,
+        company_size_hint=profile.company_size_hint, radius_km=profile.radius_km,
+    )
 
 
 @router.get("/dashboard-metrics")

@@ -392,3 +392,21 @@ class RepTarget(BaseModel):
     period_key: str
     target_amount: float
     created_at: datetime = Field(default_factory=_now)
+
+
+class ICPProfile(BaseModel):
+    """Critério de ICP (Ideal Customer Profile) pra prospecção geográfica
+    (Fase E, módulo `icp-profile-store`) — dado de configuração por
+    instalação, uma linha só (singleton, `id` sempre fixo). `place_category`
+    e `company_size_hint` são string livre de propósito (núcleo genérico —
+    nunca hardcoda taxonomia de categoria/porte de nenhum cliente
+    específico); a UI (wizard, módulo 6) restringe as opções mostradas,
+    o core aceita qualquer valor. Nenhum campo aqui decide oportunidade
+    sozinho — isso é `geo-scoring-rules` (módulo 4), que ainda nem
+    existe nesta fatia."""
+    id: str = "icp_profile"
+    reference_product_id: str | None = None
+    place_category: str | None = None
+    company_size_hint: str | None = None
+    radius_km: float | None = None
+    updated_at: datetime = Field(default_factory=_now)

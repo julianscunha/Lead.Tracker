@@ -301,6 +301,7 @@ Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
   dados.
 
 ### Fase E — Prospecção geográfica (Google Maps)
+**Status:** em andamento (spec: `docs/specs/fase-e-prospeccao-geografica.md`).
 Depende do endereço já vindo na Fase A.
 
 - Tela de ICP: critérios guardados como dado de configuração por instalação

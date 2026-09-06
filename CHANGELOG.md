@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Armazenamento de critério de ICP** (Fase E, módulo 1
+  `icp-profile-store`): `GET`/`PUT /icp-profile` guardam produto de
+  referência, categoria do Google Places, porte-alvo e raio de busca —
+  configuração singleton por instalação, sem taxonomia fechada (núcleo
+  genérico). `GET` antes do primeiro `PUT` nunca retorna 404. Primeiro de
+  8 módulos do capability map da Fase E (Plan consultado, confirmado pelo
+  usuário) — ver `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Campos padrão adicionais de Account do Salesforce** (Fase A): `Company`
   ganha `industry`, `annual_revenue`, `employee_count`, `address`
   (objeto aninhado city/state/postal_code/country). Consultei o agente

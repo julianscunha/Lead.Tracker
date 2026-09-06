@@ -188,3 +188,15 @@ class RepTargetORM(Base):
     period_key: Mapped[str] = mapped_column(String)
     target_amount: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column()
+
+
+class ICPProfileORM(Base):
+    """Fase E, módulo `icp-profile-store` — singleton (`id` sempre
+    'icp_profile'), upsert via session.merge, nunca uma 2ª linha."""
+    __tablename__ = "icp_profiles"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    reference_product_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    place_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    company_size_hint: Mapped[str | None] = mapped_column(String, nullable=True)
+    radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column()

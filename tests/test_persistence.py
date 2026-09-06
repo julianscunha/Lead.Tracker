@@ -11,18 +11,18 @@ from core.db import create_engine, init_db, make_session_factory
 from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
-    Address, Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError, Opportunity,
-    OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, RepTarget, SourceRef,
-    StatusChangeRequiresJustificationError, Vendor,
+    Address, Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError,
+    ICPProfile, Opportunity, OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, RepTarget,
+    SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules, rep_target_id
 from core.repository import (
-    get_company, get_opportunity, get_portfolio_by_company, list_active_rules, list_companies,
-    list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
+    get_company, get_icp_profile, get_opportunity, get_portfolio_by_company, list_active_rules,
+    list_companies, list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
     list_opportunity_status_changes, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot,
-    save_company, save_company_signal, save_contact, save_opportunity, save_opportunity_status_change,
-    save_portfolio, save_rep_target, save_rule, save_vendor, update_company_renewal_date,
-    update_opportunity_qualification, update_opportunity_status,
+    save_company, save_company_signal, save_contact, save_icp_profile, save_opportunity,
+    save_opportunity_status_change, save_portfolio, save_rep_target, save_rule, save_vendor,
+    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -1032,6 +1032,52 @@ def test_save_rep_target_preserves_original_created_at_on_upsert():
     asyncio.run(run())
 
 
+def test_get_icp_profile_returns_none_before_first_save():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                profile = await get_icp_profile(session)
+            assert profile is None
+
+    asyncio.run(run())
+
+
+def test_save_icp_profile_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            profile = ICPProfile(
+                reference_product_id="p1", place_category="car_dealer",
+                company_size_hint="media", radius_km=25.0,
+            )
+            async with session_factory() as session:
+                await save_icp_profile(session, profile)
+                loaded = await get_icp_profile(session)
+            assert loaded.reference_product_id == "p1"
+            assert loaded.place_category == "car_dealer"
+            assert loaded.company_size_hint == "media"
+            assert loaded.radius_km == 25.0
+
+    asyncio.run(run())
+
+
+def test_save_icp_profile_is_singleton_never_duplicates():
+    """Salvar de novo (reconfigurar o ICP) é upsert na mesma linha —
+    id fixo 'icp_profile', nunca uma 2ª configuração concorrente."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_icp_profile(session, ICPProfile(place_category="car_dealer", radius_km=10.0))
+                await save_icp_profile(session, ICPProfile(place_category="restaurant", radius_km=20.0))
+                loaded = await get_icp_profile(session)
+            assert loaded.place_category == "restaurant"
+            assert loaded.radius_km == 20.0
+
+    asyncio.run(run())
+
+
 def test_list_rep_targets_filters_by_period():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -1071,6 +1117,9 @@ if __name__ == "__main__":
     test_save_rep_target_round_trips()
     test_save_rep_target_same_rep_period_is_upsert_never_duplicate()
     test_save_rep_target_preserves_original_created_at_on_upsert()
+    test_get_icp_profile_returns_none_before_first_save()
+    test_save_icp_profile_round_trips()
+    test_save_icp_profile_is_singleton_never_duplicates()
     test_list_rep_targets_filters_by_period()
     test_opportunity_rich_evidence_fields_round_trip()
     test_company_last_activity_at_round_trip()

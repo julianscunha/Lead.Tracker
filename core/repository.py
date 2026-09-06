@@ -16,13 +16,13 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
-    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, OpportunityORM,
+    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, RepTargetORM, ServiceORM,
     VendorORM,
 )
 from core.models import (
     Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
-    DismissalReasonRequiredError, Opportunity, OpportunitySnapshot,
+    DismissalReasonRequiredError, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, Product, ProductRelation, RepTarget,
     Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
@@ -580,3 +580,26 @@ async def list_rep_targets(session: AsyncSession, period_type: PeriodType, perio
         )
     )).scalars().all()
     return [_rep_target_from_row(r) for r in rows]
+
+
+# ── ICPProfile ───────────────────────────────────────────────────────────────
+
+async def save_icp_profile(session: AsyncSession, profile: ICPProfile) -> None:
+    """Singleton — `profile.id` é sempre `'icp_profile'` (default do
+    modelo), então salvar de novo é upsert via `_upsert`/`session.merge`,
+    nunca uma 2ª linha."""
+    await _upsert(session, ICPProfileORM(
+        id=profile.id, reference_product_id=profile.reference_product_id,
+        place_category=profile.place_category, company_size_hint=profile.company_size_hint,
+        radius_km=profile.radius_km, updated_at=profile.updated_at,
+    ))
+
+
+async def get_icp_profile(session: AsyncSession) -> ICPProfile | None:
+    row = await session.get(ICPProfileORM, "icp_profile")
+    if row is None:
+        return None
+    return ICPProfile(
+        id=row.id, reference_product_id=row.reference_product_id, place_category=row.place_category,
+        company_size_hint=row.company_size_hint, radius_km=row.radius_km, updated_at=_ensure_utc(row.updated_at),
+    )

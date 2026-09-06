@@ -235,6 +235,39 @@ def test_post_rep_target_same_rep_period_upserts():
         assert listed[0]["target_amount"] == 75000.0
 
 
+def test_get_icp_profile_before_any_save_returns_all_none_never_404():
+    with _TempDb():
+        resp = client.get("/modules/lead_tracker/icp-profile")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body == {
+            "reference_product_id": None, "place_category": None, "company_size_hint": None, "radius_km": None,
+        }
+
+
+def test_put_icp_profile_round_trips_and_upserts():
+    with _TempDb():
+        resp = client.put("/modules/lead_tracker/icp-profile", json={
+            "reference_product_id": "p1", "place_category": "car_dealer", "company_size_hint": "media", "radius_km": 25.0,
+        })
+        assert resp.status_code == 200
+        assert resp.json()["place_category"] == "car_dealer"
+
+        resp2 = client.put("/modules/lead_tracker/icp-profile", json={"place_category": "restaurant", "radius_km": 10.0})
+        assert resp2.status_code == 200
+        assert resp2.json()["place_category"] == "restaurant"
+
+        loaded = client.get("/modules/lead_tracker/icp-profile").json()
+        assert loaded["place_category"] == "restaurant"
+        assert loaded["radius_km"] == 10.0
+
+
+def test_put_icp_profile_rejects_negative_radius():
+    with _TempDb():
+        resp = client.put("/modules/lead_tracker/icp-profile", json={"radius_km": -5.0})
+        assert resp.status_code == 422
+
+
 def test_post_rep_target_rejects_period_key_that_does_not_match_period_type():
     """Achado da revisão de código: sem essa validação, um typo no
     period_key nunca casa com `current_period_key()` — a meta cadastrada
@@ -617,6 +650,9 @@ if __name__ == "__main__":
     test_dashboard_metrics_rep_without_target_shows_no_coverage_ratio()
     test_dashboard_metrics_reads_coverage_from_configured_rep_target()
     test_post_rep_target_same_rep_period_upserts()
+    test_get_icp_profile_before_any_save_returns_all_none_never_404()
+    test_put_icp_profile_round_trips_and_upserts()
+    test_put_icp_profile_rejects_negative_radius()
     test_post_rep_target_rejects_period_key_that_does_not_match_period_type()
     test_post_rep_target_rejects_negative_amount()
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()

@@ -5,8 +5,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.models import (
-    Address, Company, CompanySignal, ContextNote, CorrelationRule, Product, ProductRelation, RuleError,
-    Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
+    Address, Company, CompanySignal, ContextNote, CorrelationRule, ICPProfile, Product, ProductRelation,
+    RuleError, Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
 )
 
 
@@ -164,6 +164,15 @@ def test_correlation_rule_accepts_known_relation_types():
     CorrelationRule(id="r2", opportunity_type="x", justification="j", relation_type="substitute")
 
 
+def test_icp_profile_defaults_to_singleton_id_and_all_none():
+    profile = ICPProfile()
+    assert profile.id == "icp_profile"
+    assert profile.reference_product_id is None
+    assert profile.place_category is None
+    assert profile.company_size_hint is None
+    assert profile.radius_km is None
+
+
 if __name__ == "__main__":
     test_company_defaults_and_sources()
     test_source_confidence_bounds()
@@ -185,4 +194,5 @@ if __name__ == "__main__":
     test_correlation_rule_rejects_combined_mechanisms()
     test_correlation_rule_rejects_unknown_relation_type()
     test_correlation_rule_accepts_known_relation_types()
+    test_icp_profile_defaults_to_singleton_id_and_all_none()
     print("OK — todos os testes de modelos passaram")
