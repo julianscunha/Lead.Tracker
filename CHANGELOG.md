@@ -4,6 +4,13 @@
 
 ### Adicionado
 
+- **Exportação da prospecção geográfica** (Fase E, módulo 8
+  `geo-export`, fecha a Fase E): botões "PDF"/"Excel" na tela de
+  resultado do wizard, reaproveitando 100% o exportador já existente
+  de Oportunidades — nenhum código de exportação novo, só um
+  mapeamento de `GeoDiscoveryItem` pro formato de linha já suportado.
+  Ver `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Cards de resultado da prospecção geográfica** (Fase E, módulo 7
   `geo-results-view`): `POST /geo-discovery/run` agora devolve as 3
   listas completas (`promoted`/`deferred`/`rejected`), não só

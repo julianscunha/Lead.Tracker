@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  getIcpProfile, getIcpSuggestion, listProducts, runGeoDiscovery, updateIcpProfile,
+  exportGeoDiscoveryExcel, exportGeoDiscoveryPdf, getIcpProfile, getIcpSuggestion, listProducts,
+  runGeoDiscovery, updateIcpProfile,
   type GeoDiscoveryItem, type GeoDiscoveryResult, type ICPSuggestion, type Product,
 } from './api'
 
@@ -69,6 +70,8 @@ export function GeoDiscoveryWizard() {
   const [runError, setRunError] = useState<string | null>(null)
   const [result, setResult] = useState<GeoDiscoveryResult | null>(null)
   const [showRejected, setShowRejected] = useState(false)
+  const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([listProducts(), getIcpProfile()])
@@ -123,7 +126,23 @@ export function GeoDiscoveryWizard() {
     setResult(null)
     setRunError(null)
     setShowRejected(false)
+    setExportError(null)
     setStep(1)
+  }
+
+  const handleExport = async (kind: 'pdf' | 'excel') => {
+    if (!result) return
+    setExporting(kind)
+    setExportError(null)
+    const filtersSummary = `Prospecção geográfica — raio ${radiusKm}km, ${placeCategory || 'sem categoria'}`
+    try {
+      if (kind === 'pdf') await exportGeoDiscoveryPdf(result, filtersSummary)
+      else await exportGeoDiscoveryExcel(result)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Falha ao exportar.')
+    } finally {
+      setExporting(null)
+    }
   }
 
   if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
@@ -134,6 +153,15 @@ export function GeoDiscoveryWizard() {
         <div className="lt-header">
           <h2>Resultado da busca</h2>
         </div>
+        <div className="lt-toolbar">
+          <button type="button" className="lt-btn" onClick={() => handleExport('pdf')} disabled={exporting !== null} aria-busy={exporting === 'pdf'}>
+            {exporting === 'pdf' ? 'Gerando PDF…' : 'PDF'}
+          </button>
+          <button type="button" className="lt-btn" onClick={() => handleExport('excel')} disabled={exporting !== null} aria-busy={exporting === 'excel'}>
+            {exporting === 'excel' ? 'Gerando Excel…' : 'Excel'}
+          </button>
+        </div>
+        {exportError && <p className="lt-hint" role="alert">{exportError}</p>}
         <div className="lt-stat-grid">
           <div className="lt-stat-tile">
             <div className="lt-stat-tile__value">{result.promoted.length}</div>

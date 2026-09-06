@@ -512,3 +512,60 @@ extrair.
 - [x] Ordenação nunca confunde score `None` com score 0.0 real.
 - [x] Nenhuma lógica de scoring/promoção/cota alterada.
 - [x] Revisão de código sem achados Críticos/Importantes.
+
+## Módulo 8 — `geo-export`
+
+Classificado como mecânico no mapa de capacidades — sem consulta a
+especialista. Reaproveita 100% o exportador PDF/Excel já existente
+para Oportunidades (`POST /exports/pdf`/`/exports/excel`,
+`exports/pdf.py`/`exports/excel.py`, schema `OpportunityExportRow`)
+— **nenhum código de exportação novo**, só um mapeamento no frontend
+de `GeoDiscoveryItem` pro mesmo formato de linha.
+
+`toGeoExportRow` usa o campo livre `priority` do schema existente pra
+carregar o rótulo comercial do grupo ("Pronto para contato" / "Fila
+para amanhã" / "Fora do critério") em vez de uma prioridade de
+verdade; `sources` sempre `["google_maps"]`; `service` carrega a
+categoria do lugar; `product`/`financial_potential` ficam `null` (sem
+equivalente no domínio de descoberta geográfica). Botões "PDF"/"Excel"
+na tela de resultado do wizard, mesmo padrão visual/de estado
+(`exporting`/`exportError`) já usado na aba Oportunidades.
+
+**ponytail:** o PDF/Excel gerado usa o template fixo "Lead.Tracker -
+Oportunidades" com cabeçalhos genéricos (`Cliente`, `Prioridade`,
+etc.) — nenhuma customização de título/coluna pra prospecção
+geográfica, porque reaproveitar sem criar exportador novo é o
+objetivo explícito deste módulo. Upgrade só se o rótulo genérico
+confundir o rep na prática (ex.: título próprio "Prospecção
+geográfica" no PDF).
+
+**Achado da revisão de código** (Sugestão, aplicado): `filters_summary`
+do PDF vinha fixo ("Prospecção geográfica"), sem refletir raio/
+categoria reais da busca — diferente do padrão já usado em Oportunidades
+(`summarizeFilters`, dinâmico). Corrigido pra montar o resumo com
+`radiusKm`/`placeCategory` do próprio wizard.
+
+### Não objetivo deste módulo
+
+- Exportador dedicado (título/colunas próprios) — reaproveito total é
+  a decisão, não uma omissão.
+- Teste de componente React pro clique dos botões — sem framework de
+  teste de componente no projeto (mesmo limite já registrado nos
+  módulos 6/7); a lógica de mapeamento (`toGeoExportRow`) também não
+  tem teste dedicado, seguindo o mesmo padrão do `toExportRow`
+  equivalente de Oportunidades (não testado isoladamente hoje).
+
+### Teste
+
+- `tsc --noEmit` e `vite build` limpos.
+- Suíte de componente (`npm run test`, 29 testes) inalterada — nenhum
+  teste novo necessário, nenhuma lógica de domínio nova (é só
+  reaproveitamento de rota já testada em `tests/test_routes_exports.py`).
+
+### Critério de sucesso
+
+- [x] Nenhum exportador novo — 100% reaproveitamento.
+- [x] `tsc`/`build`/suíte de componente limpos.
+- [x] Fase E completa: os 8 módulos do mapa de capacidades confirmado
+      pelo usuário estão implementados, testados, documentados e
+      sincronizados.

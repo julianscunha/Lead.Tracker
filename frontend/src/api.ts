@@ -472,6 +472,54 @@ export async function runGeoDiscovery(request: GeoDiscoveryRequest): Promise<Geo
   }
 }
 
+// Fase E, módulo 8 (`geo-export`) — reaproveita /exports/pdf e /exports/excel
+// já existentes (módulo genérico de Oportunidades), sem exportador novo.
+// `priority` (campo livre no schema de exportação) carrega o rótulo do grupo
+// comercial em vez de uma prioridade real — ponytail: título/colunas do PDF
+// seguem o template fixo "Oportunidades" (nenhum código de exportação é
+// específico de prospecção); aceitável porque reaproveitar é o objetivo
+// explícito deste módulo, upgrade só se o rótulo genérico confundir na prática.
+function toGeoExportRow(item: GeoDiscoveryItem, groupLabel: string) {
+  return {
+    company_name: item.name,
+    is_customer: false,
+    opportunity_score: item.score,
+    financial_potential: null,
+    product: null,
+    service: item.category,
+    priority: groupLabel,
+    sources: ['google_maps'],
+  }
+}
+
+function geoDiscoveryExportRows(result: GeoDiscoveryResult) {
+  return [
+    ...result.promoted.map(i => toGeoExportRow(i, 'Pronto para contato')),
+    ...result.deferred.map(i => toGeoExportRow(i, 'Fila para amanhã')),
+    ...result.rejected.map(i => toGeoExportRow(i, 'Fora do critério')),
+  ]
+}
+
+export async function exportGeoDiscoveryPdf(result: GeoDiscoveryResult, filtersSummary: string): Promise<void> {
+  const resp = await fetch(`${BASE}/exports/pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows: geoDiscoveryExportRows(result), filters_summary: filtersSummary }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  downloadBlob(await resp.blob(), 'prospeccao-geografica.pdf')
+}
+
+export async function exportGeoDiscoveryExcel(result: GeoDiscoveryResult): Promise<void> {
+  const resp = await fetch(`${BASE}/exports/excel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows: geoDiscoveryExportRows(result) }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  downloadBlob(await resp.blob(), 'prospeccao-geografica.xlsx')
+}
+
 // ── Regras e catálogo (Fase C) ────────────────────────────────────────────────
 // Espelham core/models.py direto (mesmo padrão de SourceStatus) — sem
 // adaptador camelCase, é tela de configuração, não de resultado.
