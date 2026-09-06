@@ -262,6 +262,19 @@ export async function triggerSync(): Promise<SyncResult[]> {
   }))
 }
 
+export interface FunnelReachStage {
+  stage: string
+  reachCount: number
+  reachRatioFromPrevious: number | null
+}
+
+export interface RepCoverage {
+  repId: string
+  actual: number
+  target: number | null
+  coverageRatio: number | null
+}
+
 export interface DashboardMetrics {
   kpis: {
     opportunitiesIdentified: number
@@ -278,10 +291,21 @@ export interface DashboardMetrics {
   opportunitiesByService: { label: string; value: number }[]
   customerVsProspect: { label: string; value: number }[]
   funnelCounts: Record<string, number>
+  funnelReach: FunnelReachStage[]
+  weightedPotential: { grossTotal: number; weightedEvaluatedTotal: number; weightedEstimatedTotal: number }
+  potentialByRep: { label: string; value: number }[]
+  potentialBySegment: { label: string; value: number }[]
+  potentialBySource: { label: string; value: number }[]
+  zombieCount: number
+  agingCount: number
+  agingSlaDays: number
+  repCoverage: RepCoverage[]
+  coveragePeriodType: PeriodType
+  coveragePeriodKey: string
 }
 
-export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const resp = await fetch(`${BASE}/dashboard-metrics`)
+export async function getDashboardMetrics(periodType: PeriodType = 'monthly'): Promise<DashboardMetrics> {
+  const resp = await fetch(`${BASE}/dashboard-metrics?period_type=${periodType}`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const d = await resp.json()
   const pairs = (arr: [string, number][]) => arr.map(([label, value]) => ({ label, value }))
@@ -304,6 +328,25 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       { label: 'Prospects', value: d.customer_vs_prospect.prospects },
     ],
     funnelCounts: d.funnel_counts,
+    funnelReach: d.funnel_reach.map((r: { stage: string; reach_count: number; reach_ratio_from_previous: number | null }) => ({
+      stage: r.stage, reachCount: r.reach_count, reachRatioFromPrevious: r.reach_ratio_from_previous,
+    })),
+    weightedPotential: {
+      grossTotal: d.weighted_potential.gross_total,
+      weightedEvaluatedTotal: d.weighted_potential.weighted_evaluated_total,
+      weightedEstimatedTotal: d.weighted_potential.weighted_estimated_total,
+    },
+    potentialByRep: pairs(d.potential_by_rep),
+    potentialBySegment: pairs(d.potential_by_segment),
+    potentialBySource: pairs(d.potential_by_source),
+    zombieCount: d.zombie_count,
+    agingCount: d.aging_count,
+    agingSlaDays: d.aging_sla_days,
+    repCoverage: d.rep_coverage.map((c: { rep_id: string; actual: number; target: number | null; coverage_ratio: number | null }) => ({
+      repId: c.rep_id, actual: c.actual, target: c.target, coverageRatio: c.coverage_ratio,
+    })),
+    coveragePeriodType: d.coverage_period_type,
+    coveragePeriodKey: d.coverage_period_key,
   }
 }
 

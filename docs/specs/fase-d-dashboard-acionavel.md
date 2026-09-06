@@ -553,3 +553,84 @@ inconsistência diferente — ver achado da revisão de código abaixo.
       meta órfã silenciosa.
 - [x] Suíte completa (backend + frontend) e revisão de código sem
       pendências abertas.
+
+## Módulo 8 — Dashboard: cards de KPI e fio final da Fase D
+
+Última fatia da Fase D — 100% frontend. Os módulos 2 a 7 (já commitados)
+implementaram tudo no backend (`GET /dashboard-metrics`: `funnel_reach`,
+`weighted_potential`, `zombie_count`, `aging_count`/`aging_sla_days`,
+`potential_by_rep/segment/source`, `rep_coverage`), mas o
+`Dashboard.tsx` só consumia os campos anteriores (Fase B/C). Este módulo
+liga o fio: consome todos os campos novos e adiciona uma linha de
+explicação (`hint`) em todo card de KPI — requisito explícito do roadmap
+("princípio 4: público final é comercial, não analista").
+
+`StatTile` já suportava `hint` desde antes (Fase B/C) — nunca usado.
+Terminologia "alcance do funil" (nunca "conversão", decisão do Pipeline
+Analyst do módulo 4) verificada também no texto novo. Estados vazios
+seguem o padrão já usado no resto do módulo: `lt-empty role="status"`
+pros cortes (`potential_by_rep/segment/source`) sem dado, `"Sem meta
+definida"` (nunca `0%`) na tabela de cobertura quando `coverage_ratio`
+vem `null` do backend.
+
+**Achados da revisão de código** (3, Important, todos corrigidos):
+1. `error` era setado num fetch falho mas nunca limpo quando um fetch
+   posterior (disparado pela troca de período) tinha sucesso — uma
+   falha transitória travava o dashboard na mensagem de erro pra
+   sempre, mesmo depois de uma resposta válida chegar. Corrigido:
+   `setError(null)` no início do efeito.
+2. Sem guarda contra resposta desatualizada: se uma requisição lenta
+   (ex. trimestral) resolvesse depois de uma mais rápida subsequente
+   (ex. mensal), a mais lenta sobrescreveria o estado mais fresco com
+   dado de período errado — `coveragePeriodType` no estado divergiria
+   do `<select>`. Corrigido com a guarda padrão `cancelled` (variável de
+   fechamento setada `true` no cleanup do efeito, checada antes de
+   qualquer `setMetrics`/`setError`).
+3. `setMetrics(null)` a cada troca de período zerava o dashboard
+   INTEIRO (todos os KPIs, todos os gráficos) só porque o usuário trocou
+   o filtro da tabela de cobertura — a única seção que de fato depende
+   de período. Corrigido: o `metrics` anterior continua renderizado
+   durante o refetch; só a checagem de carregamento inicial (`!metrics`)
+   ainda mostra "Carregando…", e só na primeira renderização.
+
+### Não objetivo deste módulo
+
+- Segmentação por região (mantido do texto de rodapé anterior — ainda
+  exige dado real de região vindo de uma fonte configurada, ex. Google
+  Maps).
+- Tendência temporal / série histórica dia a dia — o snapshot diário
+  (módulos 2+3) guarda o estado de HOJE, recalculado por inteiro a cada
+  `/sync`, nunca uma série de snapshots anteriores. `funnel_reach` é o
+  mais próximo que a Fase D chega disso, e mesmo assim é "alcance hoje",
+  nunca uma série temporal real.
+- Testes de componente React: o projeto não tem infraestrutura de
+  testes de renderização (só `*.test.ts` de lógica pura extraída, ver
+  `frontend/src/settings/logic.ts`/`.test.ts`) — os 3 achados da revisão
+  foram verificados via Playwright ao vivo (troca de período mantendo o
+  resto do dashboard visível), não por teste automatizado. Adicionar
+  React Testing Library só pra isso seria escopo maior que o bug em si.
+
+### Teste
+
+- Nenhum teste automatizado novo (módulo é composição de dado já
+  testado nos módulos 2-7 — a lógica de mapeamento snake_case→camelCase
+  em `api.ts` foi conferida campo a campo contra `routes_sync.py` na
+  revisão de código, sem mismatch).
+- Verificação ao vivo (Playwright, cópia instalada): todos os KPIs com
+  hint renderizando; "Alcance do funil" com 5 estágios e texto sem
+  "conversão"; cortes por rep/segmento/fonte com estado vazio amigável;
+  tabela de cobertura calculando `coverage_ratio` corretamente (rep-1
+  50%, rep-2 40%) e mostrando "Sem meta definida" pro trimestre sem
+  cadastro; troca de período mensal→trimestral preserva o resto do
+  dashboard visível (não zera mais tudo); zero erros de console.
+
+### Critério de sucesso
+
+- [x] Todo card de KPI (novo e antigo) tem uma linha de explicação.
+- [x] `funnel_reach` nunca rotulado como "conversão" em nenhum texto
+      visível.
+- [x] `coverage_ratio` nulo nunca renderiza como `0%`.
+- [x] Troca de período não zera o dashboard inteiro, sem race condition
+      nem erro que trava permanentemente.
+- [x] Fase D encerrada — 8 módulos do capability map entregues, testados,
+      revisados e documentados.

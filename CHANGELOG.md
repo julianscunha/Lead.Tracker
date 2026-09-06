@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Dashboard consome todo o dado da Fase D** (Fase D, módulo 8 — fecha a
+  fase): cards de KPI ganham linha de explicação (potencial ponderado
+  avaliado/estimado, oportunidades zumbi, triagem atrasada, e os 8 cards
+  já existentes); novas seções "Alcance do funil" (nunca "conversão"),
+  cortes por representante/segmento/fonte, e "Cobertura de meta por
+  representante" com seletor mensal/trimestral. Revisão de código
+  encontrou 3 bugs de estado no React (erro que travava o dashboard
+  permanentemente após uma falha transitória, resposta desatualizada
+  podendo sobrescrever a mais recente ao trocar de período rápido, e
+  o dashboard inteiro sumindo a cada troca de período) — todos
+  corrigidos antes deste commit. Ver
+  `docs/specs/fase-d-dashboard-acionavel.md`.
+
 - **Meta e cobertura por representante/período** (Fase D, módulo 7):
   cadastro manual de meta comercial por rep + período (mensal/trimestral,
   `POST`/`GET /rep-targets`); `GET /dashboard-metrics` ganha
