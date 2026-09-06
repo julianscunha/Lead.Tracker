@@ -174,3 +174,107 @@ também corrigiu o comentário desatualizado em
 - [x] Nenhuma referência a Salesforce em `core/`.
 - [x] Upsert por chave natural nunca duplica mapeamento.
 - [x] Revisão de código sem achados Críticos/Importantes.
+
+## Módulo 4 — `mapping-driven-context-split`
+
+Consulta curta ao agente Salesforce Architect (decisões abaixo
+confirmadas, não reabrir):
+
+- **Onde o split acontece**: em `backend/sync.py::sync_source()`
+  (nova função `_apply_field_mappings_for_synced_companies`), nunca
+  dentro do provider — `fetch_context()` continua devolvendo só o
+  bruto; provider nunca pode depender do repositório/domínio
+  (direção de dependência do projeto).
+- **Custo**: só chama `fetch_context()` (1 requisição por empresa)
+  quando existe pelo menos 1 `FieldMapping` pra aquela fonte —
+  instalação sem Fase F configurada (caso comum hoje) não paga custo
+  extra nenhum, comportamento idêntico ao de antes deste módulo.
+- **Precedência**: campo mapeado **sempre sobrescreve** o campo
+  estrutural correspondente, nunca "só se vazio" como
+  `merge_pair` faz pra outros campos — é o usuário escolhendo
+  explicitamente aquele campo customizado como fonte de verdade pro
+  papel, uma decisão deliberada, não um merge implícito entre fontes
+  conflitantes.
+- **`deal_size_hint`**: novo campo estrutural de primeira classe em
+  `Company`, mesmo nível de `industry`/`annual_revenue` — não existia
+  destino antes, criado especificamente pra isto.
+- **Dedup**: campo mapeado sempre sai do contexto bruto restante
+  (`custom_fields`), com valor válido ou não — é a configuração de
+  mapeamento, não o valor de uma empresa em particular, que decide se
+  o campo é estrutural. **Achado do planejamento**: `fetch_context()`/
+  `ProviderContext.extra["custom_fields"]` está órfão desde a Fase A —
+  nenhum consumidor real em `ai/`/`backend/` hoje. Construir esse
+  consumidor (contexto bruto de fato chegando à IA) fica fora do
+  escopo desta fatia — o módulo 4 só garante que o campo MAPEADO tem
+  destino certo; o resto continua exatamente tão não-conectado quanto
+  antes, sem regressão.
+
+**Achados da revisão de código** (1 Importante, corrigido; 1
+Sugestão de teste aplicada; demais aceitas sem ação):
+1. **Importante**: `_apply_field_mappings_for_synced_companies`
+   escrevia o valor mapeado no banco mas nunca atualizava o objeto
+   `Company` em memória (`to_persist`) — como
+   `_evaluate_rules_for_synced_companies` roda logo depois usando
+   esses mesmos objetos, o motor de regras avaliaria contra
+   `industry`/`deal_size_hint` ainda `None` na mesma rodada de sync,
+   só refletindo o valor mapeado no PRÓXIMO `/sync`. Silencioso hoje
+   (nenhuma regra lê esses campos ainda), mas seria um bug real no
+   dia em que uma regra passasse a usar `deal_size_hint` — exatamente
+   o motivo do campo existir. Corrigido: a função agora também
+   substitui `to_persist[native_id]` por uma cópia atualizada
+   (`model_copy(update=updates)`), mutando o mesmo dict que
+   `sync_source` passa adiante.
+2. Faltava teste de `RENEWAL_DATE` parseando o formato DateTime do
+   Salesforce com offset sem dois-pontos (`"...T00:00:00.000+0000"`),
+   só o formato Date puro (`"YYYY-MM-DD"`) estava coberto —
+   `datetime.fromisoformat` só aceita esse formato a partir do Python
+   3.11 (confirmado contra a versão instalada). Adicionado teste
+   dedicado nos dois arquivos (função pura e integração de sync).
+3. Aceitas sem ação (risco de baixa prioridade, já no mesmo padrão de
+   tolerância do resto do arquivo): `apply_field_mapping_updates` sem
+   controle de versão/lock otimista (mesma classe de risco já aceita
+   em `recompute_daily_snapshot`); `merge_pair`'s `industry` usando
+   `or` em vez de `is not None else` (pré-existente, não tocado nesta
+   fatia); falta de teste de integração com múltiplos papéis mapeados
+   ao mesmo tempo (já coberto no nível de função pura).
+
+### Não objetivo deste módulo
+
+- Construir um consumidor real pro contexto bruto restante
+  (`custom_fields` não-mapeado) virar prompt de IA de fato — infra
+  que nunca existiu desde a Fase A, fora do escopo desta fatia.
+- Lock otimista/controle de versão em `apply_field_mapping_updates` —
+  aceito como risco de baixa probabilidade (sync concorrente da mesma
+  fonte não é um cenário real hoje).
+
+### Teste
+
+- `split_custom_fields` (função pura, `tests/test_field_mapping.py`,
+  14 testes): cada papel escreve na coluna certa; datas ISO e
+  DateTime-com-offset parseiam; número e string numérica parseiam
+  pra `deal_size_hint`; `bool` explicitamente rejeitado (subclasse de
+  `int` em Python); valor vazio/`None`/não-parseável nunca escreve
+  nem derruba, mas ainda sai do contexto bruto restante; campo sem
+  mapeamento permanece no bruto; múltiplos papéis simultâneos.
+- Integração (`tests/test_sync.py`, 8 testes novos): sem mapeamento
+  nunca chama `fetch_context` (custo zero); mapeamento escreve campo
+  estrutural; mapeamento sempre sobrescreve valor já existente;
+  `deal_size_hint` numérico; valor não-parseável não derruba nem
+  escreve; **objeto em memória reflete o valor mapeado na mesma
+  rodada** (regressão do achado Importante); DateTime Salesforce com
+  offset; falha de `fetch_context` vira erro reportado sem abortar o
+  sync.
+- `merge_pair` (`tests/test_normalization.py`, 2 testes novos):
+  preserva `deal_size_hint=0.0`; nunca zera valor já promovido quando
+  o fetch fresco da fonte não traz o campo (que é sempre o caso —
+  `fetch_companies()` nunca popula `deal_size_hint`).
+
+### Critério de sucesso
+
+- [x] Campo mapeado disponível pro motor de regras na MESMA rodada de
+      sync em que foi promovido, não só na próxima.
+- [x] Nenhum custo de rede extra pra instalação sem Fase F
+      configurada.
+- [x] `renewal_date`/`deal_size_hint`/`industry` mapeados nunca são
+      revertidos por uma sincronização subsequente.
+- [x] Revisão de código sem achados Críticos pendentes.

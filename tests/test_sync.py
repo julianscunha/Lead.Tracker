@@ -8,21 +8,29 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.settings import SourceDescriptor
-from backend.sync import sync_all_enabled_sources, sync_source
+from backend.sync import _apply_field_mappings_for_synced_companies, sync_all_enabled_sources, sync_source
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, CompanySignal, Contact, CorrelationRule, Portfolio, SourceRef
+from core.models import (
+    Company, CompanySignal, Contact, CorrelationRule, FieldMapping, Portfolio, SemanticFieldRole, SourceRef,
+)
+from core.opportunity_engine import field_mapping_id
 from core.repository import (
-    list_companies, list_contacts, list_latest_snapshot, list_opportunities, save_company,
-    save_company_signal, save_portfolio, save_rule,
+    get_company, list_companies, list_contacts, list_latest_snapshot, list_opportunities, save_company,
+    save_company_signal, save_field_mapping, save_portfolio, save_rule,
 )
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 
 class _FakeProvider(DataProvider):
-    def __init__(self, companies: list[Company], contacts: dict[str, list[Contact]] | None = None, fail: bool = False):
+    def __init__(
+        self, companies: list[Company], contacts: dict[str, list[Contact]] | None = None, fail: bool = False,
+        contexts: dict[str, dict] | None = None, context_fail_for: set[str] | None = None,
+    ):
         self._companies = companies
         self._contacts = contacts or {}
         self._fail = fail
+        self._contexts = contexts or {}
+        self._context_fail_for = context_fail_for or set()
 
     @property
     def id(self) -> str:
@@ -40,7 +48,12 @@ class _FakeProvider(DataProvider):
         return self._contacts.get(company_id, [])
 
     async def fetch_context(self, company_id: str) -> ProviderContext:
-        return ProviderContext(company_id=company_id)
+        if company_id in self._context_fail_for:
+            raise ProviderError("Falha simulada ao buscar contexto.")
+        custom_fields = self._contexts.get(company_id)
+        if not custom_fields:
+            return ProviderContext(company_id=company_id)
+        return ProviderContext(company_id=company_id, extra={"custom_fields": custom_fields})
 
 
 async def _fresh_session_factory(tmp_dir: str):
@@ -337,6 +350,215 @@ def test_sync_all_enabled_sources_recomputes_daily_snapshot_reflecting_generated
     asyncio.run(run())
 
 
+def test_sync_without_field_mapping_never_calls_fetch_context():
+    """Instalação sem nenhum FieldMapping configurado (caso comum hoje) não
+    paga o custo de fetch_context — mesmo padrão de custo/comportamento de
+    antes do módulo mapping-driven-context-split existir."""
+    calls = {"context": 0}
+
+    class _CountingProvider(_FakeProvider):
+        async def fetch_context(self, company_id: str) -> ProviderContext:
+            calls["context"] += 1
+            return await super().fetch_context(company_id)
+
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _CountingProvider([company])
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            result = await sync_source(session_factory, source, {})
+            assert result.errors == []
+
+    asyncio.run(run())
+    assert calls["context"] == 0
+
+
+def test_sync_applies_field_mapping_writes_structural_company_field():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company], contexts={company.id: {"Segmento__c": "Varejo"}})
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Segmento__c"), provider_id="fake",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+
+            result = await sync_source(session_factory, source, {})
+            assert result.errors == []
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.industry == "Varejo"
+
+    asyncio.run(run())
+
+
+def test_sync_field_mapping_always_overwrites_existing_structural_value():
+    """Precedência confirmada (Salesforce Architect): campo mapeado sempre
+    sobrescreve, mesmo que o campo estrutural já tivesse um valor (padrão
+    ou de um sync anterior) — nunca "só se vazio"."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas", industry="Industry Padrão Desatualizada")
+            provider = _FakeProvider([company], contexts={company.id: {"Segmento__c": "Varejo"}})
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Segmento__c"), provider_id="fake",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+
+            await sync_source(session_factory, source, {})
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.industry == "Varejo"
+
+    asyncio.run(run())
+
+
+def test_sync_field_mapping_writes_deal_size_hint_from_numeric_custom_field():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company], contexts={company.id: {"Valor_Estimado__c": 50000.0}})
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Valor_Estimado__c"), provider_id="fake",
+                    source_field_api_name="Valor_Estimado__c", source_field_label="Valor Estimado",
+                    role=SemanticFieldRole.DEAL_SIZE_HINT,
+                ))
+
+            await sync_source(session_factory, source, {})
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.deal_size_hint == 50000.0
+
+    asyncio.run(run())
+
+
+def test_sync_field_mapping_with_unparseable_value_never_crashes_leaves_field_untouched():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company], contexts={company.id: {"Valor_Estimado__c": "não é número"}})
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Valor_Estimado__c"), provider_id="fake",
+                    source_field_api_name="Valor_Estimado__c", source_field_label="Valor Estimado",
+                    role=SemanticFieldRole.DEAL_SIZE_HINT,
+                ))
+
+            result = await sync_source(session_factory, source, {})
+            assert result.errors == []
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.deal_size_hint is None
+
+    asyncio.run(run())
+
+
+def test_apply_field_mappings_updates_in_memory_company_not_just_the_database():
+    """Achado da revisão de código: sem isso, o motor de regras (chamado
+    logo depois, na mesma rodada de sync, com os objetos em memória de
+    `to_persist`) avaliaria contra o valor antigo até o PRÓXIMO /sync —
+    quieto hoje porque nenhuma regra lê industry/deal_size_hint ainda, mas
+    é exatamente o bug que aparece no dia em que uma regra passar a usar
+    esses campos."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company], contexts={company.id: {"Segmento__c": "Varejo"}})
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Segmento__c"), provider_id="fake",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+
+            to_persist = {company.id: company}
+            errors = await _apply_field_mappings_for_synced_companies(session_factory, provider, "fake", to_persist)
+
+            assert errors == []
+            assert to_persist[company.id].industry == "Varejo"  # objeto em memória, não só o banco
+
+    asyncio.run(run())
+
+
+def test_sync_field_mapping_parses_salesforce_datetime_field_with_offset():
+    """RENEWAL_DATE pode vir de um campo Date ("YYYY-MM-DD") ou DateTime
+    Salesforce ("...T00:00:00.000+0000") — os dois precisam parsear."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider(
+                [company], contexts={company.id: {"Data_Renovacao__c": "2026-12-01T00:00:00.000+0000"}},
+            )
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Data_Renovacao__c"), provider_id="fake",
+                    source_field_api_name="Data_Renovacao__c", source_field_label="Data de Renovação",
+                    role=SemanticFieldRole.RENEWAL_DATE,
+                ))
+
+            result = await sync_source(session_factory, source, {})
+            assert result.errors == []
+
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+            assert loaded.renewal_date is not None
+            assert loaded.renewal_date.year == 2026
+            assert loaded.renewal_date.month == 12
+
+    asyncio.run(run())
+
+
+def test_sync_fetch_context_failure_reported_as_error_never_aborts_sync():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            provider = _FakeProvider([company], context_fail_for={company.id})
+            source = SourceDescriptor(id="fake", label="Fake", enabled_key=None, implemented=True, build=lambda env: provider)
+
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("fake", "Segmento__c"), provider_id="fake",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+
+            result = await sync_source(session_factory, source, {})
+            assert result.companies_synced == 1  # empresa continua persistida
+            assert len(result.errors) == 1
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_sync_source_persists_companies_and_contacts()
     test_sync_source_dedups_companies_from_same_provider()
@@ -350,4 +572,12 @@ if __name__ == "__main__":
     test_sync_generates_opportunity_from_open_company_signal()
     test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources()
     test_sync_all_enabled_sources_recomputes_daily_snapshot_reflecting_generated_opportunity()
+    test_sync_without_field_mapping_never_calls_fetch_context()
+    test_sync_applies_field_mapping_writes_structural_company_field()
+    test_sync_field_mapping_always_overwrites_existing_structural_value()
+    test_sync_field_mapping_writes_deal_size_hint_from_numeric_custom_field()
+    test_sync_field_mapping_with_unparseable_value_never_crashes_leaves_field_untouched()
+    test_apply_field_mappings_updates_in_memory_company_not_just_the_database()
+    test_sync_field_mapping_parses_salesforce_datetime_field_with_offset()
+    test_sync_fetch_context_failure_reported_as_error_never_aborts_sync()
     print("OK — todos os testes de sincronização passaram")

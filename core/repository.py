@@ -142,7 +142,7 @@ def _company_from_row(row: CompanyORM) -> Company:
         last_activity_at=_ensure_utc(row.last_activity_at) if row.last_activity_at else None,
         renewal_date=_ensure_utc(row.renewal_date) if row.renewal_date else None,
         industry=row.industry, annual_revenue=row.annual_revenue, employee_count=row.employee_count,
-        address=_address_from_json(row.address),
+        address=_address_from_json(row.address), deal_size_hint=row.deal_size_hint,
     )
 
 
@@ -165,7 +165,7 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         strategic_context=_note_to_json(company.strategic_context),
         last_activity_at=company.last_activity_at,
         industry=company.industry, annual_revenue=company.annual_revenue, employee_count=company.employee_count,
-        address=_address_to_json(company.address),
+        address=_address_to_json(company.address), deal_size_hint=company.deal_size_hint,
     )
     stmt = sqlite_insert(CompanyORM).values(id=company.id, renewal_date=None, **engine_columns)
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
@@ -191,6 +191,26 @@ async def update_company_renewal_date(
     row.renewal_date = renewal_date
     await session.commit()
     return _company_from_row(row)
+
+
+async def apply_field_mapping_updates(session: AsyncSession, company_id: str, updates: dict) -> None:
+    """Fase F, módulo 4 (`mapping-driven-context-split`) — escrita
+    direcionada só das colunas mapeadas (`industry`/`renewal_date`/
+    `deal_size_hint`, ver `core/field_mapping.py::split_custom_fields`),
+    mesmo padrão de coluna única de `update_company_renewal_date`: nunca
+    um upsert de linha inteira, que reverteria uma edição concorrente em
+    outro campo. `renewal_date` é a única exceção deliberada ao bloqueio
+    de `save_company` — aqui é o usuário escolhendo explicitamente uma
+    fonte externa como verdade pra esse campo (Salesforce Architect
+    consultado), não o /sync automático de sempre."""
+    if not updates:
+        return
+    row = await session.get(CompanyORM, company_id)
+    if row is None:
+        return
+    for column, value in updates.items():
+        setattr(row, column, value)
+    await session.commit()
 
 
 async def list_companies(session: AsyncSession) -> list[Company]:

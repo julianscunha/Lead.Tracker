@@ -76,6 +76,12 @@ def merge_pair(base: Company, other: Company) -> Company:
         "annual_revenue": base.annual_revenue if base.annual_revenue is not None else other.annual_revenue,
         "employee_count": base.employee_count if base.employee_count is not None else other.employee_count,
         "address": base.address or other.address,
+        # Fase F, módulo 4 — mesmo tratamento de annual_revenue/employee_count
+        # (numérico, "or" trataria 0.0 real como ausência). fetch_companies()
+        # nunca popula este campo (só o split de mapeamento, módulo 4, escreve
+        # nele depois do merge) — sem isso, resincronizar zeraria o valor já
+        # promovido de um campo mapeado a cada rodada.
+        "deal_size_hint": base.deal_size_hint if base.deal_size_hint is not None else other.deal_size_hint,
     })
 
 

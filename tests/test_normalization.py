@@ -119,6 +119,30 @@ def test_merge_pair_preserves_zero_annual_revenue_and_employee_count():
     assert result.employee_count == 0
 
 
+def test_merge_pair_preserves_zero_deal_size_hint():
+    """Mesma regressão de annual_revenue/employee_count, agora pro campo
+    novo da Fase F (módulo 4) — 0.0 é um valor real (negócio de valor
+    residual), não ausência de dado."""
+    base = Company(name="Acme", deal_size_hint=0.0)
+    other = Company(name="Acme", deal_size_hint=5000.0)
+
+    result = merge_pair(base, other)
+
+    assert result.deal_size_hint == 0.0
+
+
+def test_merge_pair_never_zeroes_deal_size_hint_when_freshly_fetched_company_has_none():
+    """fetch_companies() nunca popula deal_size_hint (só o split de
+    mapeamento escreve nele, depois do merge) — resincronizar não pode
+    apagar um valor já promovido por um FieldMapping."""
+    base = Company(name="Acme", deal_size_hint=42000.0)
+    other = Company(name="Acme")  # fresh fetch, sem deal_size_hint
+
+    result = merge_pair(base, other)
+
+    assert result.deal_size_hint == 42000.0
+
+
 def test_merge_pair_fills_account_standard_fields_from_other_when_base_is_none():
     base = Company(name="Acme")
     other = Company(name="Acme", industry="Manufatura", annual_revenue=2000.0, employee_count=20, address=Address(city="Rio de Janeiro"))
@@ -142,5 +166,7 @@ if __name__ == "__main__":
     test_merge_pair_keeps_old_last_activity_at_when_new_fetch_has_none()
     test_merge_pair_keeps_base_account_standard_fields_when_present()
     test_merge_pair_preserves_zero_annual_revenue_and_employee_count()
+    test_merge_pair_preserves_zero_deal_size_hint()
+    test_merge_pair_never_zeroes_deal_size_hint_when_freshly_fetched_company_has_none()
     test_merge_pair_fills_account_standard_fields_from_other_when_base_is_none()
     print("OK — todos os testes de normalização passaram")

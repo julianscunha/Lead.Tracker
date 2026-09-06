@@ -77,7 +77,12 @@ class Company(BaseModel):
     # Fase C, cadência de QBR — data de fim de contrato, 100% manual por ora
     # (nenhum provider traz isso hoje). merge_pair nunca lista este campo no
     # update=, então um /sync nunca o zera — mesmo padrão de proteção que
-    # scope_note/criticality/severity_note têm em Opportunity.
+    # scope_note/criticality/severity_note têm em Opportunity. Exceção
+    # explícita (Fase F, módulo `mapping-driven-context-split`): um
+    # `FieldMapping` pro papel RENEWAL_DATE sobrescreve este campo depois do
+    # merge, fora do caminho protegido — é o usuário escolhendo
+    # explicitamente uma fonte externa de verdade pra esse dado, não o sync
+    # automático de sempre.
     renewal_date: datetime | None = None
     # Fase A — campos padrão adicionais de Account (Salesforce Architect
     # consultado, decisão registrada em docs/specs/salesforce-account-standard-fields.md):
@@ -88,6 +93,11 @@ class Company(BaseModel):
     annual_revenue: float | None = None
     employee_count: int | None = None
     address: Address | None = None
+    # Fase F, módulo 4 (`mapping-driven-context-split`) — único papel
+    # semântico sem campo estrutural pré-existente; criado especificamente
+    # pra ter destino (Salesforce Architect consultado: sem isso, mapear um
+    # campo como DEAL_SIZE_HINT não levaria o valor a lugar nenhum).
+    deal_size_hint: float | None = None
 
 
 class Contact(BaseModel):

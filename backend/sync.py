@@ -14,14 +14,16 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from backend.settings import SOURCES, SourceDescriptor
+from core.field_mapping import split_custom_fields
 from core.models import Company
 from core.normalization import dedup_key, merge_companies, merge_pair
 from core.opportunity_engine import evaluate_rules
 from core.repository import (
-    get_portfolio_by_company, list_active_rules, list_companies, list_company_signals,
-    list_products, list_services, recompute_daily_snapshot, save_company, save_contact, save_opportunity,
+    apply_field_mapping_updates, get_portfolio_by_company, list_active_rules, list_companies,
+    list_company_signals, list_field_mappings, list_products, list_services, recompute_daily_snapshot,
+    save_company, save_contact, save_opportunity,
 )
-from providers.base import ProviderError
+from providers.base import DataProvider, ProviderError
 
 
 @dataclass
@@ -82,12 +84,59 @@ async def sync_source(
                 await save_contact(session, contact)
                 contacts_synced += 1
 
+    errors.extend(await _apply_field_mappings_for_synced_companies(session_factory, provider, source.id, to_persist))
+
     opportunities_generated = await _evaluate_rules_for_synced_companies(session_factory, to_persist.values())
 
     return SyncResult(
         source_id=source.id, companies_synced=len(to_persist),
         contacts_synced=contacts_synced, opportunities_generated=opportunities_generated, errors=errors,
     )
+
+
+async def _apply_field_mappings_for_synced_companies(
+    session_factory: async_sessionmaker, provider: DataProvider, provider_id: str, to_persist: dict[str, Company],
+) -> list[str]:
+    """Fase F, módulo 4 (`mapping-driven-context-split`). Só chama
+    `fetch_context()` (uma requisição por empresa) quando existe pelo menos
+    um `FieldMapping` configurado pra esta fonte — instalação sem nenhum
+    mapeamento (o caso comum hoje) não paga o custo extra de rede, e o
+    comportamento de sync sem Fase F configurada fica idêntico ao de antes
+    deste módulo. Falha de `fetch_context` numa empresa vira erro
+    reportado, nunca aborta as demais (mesmo padrão do loop de contatos).
+
+    Achado da revisão de código: além de escrever no banco, atualiza
+    `to_persist[native_id]` em memória (o dict é mutado in-place, o mesmo
+    objeto que `sync_source` passa adiante) — sem isso, o motor de regras
+    (`_evaluate_rules_for_synced_companies`, chamado logo depois com esses
+    mesmos objetos) avaliaria contra `industry`/`deal_size_hint` ainda
+    `None` na primeira sincronização com um mapeamento novo, e só refletiria
+    o valor mapeado no próximo `/sync` — quieto hoje (nenhuma regra lê esses
+    campos ainda), mas vira bug real no dia em que uma regra passar a usar
+    `deal_size_hint`, exatamente o motivo do campo existir."""
+    async with session_factory() as session:
+        mappings = await list_field_mappings(session, provider_id)
+    if not mappings:
+        return []
+
+    errors: list[str] = []
+    async with session_factory() as session:
+        for native_id, final in list(to_persist.items()):
+            try:
+                context = await provider.fetch_context(native_id)
+            except ProviderError as exc:
+                errors.append(f"{final.name}: {exc}")
+                continue
+            custom_fields = context.extra.get("custom_fields", {})
+            if not custom_fields:
+                continue
+            updates, _remaining = split_custom_fields(custom_fields, mappings)
+            if not updates:
+                continue
+            await apply_field_mapping_updates(session, final.id, updates)
+            to_persist[native_id] = final.model_copy(update=updates)
+
+    return errors
 
 
 async def _evaluate_rules_for_synced_companies(

@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Divisão de contexto guiada por mapeamento** (Fase F, módulo 4
+  `mapping-driven-context-split`): `/sync` agora aplica os
+  `FieldMapping` configurados — campo customizado mapeado sobrescreve
+  o campo estrutural correspondente (`industry`/`renewal_date`/novo
+  `deal_size_hint`), sempre, mesmo que já houvesse valor; campo sem
+  mapeamento continua como contexto bruto (comportamento inalterado
+  da Fase A). Só paga o custo de `fetch_context()` quando existe
+  mapeamento configurado. Achado de revisão corrigido: valor mapeado
+  agora fica disponível pro motor de regras na mesma rodada de sync
+  em que foi promovido, não só na próxima. Decisões técnicas em
+  consulta ao agente Salesforce Architect. Ver
+  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+
 - **Papel semântico e armazenamento de mapeamento de campo** (Fase F,
   módulos 2 `semantic-field-role` e 3 `field-mapping-store`): novo
   enum `SemanticFieldRole` (`industry_hint`/`deal_size_hint`/

@@ -61,6 +61,7 @@ class CompanyORM(Base):
     annual_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
     employee_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     address: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    deal_size_hint: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class ContactORM(Base):
