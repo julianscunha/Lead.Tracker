@@ -170,3 +170,17 @@ class CorrelationRuleORM(Base):
     confidence_score: Mapped[float] = mapped_column(Float)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class RepTargetORM(Base):
+    """Fase D, módulo 7 — id determinístico (`rep_target_id`, mesmo padrão
+    de `_generate_opportunity_id` em opportunity_engine.py) a partir de
+    (rep_id, period_type, period_key): cadastrar meta de novo pro mesmo
+    rep+período é upsert, nunca duplicata."""
+    __tablename__ = "rep_targets"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    rep_id: Mapped[str] = mapped_column(String)
+    period_type: Mapped[str] = mapped_column(String)
+    period_key: Mapped[str] = mapped_column(String)
+    target_amount: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column()

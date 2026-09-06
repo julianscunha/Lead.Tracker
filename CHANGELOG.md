@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Meta e cobertura por representante/período** (Fase D, módulo 7):
+  cadastro manual de meta comercial por rep + período (mensal/trimestral,
+  `POST`/`GET /rep-targets`); `GET /dashboard-metrics` ganha
+  `rep_coverage` (pipeline atual ÷ meta) lido do snapshot diário. Rep sem
+  meta cadastrada nunca mostra 0% nem divide por zero — `coverage_ratio`
+  fica `null`, distinto de uma meta explicitamente cadastrada como 0.
+  Recadastrar meta pro mesmo rep+período é upsert (id determinístico via
+  uuid5), nunca duplica. `period_key` validado contra o formato exato do
+  período (achado da revisão de código: texto livre permitia typo que
+  criava meta "órfã" silenciosa); UI usa `<input type="month">`/`<select>`
+  de trimestre em vez de texto livre. Ver
+  `docs/specs/fase-d-dashboard-acionavel.md`.
+
 - **Motivo categorizado de descarte** (Fase D, módulo 6): mudar uma
   oportunidade pra "Descartada" agora exige um `dismissal_reason` de um
   enum fechado (sem evidência / sem fit / cliente não qualificado / falso

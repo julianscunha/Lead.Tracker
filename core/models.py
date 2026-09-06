@@ -343,3 +343,30 @@ class CorrelationRule(BaseModel):
                 "— use 'prerequisite' ou 'substitute'"
             )
         return self
+
+
+class PeriodType(str, Enum):
+    """Fase D, módulo 7 — granularidade de meta comercial. Só as 2
+    combinadas em consulta ao roadmap ("mensal/trimestral"); trimestre
+    calendário fixo (jan-mar, abr-jun, ...), nunca "trailing 90 dias"."""
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+
+
+class RepTarget(BaseModel):
+    """Meta comercial manual por rep/período (Fase D, módulo 7) — cadastro
+    100% manual, nunca vem de fonte externa. `period_key` é o rótulo do
+    período calendário ("2026-09" pra mensal, "2026-Q3" pra trimestral,
+    ver `core/opportunity_engine.py::current_period_key`) — sem isso,
+    "potencial financeiro total" é um número sem contexto (motivação do
+    roadmap). Rep sem meta cadastrada pro período atual nunca é tratado
+    como meta=0 (isso inflaria artificialmente o "déficit"); a agregação
+    (`core/dashboard_metrics.py::compute_rep_coverage`) devolve
+    `coverage_ratio=None` nesse caso, e a UI mostra "sem meta definida",
+    nunca 0% ou divisão por zero (blindagem explícita do roadmap)."""
+    id: str = Field(default_factory=_new_id)
+    rep_id: str
+    period_type: PeriodType
+    period_key: str
+    target_amount: float
+    created_at: datetime = Field(default_factory=_now)

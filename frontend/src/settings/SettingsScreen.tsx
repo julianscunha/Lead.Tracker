@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
 
@@ -63,6 +64,7 @@ export function SettingsScreen() {
       </div>
 
       <RulesSection />
+      <RepTargetsSection />
     </div>
   )
 }

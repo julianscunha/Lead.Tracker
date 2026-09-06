@@ -7,10 +7,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import date, datetime, timedelta, timezone
 
 from core.dashboard_metrics import (
-    compute_kpis, compute_weighted_potential, count_aging_opportunities, count_zombie_opportunities,
-    customer_vs_prospect, distribution_by_vendor, exclude_zombies, financial_potential_by_vendor,
-    funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment,
-    potential_by_source,
+    RepCoverage, compute_kpis, compute_rep_coverage, compute_weighted_potential, count_aging_opportunities,
+    count_zombie_opportunities, customer_vs_prospect, distribution_by_vendor, exclude_zombies,
+    financial_potential_by_vendor, funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep,
+    potential_by_segment, potential_by_source,
 )
 from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
 
@@ -175,6 +175,33 @@ def test_funnel_reach_first_stage_has_no_ratio_and_zero_reach_never_divides():
     assert all(r.reach_ratio_from_previous is None for r in result)  # tudo zero, nunca ZeroDivisionError
 
 
+def test_compute_rep_coverage_rep_without_target_is_none_never_zero_percent():
+    result = compute_rep_coverage([("rep-1", 1000.0)], targets={})
+    assert result == [RepCoverage(rep_id="rep-1", actual=1000.0, target=None, coverage_ratio=None)]
+
+
+def test_compute_rep_coverage_computes_ratio_when_target_present():
+    result = compute_rep_coverage([("rep-1", 5000.0)], targets={"rep-1": 10000.0})
+    assert result[0].target == 10000.0
+    assert result[0].coverage_ratio == 0.5
+
+
+def test_compute_rep_coverage_includes_rep_with_target_but_zero_pipeline():
+    """Rep com meta cadastrada mas nenhuma oportunidade no corte atual —
+    0% de cobertura é dado real, bem diferente de "sem meta definida"."""
+    result = compute_rep_coverage([], targets={"rep-2": 8000.0})
+    assert result[0].rep_id == "rep-2"
+    assert result[0].actual == 0.0
+    assert result[0].target == 8000.0
+    assert result[0].coverage_ratio == 0.0
+
+
+def test_compute_rep_coverage_never_divides_by_zero_target():
+    result = compute_rep_coverage([("rep-1", 1000.0)], targets={"rep-1": 0.0})
+    assert result[0].target == 0.0
+    assert result[0].coverage_ratio is None
+
+
 if __name__ == "__main__":
     test_kpis_never_invent_financial_potential_for_none()
     test_distribution_by_vendor_ignores_unknown_vendor_id()
@@ -190,4 +217,8 @@ if __name__ == "__main__":
     test_funnel_reach_is_cumulative_and_excludes_dismissed()
     test_funnel_reach_all_opportunities_in_last_stage_stays_non_increasing()
     test_funnel_reach_first_stage_has_no_ratio_and_zero_reach_never_divides()
+    test_compute_rep_coverage_rep_without_target_is_none_never_zero_percent()
+    test_compute_rep_coverage_computes_ratio_when_target_present()
+    test_compute_rep_coverage_includes_rep_with_target_but_zero_pipeline()
+    test_compute_rep_coverage_never_divides_by_zero_target()
     print("OK — todos os testes de métricas do dashboard passaram")

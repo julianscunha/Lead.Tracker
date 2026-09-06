@@ -460,3 +460,96 @@ isso a categorização ficava invisível depois de salva).
 - [x] `save_opportunity` (motor) nunca reseta o motivo num resync.
 - [x] Suíte completa (backend + frontend) e revisão de código sem
       pendências abertas.
+
+## Módulo 7 — Meta e cobertura por rep/período
+
+Roadmap: "sem meta configurada, 'potencial financeiro total' é número sem
+contexto" — cadastro manual de meta comercial por rep/período (nunca vem
+de fonte externa), pra calcular `coverage_ratio = pipeline atual / meta`.
+Escopo desta fatia: só nível de **rep** (o nome do próprio módulo no
+capability map é `rep-target-coverage`, não `rep-segment-target-coverage`)
+— meta por segmento fica registrada aqui como extensão possível, não
+construída (YAGNI até haver pedido real).
+
+`PeriodType` (mensal/trimestral, confirmado na consulta de capability map
+do início da Fase D) + `current_period_key` (`core/opportunity_engine.py`)
+gera o rótulo do período calendário corrente — trimestre é sempre
+calendário fixo (jan-mar=Q1, ...), nunca "trailing 90 dias" (meta
+comercial é pactuada contra calendário fiscal, não janela móvel).
+`rep_target_id` gera um id determinístico (mesmo padrão de
+`_generate_opportunity_id`) a partir de `(rep_id, period_type, period_key)`
+— recadastrar meta pro mesmo rep+período é upsert via `session.merge`,
+nunca cria uma 2ª meta concorrente.
+
+`compute_rep_coverage` (`core/dashboard_metrics.py`) é a peça que
+implementa a blindagem do roadmap: rep sem meta cadastrada pro período
+nunca vira meta=0 (isso infla um "déficit" fictício) — `coverage_ratio`
+fica `None`, e o `target` também fica `None` (distinto de uma meta
+explicitamente cadastrada como 0, que mostra `target=0.0` mas ainda assim
+`coverage_ratio=None`, nunca `ZeroDivisionError`). Um rep com meta
+cadastrada mas pipeline zerado no período também aparece na lista — 0% de
+cobertura é dado real, bem diferente de "sem meta definida".
+
+`GET /dashboard-metrics` ganhou o query param `period_type` (default
+`monthly`); o `period_key` usado pra buscar metas é sempre calculado como
+"hoje" via `current_period_key`, nunca aceito do cliente — evita uma
+inconsistência entre "que período o dashboard está olhando" e "que
+período a URL pede". `POST /rep-targets` já aceita `period_key` do
+cliente (é cadastro manual, não "hoje"), o que abre uma janela de
+inconsistência diferente — ver achado da revisão de código abaixo.
+
+**Achados da revisão de código** (2, Important, ambos corrigidos):
+1. `RepTargetIn.period_key` era texto livre sem validação de formato —
+   um typo (`"2026-Q3"` sob `period_type=monthly`, ou espaço/hífen
+   trocado) criava uma meta que nunca casaria com nenhum
+   `current_period_key()` real, degradando silenciosamente pra "sem meta
+   definida" sem nenhum aviso — exatamente o sintoma que o roadmap pediu
+   pra nunca acontecer, só por uma porta diferente (má formação do dado
+   de entrada, não ausência dele). Corrigido com `field_validator` que
+   valida `period_key` contra o formato exato que `current_period_key`
+   produz (regex `AAAA-MM`/`AAAA-Q[1-4]`), mais `target_amount >= 0` e
+   `rep_id` não-vazio. Frontend (`RepTargetsSection.tsx`) trocou o input
+   de texto livre por `<input type="month">` (mensal) e `<select>` de
+   trimestres calculados (`quarterOptions`, ano corrente + próximo) —
+   formato inválido fica irrepresentável na UI, mais barato que validar
+   depois.
+2. `save_rep_target` reconstruía `created_at=_now()` a cada upsert —
+   recadastrar a mesma meta reescrevia o carimbo, fazendo a coluna se
+   comportar como "última modificação" apesar do nome. Corrigido: busca
+   a linha existente antes do upsert e preserva o `created_at` original
+   quando já existe.
+
+### Não objetivo deste módulo
+
+- Meta por segmento (só por rep, ver "Escopo" acima).
+- Nenhum aviso proativo se uma meta cadastrada nunca aparecer em nenhum
+  `coverage_ratio` (ex.: rep_id com typo que não bate com nenhuma empresa
+  real) — mitigado só pro caso de `period_key` malformado (achado 1
+  acima); um `rep_id` que simplesmente não existe em nenhuma
+  `Company.rep_id` real não tem validação cruzada.
+
+### Teste
+
+- `current_period_key`: formato mensal, mapeamento correto dos 12 meses
+  pros 4 trimestres (não só as 4 bordas testadas — fórmula
+  `(mês-1)//3+1` verificada matematicamente na revisão de código).
+- `rep_target_id`: determinístico pro mesmo rep+período, diferente pra
+  período diferente (inclui o caso do mesmo texto de `period_key` sob
+  `period_type` diferente, garantindo que nunca colidem).
+- `compute_rep_coverage`: sem meta → `None` nunca 0%; meta explícita 0 →
+  `target=0.0` mas `coverage_ratio=None`, nunca `ZeroDivisionError`; rep
+  com meta mas pipeline zerado aparece com 0% real.
+- Repositório: round-trip, upsert nunca duplica, filtro por período,
+  `created_at` preservado num upsert.
+- Rota: upsert via `POST` repetido, 422 pra `period_key` mal-formado e
+  pra `target_amount` negativo, `dashboard-metrics` reflete meta
+  configurada e calcula `coverage_ratio` corretamente.
+
+### Critério de sucesso
+
+- [x] Rep sem meta nunca mostra 0% nem divide por zero.
+- [x] Recadastrar meta pro mesmo rep+período é upsert, nunca duplicata.
+- [x] `period_key` malformado é rejeitado na fronteira HTTP, nunca cria
+      meta órfã silenciosa.
+- [x] Suíte completa (backend + frontend) e revisão de código sem
+      pendências abertas.

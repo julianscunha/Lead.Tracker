@@ -161,6 +161,99 @@ def test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_
         assert body["aging_sla_days"] == 7
 
 
+def test_dashboard_metrics_rep_without_target_shows_no_coverage_ratio():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", rep_id="rep-1", segment="enterprise")
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", financial_potential=1000.0,
+            sources=[SourceRef(type="salesforce")],
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await recompute_daily_snapshot(session)
+        asyncio.run(seed())
+
+        body = client.get("/modules/lead_tracker/dashboard-metrics").json()
+        coverage = {c["rep_id"]: c for c in body["rep_coverage"]}
+        assert coverage["rep-1"]["actual"] == 1000.0
+        assert coverage["rep-1"]["target"] is None
+        assert coverage["rep-1"]["coverage_ratio"] is None  # nunca 0%, sem meta cadastrada
+
+
+def test_dashboard_metrics_reads_coverage_from_configured_rep_target():
+    with _TempDb() as db:
+        import asyncio
+        from datetime import date
+        from core.opportunity_engine import current_period_key
+        from core.models import PeriodType
+
+        company = Company(name="Aurora Sistemas", rep_id="rep-1", segment="enterprise")
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", financial_potential=5000.0,
+            sources=[SourceRef(type="salesforce")],
+        )
+        current_month = current_period_key(PeriodType.MONTHLY, date.today())
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await recompute_daily_snapshot(session)
+        asyncio.run(seed())
+
+        client.post("/modules/lead_tracker/rep-targets", json={
+            "rep_id": "rep-1", "period_type": "monthly", "period_key": current_month, "target_amount": 10000.0,
+        })
+
+        body = client.get("/modules/lead_tracker/dashboard-metrics").json()
+        coverage = {c["rep_id"]: c for c in body["rep_coverage"]}
+        assert coverage["rep-1"]["target"] == 10000.0
+        assert coverage["rep-1"]["coverage_ratio"] == 0.5
+        assert body["coverage_period_type"] == "monthly"
+        assert body["coverage_period_key"] == current_month
+
+
+def test_post_rep_target_same_rep_period_upserts():
+    with _TempDb():
+        resp1 = client.post("/modules/lead_tracker/rep-targets", json={
+            "rep_id": "rep-1", "period_type": "monthly", "period_key": "2026-09", "target_amount": 50000.0,
+        })
+        assert resp1.status_code == 200
+        resp2 = client.post("/modules/lead_tracker/rep-targets", json={
+            "rep_id": "rep-1", "period_type": "monthly", "period_key": "2026-09", "target_amount": 75000.0,
+        })
+        assert resp2.status_code == 200
+
+        listed = client.get(
+            "/modules/lead_tracker/rep-targets", params={"period_type": "monthly", "period_key": "2026-09"},
+        ).json()
+        assert len(listed) == 1
+        assert listed[0]["target_amount"] == 75000.0
+
+
+def test_post_rep_target_rejects_period_key_that_does_not_match_period_type():
+    """Achado da revisão de código: sem essa validação, um typo no
+    period_key nunca casa com `current_period_key()` — a meta cadastrada
+    fica "órfã" e some silenciosamente pro dashboard, sem nenhum aviso."""
+    with _TempDb():
+        resp = client.post("/modules/lead_tracker/rep-targets", json={
+            "rep_id": "rep-1", "period_type": "monthly", "period_key": "2026-Q3", "target_amount": 1000.0,
+        })
+        assert resp.status_code == 422
+
+
+def test_post_rep_target_rejects_negative_amount():
+    with _TempDb():
+        resp = client.post("/modules/lead_tracker/rep-targets", json={
+            "rep_id": "rep-1", "period_type": "monthly", "period_key": "2026-09", "target_amount": -1.0,
+        })
+        assert resp.status_code == 422
+
+
 def test_get_opportunities_flags_is_aging_for_stale_detected_opportunity():
     with _TempDb() as db:
         import asyncio
@@ -521,6 +614,11 @@ if __name__ == "__main__":
     test_get_opportunities_empty_on_fresh_install_never_fake_data()
     test_get_dashboard_metrics_reflects_empty_state_honestly()
     test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_potential()
+    test_dashboard_metrics_rep_without_target_shows_no_coverage_ratio()
+    test_dashboard_metrics_reads_coverage_from_configured_rep_target()
+    test_post_rep_target_same_rep_period_upserts()
+    test_post_rep_target_rejects_period_key_that_does_not_match_period_type()
+    test_post_rep_target_rejects_negative_amount()
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()
     test_sync_endpoint_reads_isolated_env_never_the_real_module_env()
     test_get_opportunities_includes_risk_flag()

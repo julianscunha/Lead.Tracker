@@ -17,13 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
     CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, OpportunityORM,
-    OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
+    OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, RepTargetORM, ServiceORM,
+    VendorORM,
 )
 from core.models import (
     Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
     DismissalReasonRequiredError, Opportunity, OpportunitySnapshot,
-    OpportunityStatus, OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef,
-    StatusChangeRequiresJustificationError, Vendor,
+    OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, Product, ProductRelation, RepTarget,
+    Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import is_zombie_opportunity, requires_status_change_justification
 
@@ -533,3 +534,37 @@ async def list_rules(session: AsyncSession) -> list[CorrelationRule]:
 async def list_active_rules(session: AsyncSession) -> list[CorrelationRule]:
     rows = (await session.execute(select(CorrelationRuleORM).where(CorrelationRuleORM.active == True))).scalars().all()  # noqa: E712
     return [_rule_from_row(r) for r in rows]
+
+
+# ── RepTarget ────────────────────────────────────────────────────────────────
+
+async def save_rep_target(session: AsyncSession, target: RepTarget) -> None:
+    """Id determinístico (`rep_target_id`) — cadastrar meta de novo pro
+    mesmo rep+período é upsert via `_upsert`/`session.merge`, nunca gera
+    uma 2ª meta concorrente pro mesmo rep/período. `created_at` do
+    registro existente é preservado num upsert (achado da revisão de
+    código: sem isso, `_now()` no `.model_construct()` de cada request
+    reescreveria o carimbo a cada recadastro, e a coluna se comportaria
+    como "última modificação" apesar do nome)."""
+    existing = await session.get(RepTargetORM, target.id)
+    created_at = existing.created_at if existing is not None else target.created_at
+    await _upsert(session, RepTargetORM(
+        id=target.id, rep_id=target.rep_id, period_type=target.period_type.value,
+        period_key=target.period_key, target_amount=target.target_amount, created_at=created_at,
+    ))
+
+
+def _rep_target_from_row(row: RepTargetORM) -> RepTarget:
+    return RepTarget(
+        id=row.id, rep_id=row.rep_id, period_type=PeriodType(row.period_type),
+        period_key=row.period_key, target_amount=row.target_amount, created_at=_ensure_utc(row.created_at),
+    )
+
+
+async def list_rep_targets(session: AsyncSession, period_type: PeriodType, period_key: str) -> list[RepTarget]:
+    rows = (await session.execute(
+        select(RepTargetORM).where(
+            RepTargetORM.period_type == period_type.value, RepTargetORM.period_key == period_key,
+        )
+    )).scalars().all()
+    return [_rep_target_from_row(r) for r in rows]

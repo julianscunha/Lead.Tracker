@@ -4,13 +4,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
+from core.models import Company, CompanySignal, PeriodType, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import (
     CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
-    compute_severity_band, evaluate_rules, is_aging_opportunity, is_zombie_opportunity,
-    parse_aging_sla_days, requires_status_change_justification,
+    compute_severity_band, current_period_key, evaluate_rules, is_aging_opportunity, is_zombie_opportunity,
+    parse_aging_sla_days, rep_target_id, requires_status_change_justification,
 )
 
 
@@ -452,6 +452,30 @@ def test_parse_aging_sla_days_reads_valid_configured_value():
     assert parse_aging_sla_days({"AGING_SLA_DAYS": "14"}) == 14
 
 
+def test_current_period_key_monthly_format():
+    assert current_period_key(PeriodType.MONTHLY, date(2026, 3, 5)) == "2026-03"
+
+
+def test_current_period_key_quarterly_maps_month_to_correct_quarter():
+    assert current_period_key(PeriodType.QUARTERLY, date(2026, 1, 15)) == "2026-Q1"
+    assert current_period_key(PeriodType.QUARTERLY, date(2026, 4, 1)) == "2026-Q2"
+    assert current_period_key(PeriodType.QUARTERLY, date(2026, 9, 5)) == "2026-Q3"
+    assert current_period_key(PeriodType.QUARTERLY, date(2026, 12, 31)) == "2026-Q4"
+
+
+def test_rep_target_id_is_deterministic_for_same_rep_period():
+    id1 = rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09")
+    id2 = rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09")
+    assert id1 == id2
+
+
+def test_rep_target_id_differs_for_different_periods():
+    id1 = rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09")
+    id2 = rep_target_id("rep-1", PeriodType.MONTHLY, "2026-10")
+    id3 = rep_target_id("rep-1", PeriodType.QUARTERLY, "2026-Q3")
+    assert len({id1, id2, id3}) == 3
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -501,4 +525,8 @@ if __name__ == "__main__":
     test_is_aging_opportunity_never_flags_non_detected_status()
     test_parse_aging_sla_days_falls_back_to_default_when_missing_or_invalid()
     test_parse_aging_sla_days_reads_valid_configured_value()
+    test_current_period_key_monthly_format()
+    test_current_period_key_quarterly_maps_month_to_correct_quarter()
+    test_rep_target_id_is_deterministic_for_same_rep_period()
+    test_rep_target_id_differs_for_different_periods()
     print("OK — todos os testes do motor de oportunidades passaram")

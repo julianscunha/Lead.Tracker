@@ -15,11 +15,11 @@ daqui pra quem já importava deste módulo continuar funcionando.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, Portfolio, Product,
+    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, PeriodType, Portfolio, Product,
     RuleError, Service, SourceRef,
 )
 
@@ -142,10 +142,31 @@ def is_aging_opportunity(status: str, first_detected_at: datetime, now: datetime
     return (now - first_detected_at).days > sla_days
 
 
+def current_period_key(period_type: PeriodType, today: date) -> str:
+    """Rótulo do período calendário corrente pra uma meta de rep (Fase D,
+    módulo 7). Trimestre é calendário fixo (jan-mar=Q1, abr-jun=Q2, ...),
+    nunca "trailing 90 dias" — meta comercial é sempre pactuada contra o
+    calendário fiscal/comercial, não contra uma janela móvel."""
+    if period_type == PeriodType.QUARTERLY:
+        return f"{today.year}-Q{(today.month - 1) // 3 + 1}"
+    return f"{today.year}-{today.month:02d}"
+
+
+def rep_target_id(rep_id: str, period_type: PeriodType, period_key: str) -> str:
+    """Id determinístico (mesmo padrão de `_generate_opportunity_id`):
+    cadastrar meta de novo pro mesmo rep+período é upsert, nunca
+    duplicata — sem isso, reenviar o formulário de meta duas vezes criaria
+    2 metas concorrentes pro mesmo rep/período, e a agregação teria que
+    decidir arbitrariamente qual vale."""
+    key = f"rep_target:{rep_id}:{period_type.value}:{period_key}"
+    return str(uuid5(NAMESPACE_URL, key))
+
+
 __all__ = [
     "AGING_SLA_ENV_KEY", "CorrelationRule", "RuleError", "compute_account_health",
-    "compute_qbr_suggested_days", "compute_severity_band", "evaluate_rules", "is_aging_opportunity",
-    "is_zombie_opportunity", "parse_aging_sla_days", "requires_status_change_justification",
+    "compute_qbr_suggested_days", "compute_severity_band", "current_period_key", "evaluate_rules",
+    "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days", "rep_target_id",
+    "requires_status_change_justification",
 ]
 
 

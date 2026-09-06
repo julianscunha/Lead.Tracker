@@ -12,17 +12,17 @@ from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
     Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError, Opportunity,
-    OpportunityStatus, OpportunityStatusChange, Portfolio, SourceRef, StatusChangeRequiresJustificationError,
-    Vendor,
+    OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, RepTarget, SourceRef,
+    StatusChangeRequiresJustificationError, Vendor,
 )
-from core.opportunity_engine import CorrelationRule, evaluate_rules
+from core.opportunity_engine import CorrelationRule, evaluate_rules, rep_target_id
 from core.repository import (
     get_company, get_opportunity, get_portfolio_by_company, list_active_rules, list_companies,
     list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
-    list_opportunity_status_changes, list_rules, list_vendors, recompute_daily_snapshot, save_company,
-    save_company_signal, save_contact, save_opportunity, save_opportunity_status_change, save_portfolio,
-    save_rule, save_vendor, update_company_renewal_date, update_opportunity_qualification,
-    update_opportunity_status,
+    list_opportunity_status_changes, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot,
+    save_company, save_company_signal, save_contact, save_opportunity, save_opportunity_status_change,
+    save_portfolio, save_rep_target, save_rule, save_vendor, update_company_renewal_date,
+    update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -924,6 +924,94 @@ def test_opportunity_risk_flag_round_trips():
     asyncio.run(run())
 
 
+def test_save_rep_target_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            target = RepTarget(
+                id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=50000.0,
+            )
+            async with session_factory() as session:
+                await save_rep_target(session, target)
+                loaded = await list_rep_targets(session, PeriodType.MONTHLY, "2026-09")
+            assert len(loaded) == 1
+            assert loaded[0].rep_id == "rep-1"
+            assert loaded[0].target_amount == 50000.0
+
+    asyncio.run(run())
+
+
+def test_save_rep_target_same_rep_period_is_upsert_never_duplicate():
+    """Id determinístico (rep_target_id) — recadastrar meta pro mesmo
+    rep+período atualiza, nunca cria uma 2ª linha concorrente."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_rep_target(session, RepTarget(
+                    id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                    rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=50000.0,
+                ))
+                await save_rep_target(session, RepTarget(
+                    id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                    rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=75000.0,
+                ))
+                loaded = await list_rep_targets(session, PeriodType.MONTHLY, "2026-09")
+            assert len(loaded) == 1
+            assert loaded[0].target_amount == 75000.0
+
+    asyncio.run(run())
+
+
+def test_save_rep_target_preserves_original_created_at_on_upsert():
+    """Achado da revisão de código: recadastrar a mesma meta (upsert)
+    reconstrói o `RepTarget` com `created_at=_now()` a cada chamada — sem
+    preservar o valor original, a coluna se comportaria como "última
+    modificação" apesar do nome."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            first = RepTarget(
+                id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=50000.0,
+            )
+            async with session_factory() as session:
+                await save_rep_target(session, first)
+
+            second = RepTarget(
+                id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=75000.0,
+            )
+            async with session_factory() as session:
+                await save_rep_target(session, second)
+                loaded = await list_rep_targets(session, PeriodType.MONTHLY, "2026-09")
+            assert loaded[0].created_at == first.created_at
+
+    asyncio.run(run())
+
+
+def test_list_rep_targets_filters_by_period():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_rep_target(session, RepTarget(
+                    id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-09"),
+                    rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-09", target_amount=50000.0,
+                ))
+                await save_rep_target(session, RepTarget(
+                    id=rep_target_id("rep-1", PeriodType.MONTHLY, "2026-10"),
+                    rep_id="rep-1", period_type=PeriodType.MONTHLY, period_key="2026-10", target_amount=60000.0,
+                ))
+                september = await list_rep_targets(session, PeriodType.MONTHLY, "2026-09")
+                october = await list_rep_targets(session, PeriodType.MONTHLY, "2026-10")
+            assert [t.target_amount for t in september] == [50000.0]
+            assert [t.target_amount for t in october] == [60000.0]
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_get_company_returns_none_when_not_found()
@@ -937,6 +1025,10 @@ if __name__ == "__main__":
     test_correlation_rule_round_trip()
     test_list_active_rules_filters_inactive()
     test_opportunity_risk_flag_round_trips()
+    test_save_rep_target_round_trips()
+    test_save_rep_target_same_rep_period_is_upsert_never_duplicate()
+    test_save_rep_target_preserves_original_created_at_on_upsert()
+    test_list_rep_targets_filters_by_period()
     test_opportunity_rich_evidence_fields_round_trip()
     test_company_last_activity_at_round_trip()
     test_update_company_renewal_date_round_trip()

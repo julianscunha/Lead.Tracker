@@ -6,14 +6,15 @@ catálogo (produto/serviço) pro editor de regras.
 """
 from __future__ import annotations
 
+import re
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from typing import Literal
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -24,24 +25,24 @@ from backend.http_errors import raise_http
 from backend.sync import sync_all_enabled_sources
 from core.config import load_env
 from core.dashboard_metrics import (
-    compute_kpis, compute_weighted_potential, count_aging_opportunities, count_zombie_opportunities,
-    customer_vs_prospect, distribution_by_vendor, exclude_zombies, financial_potential_by_vendor,
-    funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment,
-    potential_by_source,
+    compute_kpis, compute_rep_coverage, compute_weighted_potential, count_aging_opportunities,
+    count_zombie_opportunities, customer_vs_prospect, distribution_by_vendor, exclude_zombies,
+    financial_potential_by_vendor, funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep,
+    potential_by_segment, potential_by_source,
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
     Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, Opportunity, OpportunityStatus,
-    Product, RuleError, Service, StatusChangeRequiresJustificationError,
+    PeriodType, Product, RepTarget, RuleError, Service, StatusChangeRequiresJustificationError,
 )
 from core.opportunity_engine import (
-    compute_account_health, compute_qbr_suggested_days, compute_severity_band, is_aging_opportunity,
-    parse_aging_sla_days,
+    compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
+    is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
     list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_products,
-    list_rules, list_services, list_vendors, save_rule, update_company_renewal_date,
-    update_opportunity_qualification, update_opportunity_status,
+    list_rep_targets, list_rules, list_services, list_vendors, save_rep_target, save_rule,
+    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 
 router = APIRouter(tags=["lead_tracker-data"])
@@ -104,6 +105,41 @@ class OpportunityStatusIn(BaseModel):
     new_status: Literal["detected", "qualified", "reviewed", "contacted", "opportunity", "dismissed"]
     note: str | None = None
     dismissal_reason: Literal["no_evidence", "not_fit", "not_qualified", "false_positive", "other"] | None = None
+
+
+_PERIOD_KEY_PATTERN = {"monthly": re.compile(r"^\d{4}-\d{2}$"), "quarterly": re.compile(r"^\d{4}-Q[1-4]$")}
+
+
+class RepTargetIn(BaseModel):
+    rep_id: str = Field(min_length=1)
+    period_type: Literal["monthly", "quarterly"]
+    period_key: str
+    target_amount: float = Field(ge=0)
+
+    @field_validator("period_key")
+    @classmethod
+    def _period_key_matches_period_type(cls, value: str, info) -> str:
+        # Achado da revisão de código: period_key é texto livre do cliente
+        # (GET /dashboard-metrics sempre calcula "hoje" via
+        # current_period_key, mas o cadastro manual não passava por essa
+        # função) — um typo aqui nunca junta com nenhum período real,
+        # degradando pra "sem meta definida" sem nenhum aviso pro usuário,
+        # exatamente o sintoma que o roadmap pediu pra nunca acontecer
+        # silenciosamente. Validado contra o mesmo formato que
+        # `current_period_key` produz, nunca aceito solto.
+        period_type = info.data.get("period_type")
+        pattern = _PERIOD_KEY_PATTERN.get(period_type)
+        if pattern and not pattern.match(value):
+            expected = "AAAA-MM" if period_type == "monthly" else "AAAA-Q1..4"
+            raise ValueError(f"period_key precisa seguir o formato {expected} (ex.: 2026-09 / 2026-Q3)")
+        return value
+
+
+class RepTargetOut(BaseModel):
+    rep_id: str
+    period_type: str
+    period_key: str
+    target_amount: float
 
 
 class RuleIn(BaseModel):
@@ -304,12 +340,42 @@ async def create_rule(body: RuleIn) -> CorrelationRule:
     return rule
 
 
+@router.post("/rep-targets")
+async def create_rep_target(body: RepTargetIn) -> RepTargetOut:
+    period_type = PeriodType(body.period_type)
+    target = RepTarget(
+        id=rep_target_id(body.rep_id, period_type, body.period_key), rep_id=body.rep_id,
+        period_type=period_type, period_key=body.period_key, target_amount=body.target_amount,
+    )
+    async with session_factory() as session:
+        await save_rep_target(session, target)
+    return RepTargetOut(
+        rep_id=target.rep_id, period_type=target.period_type.value,
+        period_key=target.period_key, target_amount=target.target_amount,
+    )
+
+
+@router.get("/rep-targets")
+async def get_rep_targets(period_type: Literal["monthly", "quarterly"] = "monthly", period_key: str | None = None) -> list[RepTargetOut]:
+    resolved_period_type = PeriodType(period_type)
+    resolved_period_key = period_key or current_period_key(resolved_period_type, date.today())
+    async with session_factory() as session:
+        targets = await list_rep_targets(session, resolved_period_type, resolved_period_key)
+    return [
+        RepTargetOut(rep_id=t.rep_id, period_type=t.period_type.value, period_key=t.period_key, target_amount=t.target_amount)
+        for t in targets
+    ]
+
+
 @router.get("/dashboard-metrics")
-async def get_dashboard_metrics() -> dict:
+async def get_dashboard_metrics(period_type: Literal["monthly", "quarterly"] = "monthly") -> dict:
     aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
+    resolved_period_type = PeriodType(period_type)
+    resolved_period_key = current_period_key(resolved_period_type, date.today())
     async with session_factory() as session:
         companies = await list_companies(session)
         opportunities = await list_opportunities(session)
+        rep_targets = await list_rep_targets(session, resolved_period_type, resolved_period_key)
         vendors = await list_vendors(session)
         services = await list_services(session)
         snapshot = await list_latest_snapshot(session)
@@ -357,4 +423,10 @@ async def get_dashboard_metrics() -> dict:
         "zombie_count": count_zombie_opportunities(snapshot),
         "aging_count": count_aging_opportunities(snapshot, aging_sla_days, datetime.now(timezone.utc)),
         "aging_sla_days": aging_sla_days,
+        "rep_coverage": [
+            {"rep_id": c.rep_id, "actual": c.actual, "target": c.target, "coverage_ratio": c.coverage_ratio}
+            for c in compute_rep_coverage(potential_by_rep(healthy_snapshot), {t.rep_id: t.target_amount for t in rep_targets})
+        ],
+        "coverage_period_type": resolved_period_type.value,
+        "coverage_period_key": resolved_period_key,
     }

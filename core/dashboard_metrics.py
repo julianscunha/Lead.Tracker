@@ -188,6 +188,36 @@ def count_aging_opportunities(snapshot: list[OpportunitySnapshot], sla_days: int
     return sum(1 for s in snapshot if is_aging_opportunity(s.stage.value, s.first_detected_at, now, sla_days))
 
 
+@dataclass
+class RepCoverage:
+    rep_id: str
+    actual: float
+    target: float | None
+    coverage_ratio: float | None  # None = "sem meta definida" (rep sem cadastro pro período), nunca 0%/erro
+
+
+def compute_rep_coverage(
+    potential_by_rep_rows: list[tuple[str, float]], targets: dict[str, float],
+) -> list[RepCoverage]:
+    """Roadmap: "sem meta configurada, 'potencial financeiro total' é
+    número sem contexto" — cobertura = pipeline atual (mesmo corte de
+    `potential_by_rep`, já exclui zumbi) dividido pela meta manual do
+    período. Rep sem meta cadastrada NUNCA vira meta=0 (isso inflaria um
+    "déficit" fictício) — `coverage_ratio=None`, UI mostra "sem meta
+    definida". União dos reps de `potential_by_rep_rows` e `targets`: um
+    rep com meta cadastrada mas pipeline zerado no período também aparece
+    (0% de cobertura é dado real, bem diferente de "sem meta")."""
+    actuals = dict(potential_by_rep_rows)
+    rep_ids = sorted(set(actuals) | set(targets))
+    result = []
+    for rep_id in rep_ids:
+        actual = actuals.get(rep_id, 0.0)
+        target = targets.get(rep_id)
+        ratio = (actual / target) if target else None
+        result.append(RepCoverage(rep_id=rep_id, actual=actual, target=target, coverage_ratio=ratio))
+    return result
+
+
 # Sequência de progresso — "dismissed" fica fora (é saída do funil, não um
 # estágio a mais). Nomeação em inglês (chaves internas) — rótulo em
 # português vem do frontend, mesmo padrão de FUNNEL_STAGES.

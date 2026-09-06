@@ -373,3 +373,28 @@ export async function createRule(rule: NewRule): Promise<CorrelationRule> {
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }
+
+export type PeriodType = 'monthly' | 'quarterly'
+
+export interface RepTarget {
+  rep_id: string
+  period_type: PeriodType
+  period_key: string
+  target_amount: number
+}
+
+export async function listRepTargets(periodType: PeriodType, periodKey: string): Promise<RepTarget[]> {
+  const resp = await fetch(`${BASE}/rep-targets?period_type=${periodType}&period_key=${encodeURIComponent(periodKey)}`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function createRepTarget(target: RepTarget): Promise<RepTarget> {
+  const resp = await fetch(`${BASE}/rep-targets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(target),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
