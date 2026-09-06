@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Cards de resultado da prospecção geográfica** (Fase E, módulo 7
+  `geo-results-view`): `POST /geo-discovery/run` agora devolve as 3
+  listas completas (`promoted`/`deferred`/`rejected`), não só
+  contagens — cada item traz categoria (bate/não bate com o critério),
+  avaliação/reviews, endereço e score, ordenados por compatibilidade
+  decrescente. Wizard troca a tabela simples por cards visuais com
+  barra de compatibilidade; resultados fora do critério ficam atrás de
+  um toggle "Ver todos os resultados", ocultos por padrão. Decisão
+  explícita do agente Sales Engineer contra mapa embutido nesta fatia.
+  Nenhuma lógica de scoring/promoção/cota alterada. Revisão de código
+  aprovada sem achados Críticos/Importantes. Ver
+  `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Wizard de prospecção geográfica** (Fase E, módulo 6 `icp-wizard-ui`
   — fecha a esteira geográfica ponta a ponta): novo assistente de 4
   passos (rep+produto → endereço+raio → revisar sugestão → confirmar e

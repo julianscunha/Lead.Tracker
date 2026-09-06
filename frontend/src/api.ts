@@ -420,10 +420,37 @@ export interface GeoDiscoveryRequest {
   companySizeHint: string | null
 }
 
+export interface GeoDiscoveryItem {
+  placeId: string
+  name: string
+  category: string | null
+  categoryMatches: boolean
+  rating: number | null
+  reviewCount: number
+  formattedAddress: string | null
+  score: number | null
+  companyId: string | null
+  opportunityId: string | null
+}
+
 export interface GeoDiscoveryResult {
-  promoted: { companyId: string; companyName: string; opportunityId: string; score: number }[]
-  deferredCount: number
-  rejectedCount: number
+  promoted: GeoDiscoveryItem[]
+  deferred: GeoDiscoveryItem[]
+  rejected: GeoDiscoveryItem[]
+}
+
+interface GeoDiscoveryItemApi {
+  place_id: string; name: string; category: string | null; category_matches: boolean
+  rating: number | null; review_count: number; formatted_address: string | null; score: number | null
+  company_id: string | null; opportunity_id: string | null
+}
+
+function geoDiscoveryItemFromApi(d: GeoDiscoveryItemApi): GeoDiscoveryItem {
+  return {
+    placeId: d.place_id, name: d.name, category: d.category, categoryMatches: d.category_matches,
+    rating: d.rating, reviewCount: d.review_count, formattedAddress: d.formatted_address, score: d.score,
+    companyId: d.company_id, opportunityId: d.opportunity_id,
+  }
 }
 
 export async function runGeoDiscovery(request: GeoDiscoveryRequest): Promise<GeoDiscoveryResult> {
@@ -439,10 +466,9 @@ export async function runGeoDiscovery(request: GeoDiscoveryRequest): Promise<Geo
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const d = await resp.json()
   return {
-    promoted: d.promoted.map((p: { company_id: string; company_name: string; opportunity_id: string; score: number }) => ({
-      companyId: p.company_id, companyName: p.company_name, opportunityId: p.opportunity_id, score: p.score,
-    })),
-    deferredCount: d.deferred_count, rejectedCount: d.rejected_count,
+    promoted: d.promoted.map(geoDiscoveryItemFromApi),
+    deferred: d.deferred.map(geoDiscoveryItemFromApi),
+    rejected: d.rejected.map(geoDiscoveryItemFromApi),
   }
 }
 

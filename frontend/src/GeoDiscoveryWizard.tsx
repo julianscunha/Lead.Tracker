@@ -1,8 +1,49 @@
 import { useEffect, useState } from 'react'
 import {
   getIcpProfile, getIcpSuggestion, listProducts, runGeoDiscovery, updateIcpProfile,
-  type GeoDiscoveryResult, type ICPSuggestion, type Product,
+  type GeoDiscoveryItem, type GeoDiscoveryResult, type ICPSuggestion, type Product,
 } from './api'
+
+// Fase E, módulo 7 (`geo-results-view`) — cards visuais, nunca tabela
+// crua nem mapa embutido (decisão do Sales Engineer: mapa exigiria
+// capturar lat/lng — mudança de schema — e mais uma integração/
+// superfície de erro, sem ganho real de decisão sobre uma lista bem
+// desenhada). Campos escolhidos pelo Sales Engineer pra decisão rápida
+// de quem contatar primeiro: nome, badge de status, % de
+// compatibilidade visual, categoria batida/não batida, endereço,
+// rating+reviews. Ordenação por score já vem pronta do backend.
+type DiscoveryGroup = 'promoted' | 'deferred' | 'rejected'
+
+const GROUP_BADGE_LABEL: Record<DiscoveryGroup, string> = {
+  promoted: 'Pronto para contato', deferred: 'Fila para amanhã', rejected: 'Fora do critério',
+}
+
+function DiscoveryCard({ item, group }: { item: GeoDiscoveryItem; group: DiscoveryGroup }) {
+  return (
+    <div className="lt-source-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <strong>{item.name}</strong>
+        <span className={`lt-badge lt-badge--discovery-${group}`}>{GROUP_BADGE_LABEL[group]}</span>
+      </div>
+      {item.score !== null && (
+        <div style={{ margin: '8px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--text-muted))' }}>
+            <span>Compatibilidade</span>
+            <span>{Math.round(item.score * 100)}%</span>
+          </div>
+          <div style={{ height: 6, background: 'hsl(var(--bg-subtle))', borderRadius: 3 }}>
+            <div style={{ height: 6, borderRadius: 3, background: 'hsl(var(--accent))', width: `${item.score * 100}%` }} />
+          </div>
+        </div>
+      )}
+      <p className="lt-hint">
+        {item.category ?? 'Categoria desconhecida'} {item.categoryMatches ? '✓ bate com o critério' : '— fora do critério buscado'}
+      </p>
+      {item.formattedAddress && <p className="lt-hint">{item.formattedAddress}</p>}
+      {item.rating !== null && <p className="lt-hint">★ {item.rating.toFixed(1)} ({item.reviewCount} avaliações)</p>}
+    </div>
+  )
+}
 
 // Fluxo de 4 passos desenhado com o agente Sales Engineer (consulta registrada
 // em docs/specs/fase-e-prospeccao-geografica.md, módulo 6) — nunca uma tela de
@@ -27,6 +68,7 @@ export function GeoDiscoveryWizard() {
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [result, setResult] = useState<GeoDiscoveryResult | null>(null)
+  const [showRejected, setShowRejected] = useState(false)
 
   useEffect(() => {
     Promise.all([listProducts(), getIcpProfile()])
@@ -80,6 +122,7 @@ export function GeoDiscoveryWizard() {
   const handleRestart = () => {
     setResult(null)
     setRunError(null)
+    setShowRejected(false)
     setStep(1)
   }
 
@@ -97,9 +140,9 @@ export function GeoDiscoveryWizard() {
             <div className="lt-stat-tile__label">Prontos para contato</div>
             <div className="lt-stat-tile__hint">Passaram no critério e já estão na sua lista de oportunidades.</div>
           </div>
-          {result.deferredCount > 0 && (
+          {result.deferred.length > 0 && (
             <div className="lt-stat-tile">
-              <div className="lt-stat-tile__value">{result.deferredCount}</div>
+              <div className="lt-stat-tile__value">{result.deferred.length}</div>
               <div className="lt-stat-tile__label">Na fila para amanhã</div>
               <div className="lt-stat-tile__hint">
                 Encontramos mais oportunidades boas do que a cota diária de hoje. Elas entram automaticamente na
@@ -107,26 +150,32 @@ export function GeoDiscoveryWizard() {
               </div>
             </div>
           )}
-          {result.rejectedCount > 0 && (
-            <div className="lt-stat-tile">
-              <div className="lt-stat-tile__value">{result.rejectedCount}</div>
-              <div className="lt-stat-tile__label">Fora do critério</div>
-            </div>
-          )}
         </div>
+
         {result.promoted.length > 0 && (
-          <table className="lt-table">
-            <thead><tr><th>Empresa</th><th>Compatibilidade</th></tr></thead>
-            <tbody>
-              {result.promoted.map(p => (
-                <tr key={p.opportunityId}>
-                  <td>{p.companyName}</td>
-                  <td>{Math.round(p.score * 100)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="lt-source-grid">
+            {result.promoted.map(item => <DiscoveryCard key={item.placeId} item={item} group="promoted" />)}
+          </div>
         )}
+        {result.deferred.length > 0 && (
+          <div className="lt-source-grid">
+            {result.deferred.map(item => <DiscoveryCard key={item.placeId} item={item} group="deferred" />)}
+          </div>
+        )}
+
+        {result.rejected.length > 0 && (
+          <div className="lt-detail-actions">
+            <button type="button" className="lt-btn" onClick={() => setShowRejected(v => !v)}>
+              {showRejected ? 'Ocultar' : 'Ver'} todos os resultados da busca ({result.rejected.length} fora do critério)
+            </button>
+          </div>
+        )}
+        {showRejected && result.rejected.length > 0 && (
+          <div className="lt-source-grid">
+            {result.rejected.map(item => <DiscoveryCard key={item.placeId} item={item} group="rejected" />)}
+          </div>
+        )}
+
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={handleRestart}>Nova busca</button>
         </div>

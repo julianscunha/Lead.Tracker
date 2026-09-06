@@ -38,7 +38,7 @@ from core.models import (
 )
 from core.geo_discovery import build_discovery_records
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
-from core.geo_scoring import score_place_signal
+from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
@@ -51,7 +51,7 @@ from core.repository import (
     update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 from providers.base import ProviderError
-from providers.google_maps import GoogleMapsProvider
+from providers.google_maps import GoogleMapsProvider, PlaceSignal
 
 router = APIRouter(tags=["lead_tracker-data"])
 
@@ -464,17 +464,31 @@ class GeoDiscoveryRequest(BaseModel):
     company_size_hint: str | None = None
 
 
-class PromotedDiscoveryOut(BaseModel):
-    company_id: str
-    company_name: str
-    opportunity_id: str
-    score: float
+class GeoDiscoveryItemOut(BaseModel):
+    """Fase E, módulo 7 (`geo-results-view`) — card de resultado, campos
+    escolhidos em consulta ao agente Sales Engineer pra um vendedor
+    decidir rapidamente quem contatar primeiro sem pedir ajuda técnica:
+    nome, categoria (e se bateu com o critério), avaliação/reviews
+    (proxy de porte), endereço, score visual. Decisão explícita do
+    Sales Engineer: LISTA visual, nunca mapa embutido nesta fatia (exigiria
+    capturar lat/lng — mudança de schema — e mais uma integração/superfície
+    de erro, sem ganho real de decisão sobre uma lista bem desenhada)."""
+    place_id: str
+    name: str
+    category: str | None
+    category_matches: bool
+    rating: float | None
+    review_count: int
+    formatted_address: str | None
+    score: float | None
+    company_id: str | None = None
+    opportunity_id: str | None = None
 
 
 class GeoDiscoveryResultOut(BaseModel):
-    promoted: list[PromotedDiscoveryOut]
-    deferred_count: int
-    rejected_count: int
+    promoted: list[GeoDiscoveryItemOut]
+    deferred: list[GeoDiscoveryItemOut]
+    rejected: list[GeoDiscoveryItemOut]
 
 
 @router.post("/geo-discovery/run")
@@ -483,9 +497,9 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
     `discover()` (módulo 2) → `score_place_signal` (módulo 4) →
     `select_promotions` (módulo 5) → persiste só quem foi promovido.
     Nunca bloqueia por cota esgotada (achado do módulo 5) — sempre roda
-    a busca inteira, classifica tudo, e devolve as 3 contagens pro
-    wizard mostrar em linguagem comercial ("prontos para contato" /
-    "na fila para amanhã" / "fora do critério").
+    a busca inteira, classifica tudo, e devolve as 3 listas completas
+    (módulo 7) pro wizard mostrar em linguagem comercial ("prontos para
+    contato" / "na fila para amanhã" / "fora do critério").
 
     ponytail: contagem e escrita da cota diária não são atômicas — duas
     requisições concorrentes pro MESMO rep podem cada uma ler "0
@@ -520,7 +534,17 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
         decision = select_promotions(scored, min_score, daily_cap, already_promoted_today)
 
         score_by_place_id = {signal.place_id: score for signal, score in scored if score is not None}
-        promoted_out: list[PromotedDiscoveryOut] = []
+
+        def _item(signal: PlaceSignal, company_id: str | None = None, opportunity_id: str | None = None) -> GeoDiscoveryItemOut:
+            return GeoDiscoveryItemOut(
+                place_id=signal.place_id, name=signal.name, category=signal.category,
+                category_matches=category_matches(signal.category, body.place_category),
+                rating=signal.rating, review_count=signal.review_count,
+                formatted_address=signal.formatted_address, score=score_by_place_id.get(signal.place_id),
+                company_id=company_id, opportunity_id=opportunity_id,
+            )
+
+        promoted_out: list[GeoDiscoveryItemOut] = []
         for signal in decision.promoted:
             score = score_by_place_id[signal.place_id]
             company, opportunity = build_discovery_records(
@@ -528,13 +552,22 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             )
             await save_company(session, company)
             await save_opportunity(session, opportunity)
-            promoted_out.append(PromotedDiscoveryOut(
-                company_id=company.id, company_name=company.name, opportunity_id=opportunity.id, score=score,
-            ))
+            promoted_out.append(_item(signal, company_id=company.id, opportunity_id=opportunity.id))
 
-    return GeoDiscoveryResultOut(
-        promoted=promoted_out, deferred_count=len(decision.deferred), rejected_count=len(decision.rejected),
-    )
+        deferred_out = [_item(signal) for signal in decision.deferred]
+        rejected_out = [_item(signal) for signal in decision.rejected]
+
+    # Ordenação padrão por score desc dentro de cada grupo (Sales Engineer) —
+    # score None (descarte por business_status) sempre por último, nunca
+    # confundido com score 0.0 real.
+    def _sort_key(item: GeoDiscoveryItemOut) -> float:
+        return item.score if item.score is not None else -1.0
+
+    promoted_out.sort(key=_sort_key, reverse=True)
+    deferred_out.sort(key=_sort_key, reverse=True)
+    rejected_out.sort(key=_sort_key, reverse=True)
+
+    return GeoDiscoveryResultOut(promoted=promoted_out, deferred=deferred_out, rejected=rejected_out)
 
 
 @router.get("/dashboard-metrics")

@@ -726,8 +726,12 @@ def test_run_geo_discovery_promotes_signals_above_threshold():
         body = resp.json()
         assert len(body["promoted"]) == 1
         assert body["promoted"][0]["score"] == 1.0
-        assert body["deferred_count"] == 0
-        assert body["rejected_count"] == 0
+        assert body["promoted"][0]["category_matches"] is True
+        assert body["promoted"][0]["rating"] == 5.0
+        assert body["promoted"][0]["company_id"] is not None
+        assert body["promoted"][0]["opportunity_id"] is not None
+        assert body["deferred"] == []
+        assert body["rejected"] == []
 
         opps = client.get("/modules/lead_tracker/opportunities").json()
         assert len(opps) == 1
@@ -744,7 +748,9 @@ def test_run_geo_discovery_rejects_signal_below_threshold_never_persists_it():
         assert resp.status_code == 200
         body = resp.json()
         assert body["promoted"] == []
-        assert body["rejected_count"] == 1
+        assert len(body["rejected"]) == 1
+        assert body["rejected"][0]["category_matches"] is False
+        assert body["rejected"][0]["company_id"] is None
 
         opps = client.get("/modules/lead_tracker/opportunities").json()
         assert opps == []
@@ -768,8 +774,26 @@ def test_run_geo_discovery_defers_excess_over_daily_cap_never_blocks_search():
         assert resp.status_code == 200
         body = resp.json()
         assert body["promoted"] == []
-        assert body["deferred_count"] == 1
-        assert body["rejected_count"] == 0
+        assert len(body["deferred"]) == 1
+        assert body["deferred"][0]["score"] == 1.0
+        assert body["rejected"] == []
+
+
+def test_run_geo_discovery_sorts_each_group_by_score_descending():
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.signals = [
+            _place_signal("low", rating=None, review_count=0),  # 0.7 (bate categoria, sem bônus)
+            _place_signal("high", rating=5.0, review_count=50),  # 1.0
+            _place_signal("mid", rating=3.0, review_count=10),  # 0.7 + bônus parcial
+        ]
+        resp = client.post("/modules/lead_tracker/geo-discovery/run", json={
+            "rep_id": "rep-1", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 5.0,
+            "place_category": "car_dealer",
+        })
+        assert resp.status_code == 200
+        scores = [item["score"] for item in resp.json()["promoted"]]
+        assert scores == sorted(scores, reverse=True)
+        assert resp.json()["promoted"][0]["place_id"] == "high"
 
 
 def test_run_geo_discovery_provider_error_returns_friendly_status_never_500():
@@ -831,6 +855,7 @@ if __name__ == "__main__":
     test_run_geo_discovery_promotes_signals_above_threshold()
     test_run_geo_discovery_rejects_signal_below_threshold_never_persists_it()
     test_run_geo_discovery_defers_excess_over_daily_cap_never_blocks_search()
+    test_run_geo_discovery_sorts_each_group_by_score_descending()
     test_run_geo_discovery_provider_error_returns_friendly_status_never_500()
     test_run_geo_discovery_rejects_missing_rep_id_and_non_positive_radius()
     print("OK — todos os testes HTTP de dado real passaram")

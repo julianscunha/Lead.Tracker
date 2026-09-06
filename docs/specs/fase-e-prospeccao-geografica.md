@@ -442,3 +442,73 @@ sistema), `rejected` → "Fora do critério" (só some se zero).
 - [x] Nenhum termo técnico vaza pra UI.
 - [x] Suíte completa (24 arquivos) e revisão de código sem pendências
       após os 2 achados corrigidos.
+
+## Módulo 7 — `geo-results-view`
+
+Consulta ao agente Sales Engineer sobre a forma de apresentar o
+resultado: **decisão explícita contra um mapa embutido** — exigiria
+capturar lat/lng (mudança de schema) e mais uma superfície de
+integração/erro, sem ganho real de decisão sobre uma lista de cards
+bem desenhada. Escolha: cards visuais, nunca tabela crua nem mapa.
+
+Este módulo muda **só a forma da resposta e a tela de resultado** do
+`POST /geo-discovery/run` (módulo 6) — nenhuma lógica de scoring,
+promoção ou cota foi tocada.
+
+**Backend** — `GeoDiscoveryResultOut` passou de 3 contagens
+(`promoted_count`/`deferred_count`/`rejected_count`) pra 3 listas
+completas de `GeoDiscoveryItemOut`: `place_id`, `name`, `category`,
+`category_matches`, `rating`, `review_count`, `formatted_address`,
+`score`, `company_id`/`opportunity_id` (só preenchidos pra
+`promoted`). Cada lista vem ordenada por score decrescente — score
+`None` (descarte por `business_status` fechado, módulo 4) sempre por
+último, com sentinela `-1.0` na chave de ordenação, nunca confundido
+com um score 0.0 real (`score_place_signal` nunca produz 0.0 — piso
+comprovado por teste é 0.2).
+
+**Frontend** — `DiscoveryCard` (nome, badge de status colorido, barra
+visual de compatibilidade, indicador de categoria batida/não batida,
+endereço, rating+reviews) substitui a tabela simples. Campos do card
+escolhidos pelo Sales Engineer pra um vendedor decidir rapidamente
+quem contatar primeiro sem ajuda técnica. `promoted`/`deferred`
+aparecem sempre; `rejected` fica atrás de um toggle "Ver/Ocultar todos
+os resultados" (oculto por padrão, pra não afogar o vendedor com
+resultados fora do critério).
+
+**Revisão de código**: aprovada sem achados Críticos/Importantes.
+Sugestões de forma aplicadas: docstring da rota desatualizada
+(ainda falava em "3 contagens") corrigida pra refletir as listas;
+`<h3>` redundante removido do resultado "Na fila para amanhã" (o
+stat-tile acima já rotula). Duplicação leve de `category_matches`
+(calculado uma vez dentro de `score_place_signal` e de novo pro
+card) aceita como está — comparação de string é barata, não vale
+extrair.
+
+### Não objetivo deste módulo
+
+- Mapa embutido — decisão explícita do Sales Engineer, não uma
+  omissão.
+- Teste de empate exato de score entre dois itens ou dos 3 grupos
+  vazios simultaneamente — `list.sort` do Python é estável e o
+  caminho de lista vazia é trivial; sugerido pela revisão mas não
+  crítico o suficiente pra justificar o teste.
+
+### Teste
+
+- `tests/test_routes_sync.py` (`/geo-discovery/run`): promove acima
+  do threshold com card completo (`score`, `category_matches`,
+  `rating`, `company_id`/`opportunity_id`); rejeita sem persistir e
+  sem `company_id`; adia excedente da cota; ordena cada grupo por
+  score decrescente (novo teste,
+  `test_run_geo_discovery_sorts_each_group_by_score_descending`);
+  erro do provider e validação de entrada continuam cobertos.
+- Frontend: `tsc --noEmit` e `vite build` limpos; suíte de componente
+  (`npm run test`, 29 testes) passa.
+
+### Critério de sucesso
+
+- [x] Resposta traz dado suficiente pra decisão comercial sem exigir
+      mapa.
+- [x] Ordenação nunca confunde score `None` com score 0.0 real.
+- [x] Nenhuma lógica de scoring/promoção/cota alterada.
+- [x] Revisão de código sem achados Críticos/Importantes.
