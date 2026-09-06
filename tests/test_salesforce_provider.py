@@ -363,6 +363,55 @@ def test_fetch_companies_without_last_activity_date_leaves_it_none():
     asyncio.run(run())
 
 
+def test_fetch_companies_maps_account_standard_fields():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        assert "Industry" in unquote(str(request.url))
+        assert "BillingCity" in unquote(str(request.url))
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{
+                "Id": _VALID_ACCOUNT_ID, "Name": "Acme", "Website": None, "LastActivityDate": None,
+                "Industry": "Varejo", "AnnualRevenue": 2500000.0, "NumberOfEmployees": 80,
+                "BillingCity": "Curitiba", "BillingState": "PR", "BillingPostalCode": "80010-000", "BillingCountry": "Brasil",
+            }],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        companies = await provider.fetch_companies()
+        company = companies[0]
+        assert company.industry == "Varejo"
+        assert company.annual_revenue == 2500000.0
+        assert company.employee_count == 80
+        assert company.address.city == "Curitiba"
+        assert company.address.country == "Brasil"
+
+    asyncio.run(run())
+
+
+def test_fetch_companies_without_any_billing_field_leaves_address_none():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{
+                "Id": _VALID_ACCOUNT_ID, "Name": "Acme", "Website": None, "LastActivityDate": None,
+                "Industry": None, "AnnualRevenue": None, "NumberOfEmployees": None,
+                "BillingCity": None, "BillingState": None, "BillingPostalCode": None, "BillingCountry": None,
+            }],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        companies = await provider.fetch_companies()
+        assert companies[0].address is None
+
+    asyncio.run(run())
+
+
 def test_fetch_contacts_infers_seniority_tier_from_title():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/services/oauth2/token":
@@ -434,6 +483,8 @@ if __name__ == "__main__":
     test_pagination_follows_next_records_url()
     test_fetch_companies_maps_last_activity_date()
     test_fetch_companies_without_last_activity_date_leaves_it_none()
+    test_fetch_companies_maps_account_standard_fields()
+    test_fetch_companies_without_any_billing_field_leaves_address_none()
     test_fetch_contacts_infers_seniority_tier_from_title()
     test_infer_seniority_tier_covers_each_category_and_defaults_to_none()
     test_connection_ok_when_authentication_succeeds()

@@ -64,6 +64,18 @@ def merge_pair(base: Company, other: Company) -> Company:
         # nunca congelar no primeiro sync (senão o sinal de "momentum" nunca
         # se move).
         "last_activity_at": other.last_activity_at or base.last_activity_at,
+        # Fase A — atributos de perfil (Salesforce Architect consultado):
+        # ao contrário de last_activity_at (sinal de momentum, sempre pega
+        # o mais recente), estes não mudam com frequência — primeiro valor
+        # não-nulo vence, mesmo padrão de legal_name/website.
+        "industry": base.industry or other.industry,
+        # achado da revisão de código: `or` é errado pra numérico — 0 é
+        # falsy em Python, então annual_revenue=0.0 (empresa pré-receita)
+        # ou employee_count=0 em base seria sobrescrito por other mesmo
+        # sendo um valor real e intencional, não "ausência de dado".
+        "annual_revenue": base.annual_revenue if base.annual_revenue is not None else other.annual_revenue,
+        "employee_count": base.employee_count if base.employee_count is not None else other.employee_count,
+        "address": base.address or other.address,
     })
 
 

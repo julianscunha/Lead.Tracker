@@ -40,6 +40,19 @@ class ContextNote(BaseModel):
     observed_at: datetime = Field(default_factory=_now)
 
 
+class Address(BaseModel):
+    """Endereço de uma empresa — bloco coeso (padrão comum de account
+    profile B2B), nunca 4 campos soltos em Company. Sem `street` por
+    decisão consciente (spec de custom fields do Salesforce): custo de
+    PII sem ganho de precisão de geocoding. Todos os campos opcionais —
+    `None` inteiro quando a fonte não trouxe endereço nenhum, nunca um
+    objeto com os 4 campos `None`."""
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+
+
 class Company(BaseModel):
     id: str = Field(default_factory=_new_id)
     name: str
@@ -66,6 +79,15 @@ class Company(BaseModel):
     # update=, então um /sync nunca o zera — mesmo padrão de proteção que
     # scope_note/criticality/severity_note têm em Opportunity.
     renewal_date: datetime | None = None
+    # Fase A — campos padrão adicionais de Account (Salesforce Architect
+    # consultado, decisão registrada em docs/specs/salesforce-account-standard-fields.md):
+    # industry é vertical de mercado, distinto de segment (categorização
+    # comercial própria). Nenhum dos 4 alimenta o motor de regras ainda —
+    # dado estrutural novo, decisão de usá-los em regra é escopo futuro.
+    industry: str | None = None
+    annual_revenue: float | None = None
+    employee_count: int | None = None
+    address: Address | None = None
 
 
 class Contact(BaseModel):

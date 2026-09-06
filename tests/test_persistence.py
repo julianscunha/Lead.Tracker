@@ -11,7 +11,7 @@ from core.db import create_engine, init_db, make_session_factory
 from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
-    Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError, Opportunity,
+    Address, Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError, Opportunity,
     OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, RepTarget, SourceRef,
     StatusChangeRequiresJustificationError, Vendor,
 )
@@ -49,6 +49,47 @@ def test_company_round_trip_preserves_sources_and_timestamps():
             assert loaded.is_customer is True
             assert loaded.sources[0].type == "salesforce"
             assert loaded.created_at == company.created_at
+
+    asyncio.run(run())
+
+
+def test_company_round_trip_preserves_account_standard_fields():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(
+                name="Aurora Sistemas", industry="Varejo", annual_revenue=2_500_000.0, employee_count=80,
+                address=Address(city="Curitiba", state="PR", postal_code="80010-000", country="Brasil"),
+            )
+
+            async with session_factory() as session:
+                await save_company(session, company)
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+
+            assert loaded.industry == "Varejo"
+            assert loaded.annual_revenue == 2_500_000.0
+            assert loaded.employee_count == 80
+            assert loaded.address == Address(city="Curitiba", state="PR", postal_code="80010-000", country="Brasil")
+
+    asyncio.run(run())
+
+
+def test_company_round_trip_account_standard_fields_default_to_none():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+            async with session_factory() as session:
+                loaded = await get_company(session, company.id)
+
+            assert loaded.industry is None
+            assert loaded.annual_revenue is None
+            assert loaded.employee_count is None
+            assert loaded.address is None
 
     asyncio.run(run())
 
@@ -1014,6 +1055,8 @@ def test_list_rep_targets_filters_by_period():
 
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
+    test_company_round_trip_preserves_account_standard_fields()
+    test_company_round_trip_account_standard_fields_default_to_none()
     test_get_company_returns_none_when_not_found()
     test_save_company_twice_upserts_not_duplicates()
     test_portfolio_round_trip_by_company_id()

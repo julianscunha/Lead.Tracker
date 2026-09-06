@@ -117,18 +117,18 @@ virar item formal — corrigindo aqui.
   nunca aparece em log/erro/export" aplicada aqui).
 
 ### Fase A — Ingestão ampliada do Salesforce
-**Status:** em andamento — campos personalizados entregues (spec:
-`docs/specs/salesforce-custom-fields-context.md`); campos padrão
-adicionais de `Account` (bullet abaixo) ainda pendente, sem spec própria
-ainda.
+**Status:** concluída (specs: `docs/specs/salesforce-custom-fields-context.md`,
+`docs/specs/salesforce-account-standard-fields.md`).
 **Depende da Fase 0** pra ter como configurar credenciais sem editar `.env`
 na mão — mas o provider em si já foi implementado e testado antes dessa
 lacuna ser percebida; a spec/código de ingestão não muda, só a forma como o
 usuário final liga isso.
 
-- Campos padrão adicionais de `Account`: endereço (`BillingCity/State/PostalCode/Country`
+- [x] Campos padrão adicionais de `Account`: endereço (`BillingCity/State/PostalCode/Country`
   — sem `BillingStreet` por ora, custo de PII sem ganho de precisão de geocoding),
-  `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `Type`, `LastActivityDate`, `CreatedDate`.
+  `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `LastActivityDate`. `Type`/`CreatedDate`
+  conscientemente fora de escopo (redundante com `is_customer`/sem consumidor ainda —
+  ver `docs/specs/salesforce-account-standard-fields.md`).
 - [x] Campos personalizados (`__c`) como contexto bruto via `FIELDS(CUSTOM)` —
   guardado, não interpretado.
 - **Adiado para depois da Fase B, não desta fase:** dados de `Opportunity`/

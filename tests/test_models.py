@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.models import (
-    Company, CompanySignal, ContextNote, CorrelationRule, Product, ProductRelation, RuleError,
+    Address, Company, CompanySignal, ContextNote, CorrelationRule, Product, ProductRelation, RuleError,
     Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
 )
 
@@ -55,6 +55,22 @@ def test_company_fase_b_fields_default_to_none_or_empty():
     assert c.trigger_event is None
     assert c.attempted_solutions == []
     assert c.strategic_context is None
+
+
+def test_company_account_standard_fields_default_to_none():
+    c = Company(name="Empresa Fictícia")
+    assert c.industry is None
+    assert c.annual_revenue is None
+    assert c.employee_count is None
+    assert c.address is None
+
+
+def test_address_accepts_all_optional_fields():
+    addr = Address(city="São Paulo", state="SP", postal_code="01310-100", country="Brasil")
+    assert addr.city == "São Paulo"
+    c = Company(name="Empresa Fictícia", industry="Varejo", annual_revenue=1_000_000.0, employee_count=250, address=addr)
+    assert c.industry == "Varejo"
+    assert c.address.country == "Brasil"
 
 
 def test_context_note_requires_source():
@@ -156,6 +172,8 @@ if __name__ == "__main__":
     test_opportunity_status_flow_values()
     test_portfolio_scoped_to_company()
     test_company_fase_b_fields_default_to_none_or_empty()
+    test_company_account_standard_fields_default_to_none()
+    test_address_accepts_all_optional_fields()
     test_context_note_requires_source()
     test_contact_impacted_area_defaults_to_none()
     test_product_relation_default_type_is_complementary()

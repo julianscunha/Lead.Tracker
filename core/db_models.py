@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, Float, String
+from sqlalchemy import JSON, Boolean, Date, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -57,6 +57,10 @@ class CompanyORM(Base):
     strategic_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     last_activity_at: Mapped[datetime | None] = mapped_column(nullable=True)
     renewal_date: Mapped[datetime | None] = mapped_column(nullable=True)
+    industry: Mapped[str | None] = mapped_column(String, nullable=True)
+    annual_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
+    employee_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    address: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class ContactORM(Base):

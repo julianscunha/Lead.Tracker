@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from datetime import datetime, timezone
 
-from core.models import Company, SourceRef
+from core.models import Address, Company, SourceRef
 from core.normalization import merge_companies, merge_pair, normalize_domain, normalize_name
 
 
@@ -85,6 +85,52 @@ def test_merge_pair_keeps_old_last_activity_at_when_new_fetch_has_none():
     assert result.last_activity_at == old
 
 
+def test_merge_pair_keeps_base_account_standard_fields_when_present():
+    """Ao contrário de last_activity_at, industry/annual_revenue/
+    employee_count/address não são sinal de momentum — primeiro valor
+    não-nulo vence, mesmo padrão de legal_name/website."""
+    base = Company(
+        name="Acme", industry="Varejo", annual_revenue=1000.0, employee_count=10,
+        address=Address(city="São Paulo"),
+    )
+    other = Company(
+        name="Acme", industry="Manufatura", annual_revenue=2000.0, employee_count=20,
+        address=Address(city="Rio de Janeiro"),
+    )
+
+    result = merge_pair(base, other)
+
+    assert result.industry == "Varejo"
+    assert result.annual_revenue == 1000.0
+    assert result.employee_count == 10
+    assert result.address.city == "São Paulo"
+
+
+def test_merge_pair_preserves_zero_annual_revenue_and_employee_count():
+    """Regressão: `or` é errado pra numérico — 0 é falsy em Python, então
+    annual_revenue=0.0 (empresa pré-receita) ou employee_count=0 em base
+    seria sobrescrito por other mesmo sendo valor real, não ausência."""
+    base = Company(name="Acme", annual_revenue=0.0, employee_count=0)
+    other = Company(name="Acme", annual_revenue=5000.0, employee_count=50)
+
+    result = merge_pair(base, other)
+
+    assert result.annual_revenue == 0.0
+    assert result.employee_count == 0
+
+
+def test_merge_pair_fills_account_standard_fields_from_other_when_base_is_none():
+    base = Company(name="Acme")
+    other = Company(name="Acme", industry="Manufatura", annual_revenue=2000.0, employee_count=20, address=Address(city="Rio de Janeiro"))
+
+    result = merge_pair(base, other)
+
+    assert result.industry == "Manufatura"
+    assert result.annual_revenue == 2000.0
+    assert result.employee_count == 20
+    assert result.address.city == "Rio de Janeiro"
+
+
 if __name__ == "__main__":
     test_normalize_domain_strips_protocol_www_and_path()
     test_normalize_name_collapses_whitespace_and_case()
@@ -94,4 +140,7 @@ if __name__ == "__main__":
     test_merge_never_loses_existing_true_is_customer()
     test_merge_pair_refreshes_last_activity_at_from_new_fetch()
     test_merge_pair_keeps_old_last_activity_at_when_new_fetch_has_none()
+    test_merge_pair_keeps_base_account_standard_fields_when_present()
+    test_merge_pair_preserves_zero_annual_revenue_and_employee_count()
+    test_merge_pair_fills_account_standard_fields_from_other_when_base_is_none()
     print("OK — todos os testes de normalização passaram")

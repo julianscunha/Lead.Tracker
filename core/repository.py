@@ -21,7 +21,7 @@ from core.db_models import (
     VendorORM,
 )
 from core.models import (
-    Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
+    Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
     DismissalReasonRequiredError, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, Product, ProductRelation, RepTarget,
     Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
@@ -51,6 +51,14 @@ def _notes_to_json(notes: list[ContextNote]) -> list[dict]:
 
 def _notes_from_json(data: list[dict] | None) -> list[ContextNote]:
     return [ContextNote(**d) for d in (data or [])]
+
+
+def _address_to_json(address: Address | None) -> dict | None:
+    return address.model_dump(mode="json") if address else None
+
+
+def _address_from_json(data: dict | None) -> Address | None:
+    return Address(**data) if data else None
 
 
 def _relations_to_json(relations: list[ProductRelation]) -> list[dict]:
@@ -133,6 +141,8 @@ def _company_from_row(row: CompanyORM) -> Company:
         strategic_context=_note_from_json(row.strategic_context),
         last_activity_at=_ensure_utc(row.last_activity_at) if row.last_activity_at else None,
         renewal_date=_ensure_utc(row.renewal_date) if row.renewal_date else None,
+        industry=row.industry, annual_revenue=row.annual_revenue, employee_count=row.employee_count,
+        address=_address_from_json(row.address),
     )
 
 
@@ -154,6 +164,8 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         attempted_solutions=_notes_to_json(company.attempted_solutions),
         strategic_context=_note_to_json(company.strategic_context),
         last_activity_at=company.last_activity_at,
+        industry=company.industry, annual_revenue=company.annual_revenue, employee_count=company.employee_count,
+        address=_address_to_json(company.address),
     )
     stmt = sqlite_insert(CompanyORM).values(id=company.id, renewal_date=None, **engine_columns)
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)

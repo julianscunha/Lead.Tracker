@@ -4,6 +4,18 @@
 
 ### Adicionado
 
+- **Campos padrão adicionais de Account do Salesforce** (Fase A): `Company`
+  ganha `industry`, `annual_revenue`, `employee_count`, `address`
+  (objeto aninhado city/state/postal_code/country). Consultei o agente
+  Salesforce Architect antes de desenhar o modelo (decisão registrada em
+  `docs/specs/salesforce-account-standard-fields.md`): `industry` fica
+  distinto de `segment` (vertical de mercado vs. categorização comercial
+  própria); `Type`/`CreatedDate` do Salesforce ficam conscientemente fora
+  de escopo (redundante com `is_customer`/sem consumidor ainda). Revisão
+  de código encontrou um bug real (`merge_pair` usando `or` pra campo
+  numérico — `0` é falsy em Python, sobrescreveria `annual_revenue=0.0`/
+  `employee_count=0` legítimos), corrigido antes deste commit.
+
 - **Campos personalizados do Salesforce como contexto bruto** (Fase A):
   `SalesforceProvider.fetch_context()` traz os campos `__c` da conta via
   SOQL `FIELDS(CUSTOM)`, guardados sem interpretação em

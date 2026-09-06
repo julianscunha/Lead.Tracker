@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import httpx
 
 from core.errors import ErrorCategory
-from core.models import Company, Contact, SourceRef
+from core.models import Address, Company, Contact, SourceRef
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
@@ -47,6 +47,19 @@ def _parse_salesforce_date(value: str | None) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+
+
+def _billing_address(record: dict) -> Address | None:
+    """`None` inteiro quando a conta não tem nenhum campo Billing
+    preenchido — nunca um `Address` com os 4 campos `None` (spec:
+    docs/specs/salesforce-account-standard-fields.md)."""
+    city, state, postal_code, country = (
+        record.get("BillingCity"), record.get("BillingState"),
+        record.get("BillingPostalCode"), record.get("BillingCountry"),
+    )
+    if not any((city, state, postal_code, country)):
+        return None
+    return Address(city=city, state=state, postal_code=postal_code, country=country)
 
 
 def _infer_seniority_tier(title: str | None) -> str | None:
@@ -208,7 +221,10 @@ class SalesforceProvider(DataProvider):
             return ConnectionTestResult.fail(str(exc))
 
     async def fetch_companies(self) -> list[Company]:
-        records = await self._query("SELECT Id, Name, Website, LastActivityDate FROM Account")
+        records = await self._query(
+            "SELECT Id, Name, Website, LastActivityDate, Industry, AnnualRevenue, NumberOfEmployees, "
+            "BillingCity, BillingState, BillingPostalCode, BillingCountry FROM Account"
+        )
         return [
             Company(
                 id=record["Id"],
@@ -216,6 +232,10 @@ class SalesforceProvider(DataProvider):
                 website=record.get("Website"),
                 sources=[SourceRef(type="salesforce")],
                 last_activity_at=_parse_salesforce_date(record.get("LastActivityDate")),
+                industry=record.get("Industry"),
+                annual_revenue=record.get("AnnualRevenue"),
+                employee_count=record.get("NumberOfEmployees"),
+                address=_billing_address(record),
             )
             for record in records
         ]
