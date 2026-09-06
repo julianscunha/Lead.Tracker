@@ -165,3 +165,74 @@ lógica de scoring/threshold aqui (isso é `geo-scoring-rules`, módulo 4).
       `ProviderError` categorizado.
 - [x] Suíte completa (20 arquivos) e revisão de código sem pendências
       após os 2 achados corrigidos.
+
+## Módulo 3 — `icp-auto-derivation`
+
+Consulta ao agente Growth Hacker antes de implementar (decisão de
+negócio, registrada no docstring de `core/icp.py`):
+
+1. **"Cliente satisfeito"** = `Company.is_customer=True` com pelo menos
+   uma `Opportunity.opportunity_score >= 0.7` (threshold fixo — amostra
+   pequena no início de uso faria estatística (top-N%, média±desvio)
+   virar ruído; fixo é previsível e auditável).
+2. **Amostra mínima de 5** clientes satisfeitos pra `confidence="high"`
+   — abaixo disso, a sugestão AINDA é calculada e devolvida (nunca
+   escondida), só marcada `confidence="low"`. Decidir usar ou não já é
+   do usuário no wizard (módulo 6).
+3. **Moda sempre**, nunca recusa sugerir por falta de maioria clara — a
+   proporção da moda (`*_share`) acompanha a sugestão pra UI mostrar
+   contexto quando fraca.
+4. **`company_size_hint`** deriva de `Company.segment` (já presente),
+   não de `Company.employee_count` (dado parcial, só populado por
+   Salesforce desde a Fase A — usar hoje enviesaria a amostra).
+
+`derive_icp_suggestion` (core/icp.py, pura) retorna `None` quando não há
+nenhum cliente satisfeito (distinto de `confidence="low"`, que sempre
+carrega uma sugestão real). `GET /icp-suggestion` só calcula e devolve —
+nunca persiste automaticamente no `ICPProfile` (só o usuário confirma
+isso no wizard, módulo 6, ainda não construído).
+
+**Achados da revisão de código** (3, Important, todos corrigidos):
+1. O campo derivado se chamava `place_category` — mesmo nome de
+   `ICPProfile.place_category` (módulo 1), mas taxonomia incompatível:
+   `ICPProfile.place_category` é um `type` real da Google Places API
+   (ex. "car_dealer"), o que dá pra derivar aqui é a moda de
+   `Company.industry` (vertical de negócio livre, ex. "Varejo"). Nomes
+   iguais sugeririam ao wizard que dá pra jogar a sugestão direto no
+   perfil, quebrando `discover()` silenciosamente. Renomeado pra
+   `industry_hint`.
+2. Esta seção da spec estava faltando — a consulta ao especialista tinha
+   acontecido mas não ficou registrada por escrito, quebrando a própria
+   disciplina de "spec viva" que as seções anteriores seguiam.
+3. Docstring da rota dizia "204 implícito via corpo null" — errado: é
+   200 com corpo JSON `null`, nunca 204 (que não carrega corpo). Corrigido.
+
+### Não objetivo deste módulo
+
+- Nenhuma auto-aplicação no `ICPProfile` — só cálculo e leitura.
+- Nenhum mapeamento de `industry_hint` pra uma categoria real do Google
+  Places — fica pro wizard (módulo 6) ou pro usuário decidir na revisão.
+- Nenhum uso de `Company.employee_count` (decisão consciente do Growth
+  Hacker, ver item 4 acima).
+
+### Teste
+
+- `derive_icp_suggestion`: `None` sem cliente satisfeito (distinto de
+  `confidence="low"`); usa o MAIOR score entre as oportunidades da
+  empresa, não o primeiro; `opportunity_score=None` nunca conta;
+  prospect com score alto nunca conta (precisa `is_customer=True`);
+  moda+proporção calculada corretamente com maioria fraca (2/5, não
+  unânime); campo omitido (`None`) quando todos os satisfeitos têm o
+  atributo vazio, nunca `ZeroDivisionError`.
+- Rota: `null` (200) sem cliente satisfeito; reflete corretamente
+  clientes satisfeitos reais, incluindo a proporção exata da moda.
+
+### Critério de sucesso
+
+- [x] Threshold/amostra mínima/moda seguem exatamente a decisão do
+      Growth Hacker, registrada por escrito.
+- [x] `None` (nada pra derivar) nunca confundido com `confidence="low"`
+      (sugestão real, fraca).
+- [x] Nomes de campo nunca colidem com taxonomias incompatíveis entre
+      módulos.
+- [x] Suíte completa e revisão de código sem pendências.

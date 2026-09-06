@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Derivação automática de critério de ICP** (Fase E, módulo 3
+  `icp-auto-derivation`): `GET /icp-suggestion` deriva `industry_hint`
+  (moda de `Company.industry` entre clientes satisfeitos) e
+  `company_size_hint` (moda de `Company.segment`) a partir de
+  `is_customer=true` + `opportunity_score >= 0.7` — threshold, amostra
+  mínima (5) e regra de moda decididos em consulta ao agente Growth
+  Hacker. `None` (nada pra derivar) é distinto de `confidence="low"`
+  (sugestão real com poucos dados, nunca escondida). Nunca auto-aplica
+  no `ICPProfile` — só o usuário confirma no wizard futuro. Ver
+  `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Coleta de sinal do Google Places** (Fase E, módulo 2
   `places-signal-collector`): `GoogleMapsProvider` implementado e ligado
   em `SOURCES` (Configurações de Fontes). `discover(origin_address,

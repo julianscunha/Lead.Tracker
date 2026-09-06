@@ -271,6 +271,38 @@ def test_put_icp_profile_rejects_negative_radius():
         assert resp.status_code == 422
 
 
+def test_get_icp_suggestion_returns_null_without_any_satisfied_customer():
+    with _TempDb():
+        resp = client.get("/modules/lead_tracker/icp-suggestion")
+        assert resp.status_code == 200
+        assert resp.json() is None
+
+
+def test_get_icp_suggestion_reflects_satisfied_customers():
+    with _TempDb() as db:
+        import asyncio
+        companies = [Company(name=f"Cliente {i}", is_customer=True, industry="Varejo") for i in range(5)]
+        opportunities = [
+            Opportunity(company_id=c.id, type="cross-sell", opportunity_score=0.9) for c in companies
+        ]
+
+        async def seed():
+            async with db.session_factory() as session:
+                for c in companies:
+                    await save_company(session, c)
+                for o in opportunities:
+                    await save_opportunity(session, o)
+        asyncio.run(seed())
+
+        resp = client.get("/modules/lead_tracker/icp-suggestion")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["industry_hint"] == "Varejo"
+        assert body["industry_hint_share"] == 1.0
+        assert body["sample_size"] == 5
+        assert body["confidence"] == "high"
+
+
 def test_post_rep_target_rejects_period_key_that_does_not_match_period_type():
     """Achado da revisão de código: sem essa validação, um typo no
     period_key nunca casa com `current_period_key()` — a meta cadastrada
@@ -656,6 +688,8 @@ if __name__ == "__main__":
     test_get_icp_profile_before_any_save_returns_all_none_never_404()
     test_put_icp_profile_round_trips_and_upserts()
     test_put_icp_profile_rejects_negative_radius()
+    test_get_icp_suggestion_returns_null_without_any_satisfied_customer()
+    test_get_icp_suggestion_reflects_satisfied_customers()
     test_post_rep_target_rejects_period_key_that_does_not_match_period_type()
     test_post_rep_target_rejects_negative_amount()
     test_sync_endpoint_with_no_source_enabled_returns_empty_list()

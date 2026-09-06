@@ -36,6 +36,7 @@ from core.models import (
     OpportunityStatus, PeriodType, Product, RepTarget, RuleError, Service,
     StatusChangeRequiresJustificationError,
 )
+from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
     is_aging_opportunity, parse_aging_sla_days, rep_target_id,
@@ -158,6 +159,15 @@ class ICPProfileOut(BaseModel):
     company_size_hint: str | None
     radius_km: float | None
     search_origin_address: str | None
+
+
+class ICPSuggestionOut(BaseModel):
+    industry_hint: str | None
+    industry_hint_share: float | None
+    company_size_hint: str | None
+    company_size_hint_share: float | None
+    sample_size: int
+    confidence: str
 
 
 class RuleIn(BaseModel):
@@ -417,6 +427,26 @@ async def update_icp_profile_route(body: ICPProfileIn) -> ICPProfileOut:
         reference_product_id=profile.reference_product_id, place_category=profile.place_category,
         company_size_hint=profile.company_size_hint, radius_km=profile.radius_km,
         search_origin_address=profile.search_origin_address,
+    )
+
+
+@router.get("/icp-suggestion")
+async def get_icp_suggestion_route() -> ICPSuggestionOut | None:
+    """200 com corpo JSON `null` (nunca 404/204) quando não há nenhum
+    cliente satisfeito ainda — nunca inventa sugestão sem dado nenhum
+    pra sustentá-la. Nunca auto-aplica no `ICPProfile`: só calcula e
+    devolve, o usuário revisa no wizard (módulo 6) antes de qualquer
+    uso real."""
+    async with session_factory() as session:
+        companies = await list_companies(session)
+        opportunities = await list_opportunities(session)
+    suggestion = derive_icp_suggestion(companies, opportunities)
+    if suggestion is None:
+        return None
+    return ICPSuggestionOut(
+        industry_hint=suggestion.industry_hint, industry_hint_share=suggestion.industry_hint_share,
+        company_size_hint=suggestion.company_size_hint, company_size_hint_share=suggestion.company_size_hint_share,
+        sample_size=suggestion.sample_size, confidence=suggestion.confidence,
     )
 
 
