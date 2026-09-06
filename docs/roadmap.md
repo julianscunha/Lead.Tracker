@@ -345,6 +345,7 @@ configuração de fontes já cogitada antes desta sessão de planejamento.
   API name.
 
 ### Fase G — Outreach assistido (e-mail mais persuasivo + cadência sugerida)
+**Status:** em andamento (spec: `docs/specs/fase-g-outreach-assistido.md`).
 Depende só da Fase C (qualidade de evidência/`primary_reason`) — pode rodar
 em paralelo às Fases D/E/F, não depende delas.
 

@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Motivo principal no rascunho de e-mail** (Fase G, módulo 1
+  `primary-reason-field`, inicia a Fase G): `EmailDraft` ganha
+  `primary_reason`, sempre eco do motivo determinístico de entrada
+  (`justification`) — a IA nunca decide ou reescreve esse valor, só é
+  instruída a reforçá-lo em subject/body/cta. Blindagem provada por
+  teste (não só instrução de prompt). Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Detecção de mapeamento quebrado** (Fase F, módulo 6
   `mapping-health-check`, fecha a Fase F): quando um campo mapeado é
   removido/renomeado no Salesforce, o Lead.Tracker avisa em vez de

@@ -78,6 +78,9 @@ class EmailDraftRequest(BaseModel):
     evidence: list[str] = []
     justification: str | None = None
     portfolio: dict = {}
+    # Fase G, módulo 1 — opcional: quando ausente, usa `justification` como
+    # motivo principal (mesmo default de generate_email_draft).
+    primary_reason: str | None = None
 
 
 @router.post("/exports/pdf")
@@ -133,8 +136,12 @@ async def email_draft(body: EmailDraftRequest) -> dict:
         draft = await generate_email_draft(
             provider, body.company_name, body.opportunity_type,
             body.evidence, body.justification, body.portfolio,
+            primary_reason=body.primary_reason,
         )
     except DomainError as exc:
         _raise_http(exc)
 
-    return {"subject": draft.subject, "greeting": draft.greeting, "body": draft.body, "cta": draft.cta}
+    return {
+        "subject": draft.subject, "greeting": draft.greeting, "body": draft.body, "cta": draft.cta,
+        "primary_reason": draft.primary_reason,
+    }
