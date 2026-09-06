@@ -96,6 +96,7 @@ class OpportunityORM(Base):
     scope_note: Mapped[str | None] = mapped_column(String, nullable=True)
     criticality: Mapped[str | None] = mapped_column(String, nullable=True)
     severity_note: Mapped[str | None] = mapped_column(String, nullable=True)
+    dismissal_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class PortfolioORM(Base):
@@ -129,6 +130,7 @@ class OpportunityStatusChangeORM(Base):
     status: Mapped[str] = mapped_column(String)
     entered_at: Mapped[datetime] = mapped_column()
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+    dismissal_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OpportunitySnapshotORM(Base):
@@ -145,6 +147,7 @@ class OpportunitySnapshotORM(Base):
     opportunity_id: Mapped[str] = mapped_column(String)
     snapshot_date: Mapped[date] = mapped_column(Date)
     stage: Mapped[str] = mapped_column(String)
+    first_detected_at: Mapped[datetime] = mapped_column()
     financial_potential: Mapped[float | None] = mapped_column(Float, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     rep_id: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -4,12 +4,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from core.dashboard_metrics import (
-    compute_kpis, compute_weighted_potential, count_zombie_opportunities, customer_vs_prospect,
-    distribution_by_vendor, exclude_zombies, financial_potential_by_vendor, funnel_counts, funnel_reach,
-    opportunities_by_service, potential_by_rep, potential_by_segment, potential_by_source,
+    compute_kpis, compute_weighted_potential, count_aging_opportunities, count_zombie_opportunities,
+    customer_vs_prospect, distribution_by_vendor, exclude_zombies, financial_potential_by_vendor,
+    funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment,
+    potential_by_source,
 )
 from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
 
@@ -83,7 +84,10 @@ def test_funnel_counts_maps_status_and_excludes_reviewed_and_dismissed():
 
 
 def _snap(**kwargs) -> OpportunitySnapshot:
-    defaults = dict(opportunity_id="o1", snapshot_date=date(2026, 9, 5), stage=OpportunityStatus.DETECTED)
+    defaults = dict(
+        opportunity_id="o1", snapshot_date=date(2026, 9, 5), stage=OpportunityStatus.DETECTED,
+        first_detected_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+    )
     defaults.update(kwargs)
     return OpportunitySnapshot(**defaults)
 
@@ -140,6 +144,17 @@ def test_funnel_reach_is_cumulative_and_excludes_dismissed():
     assert result == {"detected": 3, "qualified": 2, "reviewed": 1, "contacted": 1, "opportunity": 0}
 
 
+def test_count_aging_opportunities_only_counts_detected_beyond_sla():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    snapshot = [
+        _snap(opportunity_id="o1", stage=OpportunityStatus.DETECTED, first_detected_at=now - timedelta(days=10)),
+        _snap(opportunity_id="o2", stage=OpportunityStatus.DETECTED, first_detected_at=now - timedelta(days=1)),
+        _snap(opportunity_id="o3", stage=OpportunityStatus.QUALIFIED, first_detected_at=now - timedelta(days=10)),
+    ]
+
+    assert count_aging_opportunities(snapshot, sla_days=7, now=now) == 1  # só o1
+
+
 def test_funnel_reach_all_opportunities_in_last_stage_stays_non_increasing():
     """Caso-limite verificado na revisão de código: se TODAS as
     oportunidades já chegaram no último estágio, o alcance cumulativo tem
@@ -171,6 +186,7 @@ if __name__ == "__main__":
     test_compute_weighted_potential_separates_evaluated_from_estimated()
     test_potential_by_rep_segment_source_always_pre_segmented_and_skips_missing_key()
     test_count_zombie_opportunities()
+    test_count_aging_opportunities_only_counts_detected_beyond_sla()
     test_funnel_reach_is_cumulative_and_excludes_dismissed()
     test_funnel_reach_all_opportunities_in_last_stage_stays_non_increasing()
     test_funnel_reach_first_stage_has_no_ratio_and_zero_reach_never_divides()

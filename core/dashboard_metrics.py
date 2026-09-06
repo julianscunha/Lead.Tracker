@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 
 from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
+from core.opportunity_engine import is_aging_opportunity
 
 # Doc usa 4 estágios; nosso enum tem 6. Mapeamento explícito — 'reviewed' e
 # 'dismissed' não têm estágio de funil correspondente (não são progresso linear).
@@ -178,6 +180,12 @@ def potential_by_source(snapshot: list[OpportunitySnapshot]) -> list[tuple[str, 
 
 def count_zombie_opportunities(snapshot: list[OpportunitySnapshot]) -> int:
     return sum(1 for s in snapshot if s.is_zombie)
+
+
+def count_aging_opportunities(snapshot: list[OpportunitySnapshot], sla_days: int, now: datetime) -> int:
+    """Contagem pro card do dashboard — a lista acionável por oportunidade
+    vive em `GET /opportunities` (`OpportunityOut.is_aging`), não aqui."""
+    return sum(1 for s in snapshot if is_aging_opportunity(s.stage.value, s.first_detected_at, now, sla_days))
 
 
 # Sequência de progresso — "dismissed" fica fora (é saída do funil, não um

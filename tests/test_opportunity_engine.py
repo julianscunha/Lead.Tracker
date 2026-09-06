@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from core.models import Company, CompanySignal, Portfolio, Product, ProductRelation, Service, SourceRef
 from core.opportunity_engine import (
     CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
-    compute_severity_band, evaluate_rules, is_zombie_opportunity, requires_status_change_justification,
+    compute_severity_band, evaluate_rules, is_aging_opportunity, is_zombie_opportunity,
+    parse_aging_sla_days, requires_status_change_justification,
 )
 
 
@@ -425,6 +426,32 @@ def test_is_zombie_opportunity_handles_naive_last_touch_at():
     assert is_zombie_opportunity("qualified", naive_stale, now) is True
 
 
+def test_is_aging_opportunity_only_flags_detected_beyond_sla():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    stale = now - timedelta(days=10)
+    fresh = now - timedelta(days=3)
+    assert is_aging_opportunity("detected", stale, now, sla_days=7) is True
+    assert is_aging_opportunity("detected", fresh, now, sla_days=7) is False
+
+
+def test_is_aging_opportunity_never_flags_non_detected_status():
+    now = datetime(2026, 9, 5, tzinfo=timezone.utc)
+    stale = now - timedelta(days=400)
+    assert is_aging_opportunity("qualified", stale, now, sla_days=7) is False
+    assert is_aging_opportunity("dismissed", stale, now, sla_days=7) is False
+
+
+def test_parse_aging_sla_days_falls_back_to_default_when_missing_or_invalid():
+    assert parse_aging_sla_days({}) == 7
+    assert parse_aging_sla_days({"AGING_SLA_DAYS": "lixo"}) == 7
+    assert parse_aging_sla_days({"AGING_SLA_DAYS": "0"}) == 7
+    assert parse_aging_sla_days({"AGING_SLA_DAYS": "-5"}) == 7
+
+
+def test_parse_aging_sla_days_reads_valid_configured_value():
+    assert parse_aging_sla_days({"AGING_SLA_DAYS": "14"}) == 14
+
+
 if __name__ == "__main__":
     test_rule_fires_when_requires_present_and_absent_missing()
     test_rule_does_not_fire_when_absent_item_is_present()
@@ -470,4 +497,8 @@ if __name__ == "__main__":
     test_is_zombie_opportunity_flags_stagnation_beyond_30_days()
     test_is_zombie_opportunity_dismissed_is_never_zombie()
     test_is_zombie_opportunity_handles_naive_last_touch_at()
+    test_is_aging_opportunity_only_flags_detected_beyond_sla()
+    test_is_aging_opportunity_never_flags_non_detected_status()
+    test_parse_aging_sla_days_falls_back_to_default_when_missing_or_invalid()
+    test_parse_aging_sla_days_reads_valid_configured_value()
     print("OK — todos os testes do motor de oportunidades passaram")

@@ -130,6 +130,21 @@ class OpportunityStatus(str, Enum):
     DISMISSED = "dismissed"
 
 
+class DismissalReason(str, Enum):
+    """Motivo categorizado de `dismissed` (roadmap Fase D) — enum fechado,
+    não texto livre, pra permitir agregação ("por que perdemos
+    oportunidades") e retroalimentar ajuste de regras quando
+    `FALSE_POSITIVE` for recorrente num mesmo tipo de regra. `OTHER` é
+    escape hatch obrigatório: força categorização, mas nunca força uma
+    categoria errada só pra caber no enum — `note` (texto livre, já
+    existente em OpportunityStatusChange) complementa o `OTHER`."""
+    NO_EVIDENCE = "no_evidence"
+    NOT_FIT = "not_fit"
+    NOT_QUALIFIED = "not_qualified"
+    FALSE_POSITIVE = "false_positive"
+    OTHER = "other"
+
+
 class Opportunity(BaseModel):
     id: str = Field(default_factory=_new_id)
     company_id: str
@@ -174,6 +189,10 @@ class Opportunity(BaseModel):
     scope_note: str | None = None
     criticality: str | None = None
     severity_note: str | None = None
+    # Fase D, módulo 6 — só tem sentido enquanto status==DISMISSED;
+    # update_opportunity_status limpa pra None ao reabrir (ver repository.py),
+    # pra nunca sobrar um motivo "fantasma" de um descarte antigo já revertido.
+    dismissal_reason: DismissalReason | None = None
 
 
 class Portfolio(BaseModel):
@@ -213,6 +232,14 @@ class OpportunityStatusChange(BaseModel):
     # reabre um "dismissed" (decisão do Sales Coach: sem isso vira "pipeline
     # mentiroso"; opcional nos demais casos, nunca burocracia desnecessária).
     note: str | None = None
+    # Fase D, módulo 6 — preenchido só na linha de histórico ONDE status vira
+    # DISMISSED (achado da revisão de código: guardar só em
+    # Opportunity.dismissal_reason, que é limpo ao reabrir, apagava
+    # irrecuperavelmente todo motivo categorizado anterior a cada ciclo
+    # dismiss→reopen; aqui, sendo uma linha de histórico imutável, o motivo
+    # de CADA descarte passado continua consultável mesmo depois de reaberta
+    # e descartada de novo com outro motivo).
+    dismissal_reason: DismissalReason | None = None
 
 
 class OpportunitySnapshot(BaseModel):
@@ -227,6 +254,7 @@ class OpportunitySnapshot(BaseModel):
     opportunity_id: str
     snapshot_date: date
     stage: OpportunityStatus
+    first_detected_at: datetime
     financial_potential: float | None = None
     confidence_score: float | None = None
     rep_id: str | None = None
@@ -248,6 +276,13 @@ class StatusChangeRequiresJustificationError(Exception):
     scope_note/renewal_date/status: uma leitura-decide-escreve em 2 passos
     deixa uma janela onde o status real pode mudar entre a decisão e a
     escrita)."""
+
+
+class DismissalReasonRequiredError(Exception):
+    """Transição pra `dismissed` sem `dismissal_reason` categorizado.
+    Mesmo motivo de design de StatusChangeRequiresJustificationError: sem
+    isso, todo `dismissed` é um beco sem saída pra análise de "por que
+    perdemos oportunidades"."""
 
 
 class CorrelationRule(BaseModel):

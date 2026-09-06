@@ -24,16 +24,20 @@ from backend.http_errors import raise_http
 from backend.sync import sync_all_enabled_sources
 from core.config import load_env
 from core.dashboard_metrics import (
-    compute_kpis, compute_weighted_potential, count_zombie_opportunities, customer_vs_prospect,
-    distribution_by_vendor, exclude_zombies, financial_potential_by_vendor, funnel_counts,
-    funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment, potential_by_source,
+    compute_kpis, compute_weighted_potential, count_aging_opportunities, count_zombie_opportunities,
+    customer_vs_prospect, distribution_by_vendor, exclude_zombies, financial_potential_by_vendor,
+    funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep, potential_by_segment,
+    potential_by_source,
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    Company, CorrelationRule, Opportunity, OpportunityStatus, Product, RuleError, Service,
-    StatusChangeRequiresJustificationError,
+    Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, Opportunity, OpportunityStatus,
+    Product, RuleError, Service, StatusChangeRequiresJustificationError,
 )
-from core.opportunity_engine import compute_account_health, compute_qbr_suggested_days, compute_severity_band
+from core.opportunity_engine import (
+    compute_account_health, compute_qbr_suggested_days, compute_severity_band, is_aging_opportunity,
+    parse_aging_sla_days,
+)
 from core.repository import (
     list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_products,
     list_rules, list_services, list_vendors, save_rule, update_company_renewal_date,
@@ -78,6 +82,8 @@ class OpportunityOut(BaseModel):
     account_health: str
     qbr_suggested_days: int
     qbr_reason: str
+    is_aging: bool
+    dismissal_reason: str | None
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -97,6 +103,7 @@ class CompanyRenewalDateIn(BaseModel):
 class OpportunityStatusIn(BaseModel):
     new_status: Literal["detected", "qualified", "reviewed", "contacted", "opportunity", "dismissed"]
     note: str | None = None
+    dismissal_reason: Literal["no_evidence", "not_fit", "not_qualified", "false_positive", "other"] | None = None
 
 
 class RuleIn(BaseModel):
@@ -172,7 +179,7 @@ async def _account_health_map(
 
 def _to_opportunity_out(
     o, companies: dict[str, Company], products: dict[str, str], services: dict[str, str],
-    health_map: dict[str, tuple[str, int, str]],
+    health_map: dict[str, tuple[str, int, str]], aging_sla_days: int,
 ) -> OpportunityOut:
     company = companies.get(o.company_id)
     # health_map é sempre construído a partir da mesma lista de oportunidades
@@ -195,11 +202,14 @@ def _to_opportunity_out(
         severity_band=compute_severity_band(o.scope_note, o.criticality),
         renewal_date=company.renewal_date if company else None,
         account_health=health, qbr_suggested_days=qbr_days, qbr_reason=qbr_reason,
+        is_aging=is_aging_opportunity(o.status.value, o.first_detected_at, datetime.now(timezone.utc), aging_sla_days),
+        dismissal_reason=o.dismissal_reason.value if o.dismissal_reason else None,
     )
 
 
 @router.get("/opportunities")
 async def get_opportunities(company_id: str | None = None) -> list[OpportunityOut]:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         opportunities = await list_opportunities(session, company_id=company_id)
         companies = {c.id: c for c in await list_companies(session)}
@@ -207,11 +217,12 @@ async def get_opportunities(company_id: str | None = None) -> list[OpportunityOu
         services = {s.id: s.name for s in await list_services(session)}
         health_map = await _account_health_map(session, opportunities, companies)
 
-    return [_to_opportunity_out(o, companies, products, services, health_map) for o in opportunities]
+    return [_to_opportunity_out(o, companies, products, services, health_map, aging_sla_days) for o in opportunities]
 
 
 @router.patch("/opportunities/{opportunity_id}")
 async def update_opportunity_qualification_route(opportunity_id: str, body: OpportunityQualificationIn) -> OpportunityOut:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         updated = await update_opportunity_qualification(
             session, opportunity_id, body.scope_note, body.criticality, body.severity_note,
@@ -223,18 +234,27 @@ async def update_opportunity_qualification_route(opportunity_id: str, body: Oppo
         services = {s.id: s.name for s in await list_services(session)}
         health_map = await _account_health_map(session, [updated], companies)
 
-    return _to_opportunity_out(updated, companies, products, services, health_map)
+    return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
 
 
 @router.patch("/opportunities/{opportunity_id}/status")
 async def update_opportunity_status_route(opportunity_id: str, body: OpportunityStatusIn) -> OpportunityOut:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
+        dismissal_reason = DismissalReason(body.dismissal_reason) if body.dismissal_reason else None
         try:
-            updated = await update_opportunity_status(session, opportunity_id, OpportunityStatus(body.new_status), body.note)
+            updated = await update_opportunity_status(
+                session, opportunity_id, OpportunityStatus(body.new_status), body.note, dismissal_reason,
+            )
         except StatusChangeRequiresJustificationError:
             raise_http(DomainError(
                 ErrorCategory.INVALID_DATA,
                 "Pular vários estágios de uma vez ou reabrir uma oportunidade descartada exige uma justificativa.",
+            ))
+        except DismissalReasonRequiredError:
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA,
+                "Descartar uma oportunidade exige selecionar um motivo categorizado.",
             ))
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
@@ -243,7 +263,7 @@ async def update_opportunity_status_route(opportunity_id: str, body: Opportunity
         services = {s.id: s.name for s in await list_services(session)}
         health_map = await _account_health_map(session, [updated], companies)
 
-    return _to_opportunity_out(updated, companies, products, services, health_map)
+    return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
 
 
 @router.patch("/companies/{company_id}/renewal-date")
@@ -286,6 +306,7 @@ async def create_rule(body: RuleIn) -> CorrelationRule:
 
 @router.get("/dashboard-metrics")
 async def get_dashboard_metrics() -> dict:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         companies = await list_companies(session)
         opportunities = await list_opportunities(session)
@@ -334,4 +355,6 @@ async def get_dashboard_metrics() -> dict:
         "potential_by_segment": potential_by_segment(healthy_snapshot),
         "potential_by_source": potential_by_source(healthy_snapshot),
         "zombie_count": count_zombie_opportunities(snapshot),
+        "aging_count": count_aging_opportunities(snapshot, aging_sla_days, datetime.now(timezone.utc)),
+        "aging_sla_days": aging_sla_days,
     }

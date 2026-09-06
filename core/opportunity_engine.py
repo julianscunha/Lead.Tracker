@@ -111,9 +111,41 @@ def is_zombie_opportunity(status: str, last_touch_at: datetime, now: datetime) -
     return (now - last_touch_at).days > _ZOMBIE_DAYS
 
 
+# Fase D — SLA de triagem: único threshold desta fase que o roadmap pede
+# configurável pelo usuário (os demais — zumbi, saúde de conta — são fixos
+# por ora, sem tela de configuração pra eles ainda).
+AGING_SLA_ENV_KEY = "AGING_SLA_DAYS"
+_AGING_SLA_DEFAULT_DAYS = 7
+
+
+def parse_aging_sla_days(env: dict[str, str]) -> int:
+    """Lê o SLA de triagem do `.env` — valor ausente, vazio ou inválido cai
+    no default (7 dias), nunca quebra a leitura da configuração."""
+    raw = env.get(AGING_SLA_ENV_KEY, "")
+    try:
+        days = int(raw)
+    except ValueError:
+        return _AGING_SLA_DEFAULT_DAYS
+    return days if days > 0 else _AGING_SLA_DEFAULT_DAYS
+
+
+def is_aging_opportunity(status: str, first_detected_at: datetime, now: datetime, sla_days: int) -> bool:
+    """Roadmap: oportunidade em `detected` há mais de N dias sem virar
+    `qualified`/`dismissed` — SLA de triagem, conceito à parte de zumbi
+    (`is_zombie_opportunity` é sobre estagnação em QUALQUER estágio; aging
+    é só sobre nunca ter saído do primeiro). Nunca o mesmo threshold do
+    zumbi — misturar os dois esconderia qual dos dois sinais disparou."""
+    if status != "detected":
+        return False
+    if first_detected_at.tzinfo is None:
+        first_detected_at = first_detected_at.replace(tzinfo=timezone.utc)
+    return (now - first_detected_at).days > sla_days
+
+
 __all__ = [
-    "CorrelationRule", "RuleError", "compute_account_health", "compute_qbr_suggested_days",
-    "compute_severity_band", "evaluate_rules", "is_zombie_opportunity", "requires_status_change_justification",
+    "AGING_SLA_ENV_KEY", "CorrelationRule", "RuleError", "compute_account_health",
+    "compute_qbr_suggested_days", "compute_severity_band", "evaluate_rules", "is_aging_opportunity",
+    "is_zombie_opportunity", "parse_aging_sla_days", "requires_status_change_justification",
 ]
 
 

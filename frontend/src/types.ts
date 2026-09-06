@@ -6,6 +6,8 @@
 export type OpportunityStatus =
   | 'detected' | 'qualified' | 'reviewed' | 'contacted' | 'opportunity' | 'dismissed'
 
+export type DismissalReason = 'no_evidence' | 'not_fit' | 'not_qualified' | 'false_positive' | 'other'
+
 export interface SourceRef {
   type: string
   confidence: number
@@ -38,6 +40,7 @@ export interface OpportunityRow {
   accountHealth: AccountHealth
   qbrSuggestedDays: number
   qbrReason: string
+  dismissalReason: DismissalReason | null
 }
 
 export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'

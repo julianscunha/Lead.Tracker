@@ -11,8 +11,9 @@ from core.db import create_engine, init_db, make_session_factory
 from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
-    Company, CompanySignal, Contact, ContextNote, Opportunity, OpportunityStatus,
-    OpportunityStatusChange, Portfolio, SourceRef, StatusChangeRequiresJustificationError, Vendor,
+    Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError, Opportunity,
+    OpportunityStatus, OpportunityStatusChange, Portfolio, SourceRef, StatusChangeRequiresJustificationError,
+    Vendor,
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules
 from core.repository import (
@@ -293,7 +294,9 @@ def test_update_opportunity_status_checks_justification_against_the_real_current
             async with session_factory() as session:
                 await save_company(session, company)
                 await save_opportunity(session, opportunity)
-                await update_opportunity_status(session, opportunity.id, OpportunityStatus.DISMISSED)  # status real: dismissed
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED, dismissal_reason=DismissalReason.NOT_FIT,
+                )  # status real: dismissed
 
             # sem nota — reabrir "dismissed" sempre exige justificativa,
             # mesmo que o chamador não soubesse que o status real era esse
@@ -308,6 +311,119 @@ def test_update_opportunity_status_checks_justification_against_the_real_current
             async with session_factory() as session:
                 persisted = await get_opportunity(session, opportunity.id)
             assert persisted.status == OpportunityStatus.DISMISSED  # nunca mudou
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_to_dismissed_requires_categorized_reason():
+    """Módulo 6 (Fase D) — consulta ao agente Pipeline Analyst sobre a
+    taxonomia. Sem `dismissal_reason`, `dismissed` vira beco sem saída pra
+    qualquer relatório futuro de "por que perdemos oportunidades"."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+
+            async with session_factory() as session:
+                raised = False
+                try:
+                    await update_opportunity_status(session, opportunity.id, OpportunityStatus.DISMISSED)
+                except DismissalReasonRequiredError:
+                    raised = True
+                assert raised
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.status == OpportunityStatus.DETECTED  # nunca mudou sem o motivo
+
+    asyncio.run(run())
+
+
+def test_update_opportunity_status_to_dismissed_persists_categorized_reason():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                updated = await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED,
+                    dismissal_reason=DismissalReason.FALSE_POSITIVE,
+                )
+            assert updated.dismissal_reason == DismissalReason.FALSE_POSITIVE
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.dismissal_reason == DismissalReason.FALSE_POSITIVE
+
+    asyncio.run(run())
+
+
+def test_reopening_dismissed_opportunity_clears_stale_dismissal_reason():
+    """`dismissal_reason` só faz sentido enquanto status==dismissed — um
+    relatório que lesse esse campo depois de reaberta veria um motivo de um
+    descarte que já foi revertido, dado enganoso."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED,
+                    dismissal_reason=DismissalReason.NO_EVIDENCE,
+                )
+                reopened = await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.QUALIFIED, note="Novo sinal encontrado, reabrindo.",
+                )
+            assert reopened.dismissal_reason is None
+
+    asyncio.run(run())
+
+
+def test_dismissal_reason_history_survives_reopen_and_second_dismissal():
+    """Achado da revisão de código: `Opportunity.dismissal_reason` é limpo
+    ao reabrir (só faz sentido enquanto status==dismissed), então guardar o
+    motivo SÓ ali apagaria irrecuperavelmente o motivo do 1º descarte assim
+    que a oportunidade fosse reaberta e descartada de novo com outro
+    motivo. A linha de histórico (`OpportunityStatusChange`) preserva os
+    dois, cada um na transição em que aconteceu."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED,
+                    dismissal_reason=DismissalReason.NO_EVIDENCE,
+                )
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.QUALIFIED, note="Reabrindo, novo sinal.",
+                )
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED,
+                    dismissal_reason=DismissalReason.NOT_FIT,
+                )
+
+            async with session_factory() as session:
+                history = await list_opportunity_status_changes(session, opportunity.id)
+            dismissed_entries = [h for h in history if h.status == OpportunityStatus.DISMISSED]
+            assert [h.dismissal_reason for h in dismissed_entries] == [DismissalReason.NO_EVIDENCE, DismissalReason.NOT_FIT]
 
     asyncio.run(run())
 
@@ -461,6 +577,37 @@ def test_save_opportunity_never_resets_manually_advanced_status_on_resync():
             async with session_factory() as session:
                 persisted = await get_opportunity(session, opportunity.id)
             assert persisted.status == OpportunityStatus.QUALIFIED
+
+    asyncio.run(run())
+
+
+def test_save_opportunity_never_resets_dismissal_reason_on_resync():
+    """Mesma classe de regressão do teste acima, agora pro módulo 6: o
+    motor nunca sabe de `dismissal_reason` — `save_opportunity` (upsert do
+    `/sync`) precisa continuar excluindo essa coluna do `SET`, senão um
+    `/sync` que roda depois de um descarte manual apagaria o motivo
+    categorizado."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)  # 1º sync — nasce em detected
+                await update_opportunity_status(
+                    session, opportunity.id, OpportunityStatus.DISMISSED,
+                    dismissal_reason=DismissalReason.NOT_QUALIFIED,
+                )
+
+            async with session_factory() as session:
+                await save_opportunity(session, opportunity)  # 2º sync — motor ainda constrói em "detected"
+
+            async with session_factory() as session:
+                persisted = await get_opportunity(session, opportunity.id)
+            assert persisted.status == OpportunityStatus.DISMISSED
+            assert persisted.dismissal_reason == DismissalReason.NOT_QUALIFIED
 
     asyncio.run(run())
 
@@ -803,11 +950,16 @@ if __name__ == "__main__":
     test_update_opportunity_status_returns_none_for_unknown_id()
     test_update_opportunity_status_same_status_is_noop_and_writes_no_history()
     test_update_opportunity_status_checks_justification_against_the_real_current_status()
+    test_update_opportunity_status_to_dismissed_requires_categorized_reason()
+    test_update_opportunity_status_to_dismissed_persists_categorized_reason()
+    test_reopening_dismissed_opportunity_clears_stale_dismissal_reason()
+    test_dismissal_reason_history_survives_reopen_and_second_dismissal()
     test_recompute_daily_snapshot_reflects_current_opportunity_state()
     test_recompute_daily_snapshot_twice_same_day_upserts_not_duplicates()
     test_recompute_daily_snapshot_flags_zombie_via_status_history_fallback_to_first_detected_at()
     test_recompute_daily_snapshot_zombie_survives_repeated_resync_never_touched_by_a_human()
     test_list_latest_snapshot_returns_empty_when_no_snapshot_ever_ran()
     test_save_opportunity_never_resets_manually_advanced_status_on_resync()
+    test_save_opportunity_never_resets_dismissal_reason_on_resync()
     test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
     print("OK — todos os testes de persistência passaram")

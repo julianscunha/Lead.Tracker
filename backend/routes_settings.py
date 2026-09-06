@@ -20,6 +20,7 @@ from backend.http_errors import raise_http
 from backend.settings import SOURCES, get_source
 from core.config import load_env, set_env_values
 from core.errors import DomainError, ErrorCategory
+from core.opportunity_engine import AGING_SLA_ENV_KEY, parse_aging_sla_days
 from providers.base import ConnectionTestResult, ProviderError
 
 _MODULE_ROOT = Path(__file__).parent.parent
@@ -75,6 +76,23 @@ def _require_source(source_id: str):
     if source is None:
         raise_http(DomainError(ErrorCategory.INVALID_DATA, f"Fonte '{source_id}' não existe."))
     return source
+
+
+class AgingSlaConfig(BaseModel):
+    days: int
+
+
+@router.get("/config/aging-sla-days")
+async def get_aging_sla_days() -> AgingSlaConfig:
+    return AgingSlaConfig(days=parse_aging_sla_days(load_env(_ENV_PATH)))
+
+
+@router.put("/config/aging-sla-days")
+async def update_aging_sla_days(body: AgingSlaConfig) -> AgingSlaConfig:
+    if body.days < 1:
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, "O prazo precisa ser de pelo menos 1 dia."))
+    set_env_values(_ENV_PATH, {AGING_SLA_ENV_KEY: str(body.days)})
+    return AgingSlaConfig(days=body.days)
 
 
 @router.get("")

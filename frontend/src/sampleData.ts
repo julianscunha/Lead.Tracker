@@ -29,6 +29,7 @@ export const sampleOpportunities: OpportunityRow[] = [
     accountHealth: 'verde',
     qbrSuggestedDays: 90,
     qbrReason: 'revisao_de_rotina',
+    dismissalReason: null,
   },
   {
     id: 'opp-2',
@@ -57,6 +58,7 @@ export const sampleOpportunities: OpportunityRow[] = [
     accountHealth: 'dados_insuficientes',
     qbrSuggestedDays: 90,
     qbrReason: 'revisao_de_rotina',
+    dismissalReason: null,
   },
   {
     id: 'opp-3',
@@ -85,5 +87,6 @@ export const sampleOpportunities: OpportunityRow[] = [
     accountHealth: 'amarela',
     qbrSuggestedDays: 60,
     qbrReason: 'revisao_de_acompanhamento',
+    dismissalReason: null,
   },
 ]

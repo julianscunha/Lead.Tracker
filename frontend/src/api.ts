@@ -150,6 +150,7 @@ interface OpportunityApiRow {
   account_health: OpportunityRow['accountHealth']
   qbr_suggested_days: number
   qbr_reason: string
+  dismissal_reason: OpportunityRow['dismissalReason']
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -191,6 +192,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     accountHealth: r.account_health,
     qbrSuggestedDays: r.qbr_suggested_days,
     qbrReason: r.qbr_reason,
+    dismissalReason: r.dismissal_reason,
   }
 }
 
@@ -223,11 +225,12 @@ export async function updateOpportunityStatus(
   id: string,
   newStatus: OpportunityRow['status'],
   note: string | null,
+  dismissalReason: OpportunityRow['dismissalReason'] = null,
 ): Promise<OpportunityRow> {
   const resp = await fetch(`${BASE}/opportunities/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_status: newStatus, note }),
+    body: JSON.stringify({ new_status: newStatus, note, dismissal_reason: dismissalReason }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const data: OpportunityApiRow = await resp.json()

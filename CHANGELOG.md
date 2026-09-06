@@ -4,6 +4,26 @@
 
 ### Adicionado
 
+- **Motivo categorizado de descarte** (Fase D, módulo 6): mudar uma
+  oportunidade pra "Descartada" agora exige um `dismissal_reason` de um
+  enum fechado (sem evidência / sem fit / cliente não qualificado / falso
+  positivo de regra / outro — 4 categorias do roadmap + escape hatch
+  sugerido em consulta ao Pipeline Analyst). Motivo persiste no histórico
+  de transições mesmo depois de reaberta e descartada de novo com outro
+  motivo (achado da revisão de código: guardar só no registro "atual"
+  perdia motivos anteriores a cada ciclo reabrir→descartar). UI mostra o
+  dropdown de motivo só ao selecionar "Descartada" e exibe o motivo já
+  salvo. Ver `docs/specs/fase-d-dashboard-acionavel.md`.
+
+- **Alerta de SLA de triagem / aging** (Fase D, módulo 5): oportunidade
+  parada em "Detectada" além de um prazo configurável (`AGING_SLA_DAYS`,
+  padrão 7 dias, via `GET`/`PUT /settings/config/aging-sla-days`) fica
+  marcada `is_aging` em `GET /opportunities`; `GET /dashboard-metrics`
+  ganha `aging_count`/`aging_sla_days` lidos do snapshot diário. Conceito
+  deliberadamente distinto de "zumbi" (módulo 2+3): aging é só sobre
+  triagem inicial nunca acontecer, zumbi é sobre qualquer estágio parado
+  há muito tempo — nunca compartilham constante.
+
 - **Agregador do dashboard via snapshot** (Fase D, terceiro módulo):
   `GET /dashboard-metrics` ganha potencial financeiro ponderado (bruto ao
   lado de duas somas ponderadas — avaliado por confidence_score real, e

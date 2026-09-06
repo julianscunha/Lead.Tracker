@@ -126,6 +126,8 @@ def test_get_dashboard_metrics_reflects_empty_state_honestly():
             "gross_total": 0.0, "weighted_evaluated_total": 0.0, "weighted_estimated_total": 0.0,
         }
         assert body["zombie_count"] == 0
+        assert body["aging_count"] == 0
+        assert body["aging_sla_days"] == 7
 
 
 def test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_potential():
@@ -154,6 +156,31 @@ def test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_
         # zumbi (financial_potential=5000) nunca entra no ponderado nem nos cortes
         assert body["weighted_potential"]["gross_total"] == 1000.0
         assert body["potential_by_rep"] == [["rep-1", 1000.0]]
+        # a "zumbi" também está em detected desde 2020 -> conta como aging (SLA padrão 7 dias)
+        assert body["aging_count"] == 1
+        assert body["aging_sla_days"] == 7
+
+
+def test_get_opportunities_flags_is_aging_for_stale_detected_opportunity():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        stale = Opportunity(
+            company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")],
+            first_detected_at="2020-01-01T00:00:00+00:00",
+        )
+        fresh = Opportunity(company_id=company.id, type="service", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, stale)
+                await save_opportunity(session, fresh)
+        asyncio.run(seed())
+
+        body = {o["id"]: o for o in client.get("/modules/lead_tracker/opportunities").json()}
+        assert body[stale.id]["is_aging"] is True
+        assert body[fresh.id]["is_aging"] is False
 
 
 def test_sync_endpoint_with_no_source_enabled_returns_empty_list():
@@ -394,6 +421,58 @@ def test_patch_opportunity_status_returns_friendly_404_for_unknown_id():
         assert "não encontrada" in resp.json()["detail"]
 
 
+def test_patch_opportunity_status_to_dismissed_without_reason_is_rejected():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "dismissed"},
+        )
+        assert resp.status_code == 422
+        assert "motivo" in resp.json()["detail"]
+
+        resp_with_reason = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "dismissed", "dismissal_reason": "not_fit"},
+        )
+        assert resp_with_reason.status_code == 200
+        assert resp_with_reason.json()["status"] == "dismissed"
+        assert resp_with_reason.json()["dismissal_reason"] == "not_fit"
+
+
+def test_patch_opportunity_status_reopening_dismissed_clears_reason_in_response():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas")
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "dismissed", "dismissal_reason": "no_evidence"},
+        )
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/status",
+            json={"new_status": "qualified", "note": "Novo sinal encontrado, reabrindo."},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["dismissal_reason"] is None
+
+
 def test_get_products_and_services_return_catalog():
     with _TempDb() as db:
         import asyncio
@@ -447,6 +526,7 @@ if __name__ == "__main__":
     test_get_opportunities_includes_risk_flag()
     test_get_opportunities_includes_severity_band_not_avaliado_by_default()
     test_get_opportunities_embeds_account_health_and_qbr_suggestion()
+    test_get_opportunities_flags_is_aging_for_stale_detected_opportunity()
     test_patch_company_renewal_date_round_trips_and_reflects_in_opportunities()
     test_patch_company_renewal_date_returns_friendly_404_for_unknown_id()
     test_patch_opportunity_qualification_updates_and_recomputes_severity_band()
@@ -455,6 +535,8 @@ if __name__ == "__main__":
     test_patch_opportunity_status_one_step_advance_needs_no_note()
     test_patch_opportunity_status_big_skip_without_note_is_rejected()
     test_patch_opportunity_status_returns_friendly_404_for_unknown_id()
+    test_patch_opportunity_status_to_dismissed_without_reason_is_rejected()
+    test_patch_opportunity_status_reopening_dismissed_clears_reason_in_response()
     test_get_products_and_services_return_catalog()
     test_post_rule_creates_and_get_rules_lists_it()
     test_post_rule_without_any_evidence_mechanism_returns_friendly_error()

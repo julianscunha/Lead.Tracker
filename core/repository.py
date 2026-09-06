@@ -20,7 +20,8 @@ from core.db_models import (
     OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, ServiceORM, VendorORM,
 )
 from core.models import (
-    Company, CompanySignal, ContextNote, Contact, CorrelationRule, Opportunity, OpportunitySnapshot,
+    Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
+    DismissalReasonRequiredError, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, Portfolio, Product, ProductRelation, Service, SourceRef,
     StatusChangeRequiresJustificationError, Vendor,
 )
@@ -217,6 +218,7 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         discovery_prompt=row.discovery_prompt, synced_at=_ensure_utc(row.synced_at),
         first_detected_at=_ensure_utc(row.first_detected_at),
         scope_note=row.scope_note, criticality=row.criticality, severity_note=row.severity_note,
+        dismissal_reason=DismissalReason(row.dismissal_reason) if row.dismissal_reason else None,
     )
 
 
@@ -351,6 +353,7 @@ async def save_opportunity_status_change(session: AsyncSession, change: Opportun
     await _upsert(session, OpportunityStatusChangeORM(
         id=change.id, opportunity_id=change.opportunity_id,
         status=change.status.value, entered_at=change.entered_at, note=change.note,
+        dismissal_reason=change.dismissal_reason.value if change.dismissal_reason else None,
     ))
 
 
@@ -361,11 +364,13 @@ async def list_opportunity_status_changes(session: AsyncSession, opportunity_id:
     return [OpportunityStatusChange(
         id=r.id, opportunity_id=r.opportunity_id,
         status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at), note=r.note,
+        dismissal_reason=DismissalReason(r.dismissal_reason) if r.dismissal_reason else None,
     ) for r in rows]
 
 
 async def update_opportunity_status(
     session: AsyncSession, opportunity_id: str, new_status: OpportunityStatus, note: str | None = None,
+    dismissal_reason: DismissalReason | None = None,
 ) -> Opportunity | None:
     """Único caminho de escrita de `status` após a criação — o motor
     (`save_opportunity`) nunca mais toca essa coluna depois do INSERT
@@ -383,7 +388,17 @@ async def update_opportunity_status(
     o TOCTOU: entre a leitura da rota e esta escrita, o status real podia
     mudar, por exemplo por outra aba do navegador). Levanta
     `StatusChangeRequiresJustificationError` se a transição pular 2+
-    estágios ou reabrir um `dismissed` sem `note`."""
+    estágios ou reabrir um `dismissed` sem `note`. Levanta
+    `DismissalReasonRequiredError` se o novo status for `dismissed` sem
+    `dismissal_reason` categorizado (módulo 6, mesma checagem contra o
+    status desta MESMA busca). Reabrir um `dismissed` (ir pra qualquer
+    outro status) limpa `dismissal_reason` pra `None` — o campo só faz
+    sentido enquanto a oportunidade está descartada. A linha de histórico
+    (`OpportunityStatusChange`) grava o motivo de qualquer forma e nunca é
+    limpa (achado da revisão de código: sem isso, um ciclo
+    dismiss→reopen→dismiss-de-novo apagaria irrecuperavelmente o motivo do
+    primeiro descarte, inviabilizando qualquer relatório futuro de "por que
+    perdemos oportunidades")."""
     row = await session.get(OpportunityORM, opportunity_id)
     if row is None:
         return None
@@ -391,11 +406,18 @@ async def update_opportunity_status(
         return _opportunity_from_row(row)
     if requires_status_change_justification(row.status, new_status.value) and not (note or "").strip():
         raise StatusChangeRequiresJustificationError()
+    if new_status == OpportunityStatus.DISMISSED and dismissal_reason is None:
+        raise DismissalReasonRequiredError()
     row.status = new_status.value
-    change = OpportunityStatusChange(opportunity_id=opportunity_id, status=new_status, note=note)
+    row.dismissal_reason = dismissal_reason.value if new_status == OpportunityStatus.DISMISSED else None
+    change = OpportunityStatusChange(
+        opportunity_id=opportunity_id, status=new_status, note=note,
+        dismissal_reason=dismissal_reason if new_status == OpportunityStatus.DISMISSED else None,
+    )
     session.add(OpportunityStatusChangeORM(
         id=change.id, opportunity_id=change.opportunity_id,
         status=change.status.value, entered_at=change.entered_at, note=change.note,
+        dismissal_reason=change.dismissal_reason.value if change.dismissal_reason else None,
     ))
     await session.commit()
     return _opportunity_from_row(row)
@@ -441,6 +463,7 @@ async def recompute_daily_snapshot(session: AsyncSession, today: date | None = N
         source = o.sources[0].type if o.sources else None
         row_columns = dict(
             opportunity_id=o.id, snapshot_date=today, stage=o.status.value,
+            first_detected_at=o.first_detected_at,
             financial_potential=o.financial_potential, confidence_score=o.confidence_score,
             rep_id=company.rep_id if company else None, segment=company.segment if company else None,
             source=source, is_zombie=zombie,
@@ -454,7 +477,8 @@ async def recompute_daily_snapshot(session: AsyncSession, today: date | None = N
 def _snapshot_from_row(row: OpportunitySnapshotORM) -> OpportunitySnapshot:
     return OpportunitySnapshot(
         id=row.id, opportunity_id=row.opportunity_id, snapshot_date=row.snapshot_date,
-        stage=OpportunityStatus(row.stage), financial_potential=row.financial_potential,
+        stage=OpportunityStatus(row.stage), first_detected_at=_ensure_utc(row.first_detected_at),
+        financial_potential=row.financial_potential,
         confidence_score=row.confidence_score, rep_id=row.rep_id, segment=row.segment,
         source=row.source, is_zombie=row.is_zombie,
     )

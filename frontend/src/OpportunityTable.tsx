@@ -3,7 +3,7 @@ import {
   generateEmailDraft, updateCompanyRenewalDate, updateOpportunityQualification, updateOpportunityStatus,
   type EmailDraft,
 } from './api'
-import type { AccountHealth, Criticality, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
+import type { AccountHealth, Criticality, DismissalReason, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
 const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
   { value: 'isolado', label: 'Isolado (poucas licenças/sistemas)' },
@@ -38,6 +38,17 @@ function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
+// Mesmos 5 valores + OTHER de core/models.py::DismissalReason (consulta ao
+// agente Pipeline Analyst) — enum fechado, nunca texto livre, pra permitir
+// agregação futura de "por que perdemos oportunidades".
+const DISMISSAL_REASON_OPTIONS: { value: DismissalReason; label: string }[] = [
+  { value: 'no_evidence', label: 'Sem evidência suficiente' },
+  { value: 'not_fit', label: 'Sem fit técnico/comercial' },
+  { value: 'not_qualified', label: 'Cliente não qualificado' },
+  { value: 'false_positive', label: 'Falso positivo da regra' },
+  { value: 'other', label: 'Outro (detalhar na observação)' },
+]
+
 const STATUS_OPTIONS: { value: OpportunityRow['status']; label: string }[] = [
   { value: 'detected', label: 'Detectada' },
   { value: 'qualified', label: 'Qualificada' },
@@ -63,19 +74,23 @@ function statusChangeNeedsJustification(oldStatus: OpportunityRow['status'], new
 function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
   const [pendingStatus, setPendingStatus] = useState<OpportunityRow['status'] | null>(null)
   const [note, setNote] = useState('')
+  const [dismissalReason, setDismissalReason] = useState<DismissalReason | ''>('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const needsNote = pendingStatus !== null && statusChangeNeedsJustification(row.status, pendingStatus)
+  const needsDismissalReason = pendingStatus === 'dismissed'
+  const needsConfirm = needsNote || needsDismissalReason
 
-  const submit = async (value: OpportunityRow['status'], noteValue: string | null) => {
+  const submit = async (value: OpportunityRow['status'], noteValue: string | null, reasonValue: DismissalReason | null) => {
     setSaving(true)
     setSaveError(null)
     try {
-      const updated = await updateOpportunityStatus(row.id, value, noteValue)
+      const updated = await updateOpportunityStatus(row.id, value, noteValue, reasonValue)
       onUpdated(updated)
       setPendingStatus(null)
       setNote('')
+      setDismissalReason('')
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Falha ao mudar o status.')
     } finally {
@@ -90,7 +105,7 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
       return
     }
     setPendingStatus(value)
-    if (!statusChangeNeedsJustification(row.status, value)) void submit(value, null)
+    if (value !== 'dismissed' && !statusChangeNeedsJustification(row.status, value)) void submit(value, null, null)
   }
 
   return (
@@ -101,18 +116,32 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
+      {row.status === 'dismissed' && pendingStatus === null && row.dismissalReason && (
+        <p className="lt-hint">
+          Motivo do descarte: {DISMISSAL_REASON_OPTIONS.find(o => o.value === row.dismissalReason)?.label ?? row.dismissalReason}
+        </p>
+      )}
+      {needsDismissalReason && (
+        <label>
+          Motivo do descarte
+          <select value={dismissalReason} onChange={e => setDismissalReason(e.target.value as DismissalReason)}>
+            <option value="">Selecione um motivo</option>
+            {DISMISSAL_REASON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+      )}
       {needsNote && (
         <label>
           Justificativa (pulou etapas ou reabriu uma oportunidade descartada)
           <textarea value={note} onChange={e => setNote(e.target.value)} />
         </label>
       )}
-      {needsNote && (
+      {needsConfirm && (
         <button
           type="button"
           className="lt-btn"
-          onClick={() => submit(pendingStatus as OpportunityRow['status'], note)}
-          disabled={saving || !note.trim()}
+          onClick={() => submit(pendingStatus as OpportunityRow['status'], note || null, dismissalReason || null)}
+          disabled={saving || (needsNote && !note.trim()) || (needsDismissalReason && !dismissalReason)}
         >
           Confirmar mudança
         </button>

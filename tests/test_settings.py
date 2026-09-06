@@ -117,6 +117,30 @@ def test_test_connection_not_implemented_source_never_500():
         assert "não está disponível" in body["message"]
 
 
+def test_get_aging_sla_days_defaults_to_7_when_not_configured():
+    with _TempEnv():
+        resp = client.get("/modules/lead_tracker/settings/config/aging-sla-days")
+        assert resp.status_code == 200
+        assert resp.json() == {"days": 7}
+
+
+def test_put_aging_sla_days_persists_and_round_trips():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/aging-sla-days", json={"days": 14})
+        assert resp.status_code == 200
+        assert resp.json() == {"days": 14}
+
+        resp = client.get("/modules/lead_tracker/settings/config/aging-sla-days")
+        assert resp.json() == {"days": 14}
+
+
+def test_put_aging_sla_days_rejects_non_positive_value():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/aging-sla-days", json={"days": 0})
+        assert resp.status_code == 422
+        assert "dia" in resp.json()["detail"]
+
+
 if __name__ == "__main__":
     test_list_settings_returns_all_sources_with_defaults()
     test_secret_field_never_returns_value_in_claro()
@@ -125,4 +149,7 @@ if __name__ == "__main__":
     test_test_connection_manual_always_connected()
     test_test_connection_salesforce_without_credentials_fails_friendly()
     test_test_connection_not_implemented_source_never_500()
+    test_get_aging_sla_days_defaults_to_7_when_not_configured()
+    test_put_aging_sla_days_persists_and_round_trips()
+    test_put_aging_sla_days_rejects_non_positive_value()
     print("OK — todos os testes de configurações de fontes passaram")

@@ -344,3 +344,119 @@ registrado aqui pra o módulo 8 tratar com uma nota explícita na UI (ex.:
       e exposto.
 - [x] Suíte completa passa, incluindo o caso-limite de funil todo no
       último estágio.
+
+## Módulo 5 — SLA de triagem (aging)
+
+Oportunidade parada em `detected` (nunca avançou nem foi descartada) por
+mais de N dias — sinal distinto de "zumbi" (módulos 2+3): zumbi é sobre
+qualquer estágio parado há muito tempo (30 dias fixos, decisão de
+severidade de pipeline), aging é especificamente sobre triagem inicial
+nunca acontecer, com prazo configurável pelo usuário (`AGING_SLA_DAYS`,
+padrão 7 dias) — os dois nunca compartilham a mesma constante de
+propósito, mesmo quando os dois eventualmente disparam pra uma mesma
+oportunidade muito antiga.
+
+`is_aging_opportunity`/`parse_aging_sla_days` (`core/opportunity_engine.py`)
+são funções puras: status precisa ser exatamente `detected` e
+`first_detected_at` (o mesmo carimbo insert-only do módulo 2+3, nunca
+`synced_at`) precisa estar a mais de `sla_days` dias de `now`.
+`parse_aging_sla_days` nunca lança em config inválida — `ValueError`/valor
+≤0 caem no default de 7, mesmo princípio de "config quebrada nunca derruba
+o módulo" já aplicado em outras leituras de `.env`.
+
+Configuração via `GET`/`PUT /settings/config/aging-sla-days`, path de 2
+segmentos deliberadamente (evita qualquer ambiguidade com o catch-all
+`PUT /settings/{source_id}` já existente). `is_aging` é computado por
+requisição em cada rota que devolve `OpportunityOut` (nunca persistido —
+mesma decision de não pré-computar booleano derivável, evita
+dessincronizar do relógio). `aging_count`/`aging_sla_days` entram no
+`GET /dashboard-metrics`, lidos do mesmo snapshot diário do módulo 4.
+
+### Não objetivo deste módulo
+
+- UI: nenhum badge/indicador visual de "atrasada" na tabela de
+  oportunidades ainda — só o campo `is_aging` na API (módulo 8 consome,
+  mesma decisão dos módulos 2-4).
+
+### Teste
+
+- `is_aging_opportunity`/`parse_aging_sla_days`: status errado nunca conta,
+  limite exato do SLA, config ausente/inválida cai no default.
+- `count_aging_opportunities`: só conta `detected` além do SLA no snapshot.
+- Rotas: `GET`/`PUT /config/aging-sla-days` round-trip e rejeita valor
+  não-positivo; `is_aging` aparece correto em `GET /opportunities`;
+  `aging_count`/`aging_sla_days` aparecem em `GET /dashboard-metrics`.
+
+### Critério de sucesso
+
+- [x] SLA configurável, nunca hardcoded, com default seguro.
+- [x] `is_aging` nunca confundido com "zumbi" (constantes/funções
+      inteiramente separadas).
+- [x] Verificado ao vivo contra a cópia instalada do módulo (`curl` +
+      Playwright): dashboard reflete `aging_count`/`zombie_count`
+      corretos com dado fictício semeado.
+
+## Módulo 6 — Motivo categorizado de descarte
+
+`dismissed` sem motivo categorizado era um beco sem saída pra qualquer
+relatório futuro de "por que perdemos oportunidades" — decisão consultada
+com o agente `Pipeline Analyst` (ver histórico da sessão): taxonomia de 8
+valores proposta, mas o roadmap (`docs/roadmap.md`, linha ~273) já
+especificava 4 categorias explícitas de uma rodada de persona anterior
+("sem evidência / sem fit / cliente não qualificado / falso positivo de
+regra") — priorizei o roadmap já vetado por cima da sugestão nova do
+agente, adicionando só `OTHER` como escape hatch (recomendação do próprio
+Pipeline Analyst pra fechar o enum sem forçar categorização errada).
+`DismissalReason` final: `NO_EVIDENCE`, `NOT_FIT`, `NOT_QUALIFIED`,
+`FALSE_POSITIVE`, `OTHER`.
+
+`update_opportunity_status` (`core/repository.py`) levanta
+`DismissalReasonRequiredError` se `new_status == DISMISSED` sem
+`dismissal_reason` — mesmo padrão TOCTOU de `StatusChangeRequiresJustificationError`:
+decide contra a MESMA linha que acabou de buscar, nunca uma leitura
+separada da rota. `Opportunity.dismissal_reason` é limpo pra `None` ao
+reabrir (só faz sentido enquanto `status==dismissed`); `save_opportunity`
+(caminho do motor) exclui a coluna do `SET` do upsert, mesmo padrão
+insert-protected de `status`/`first_detected_at`/`scope_note`.
+
+**Achado da revisão de código** (Important): guardar o motivo só em
+`Opportunity.dismissal_reason` — que é limpo ao reabrir — apagava
+irrecuperavelmente o motivo de um descarte anterior assim que a
+oportunidade fosse reaberta e descartada de novo com outro motivo,
+inviabilizando exatamente o relatório histórico que é a razão de existir
+do campo. Corrigido gravando o motivo também na linha de histórico
+imutável (`OpportunityStatusChange.dismissal_reason`), nunca limpa —
+cada descarte passado continua consultável mesmo depois de reaberto.
+Segundo achado (Important): faltava o teste de resync-safety pro campo
+novo (mesma classe de bug já corrigida 3x nesta fase pra outras colunas
+protegidas) — adicionado.
+
+Frontend (`OpportunityTable.tsx`): dropdown de motivo aparece só quando o
+status selecionado é "Descartada", bloqueia "Confirmar mudança" até um
+valor ser escolhido; motivo atual é exibido como texto abaixo do seletor
+quando a oportunidade já está descartada (fecha o ciclo do dado — sem
+isso a categorização ficava invisível depois de salva).
+
+### Não objetivo deste módulo
+
+- Nenhuma agregação/relatório de "por que perdemos oportunidades" ainda —
+  só a captura estruturada. Consumir isso no dashboard fica pra uma fatia
+  futura fora do capability map original desta fase.
+
+### Teste
+
+- `update_opportunity_status`: exige motivo pra `dismissed`, persiste,
+  limpa ao reabrir, sobrevive a um 2º `/sync` (resync-safety), histórico
+  preserva o motivo de descartes anteriores após reabrir e descartar de
+  novo com outro motivo.
+- Rota: 422 sem motivo, motivo aceito e retornado, `dismissal_reason: null`
+  na resposta ao reabrir. Enum fechado via `Literal` na fronteira HTTP —
+  string arbitrária nunca chega ao domínio.
+
+### Critério de sucesso
+
+- [x] Enum fechado, nunca texto livre.
+- [x] Motivo histórico nunca perdido em ciclos reabrir→descartar de novo.
+- [x] `save_opportunity` (motor) nunca reseta o motivo num resync.
+- [x] Suíte completa (backend + frontend) e revisão de código sem
+      pendências abertas.
