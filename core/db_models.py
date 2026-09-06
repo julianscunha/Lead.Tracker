@@ -199,4 +199,5 @@ class ICPProfileORM(Base):
     place_category: Mapped[str | None] = mapped_column(String, nullable=True)
     company_size_hint: Mapped[str | None] = mapped_column(String, nullable=True)
     radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
+    search_origin_address: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column()

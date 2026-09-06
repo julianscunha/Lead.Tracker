@@ -1049,7 +1049,7 @@ def test_save_icp_profile_round_trips():
             session_factory = await _fresh_session_factory(tmp)
             profile = ICPProfile(
                 reference_product_id="p1", place_category="car_dealer",
-                company_size_hint="media", radius_km=25.0,
+                company_size_hint="media", radius_km=25.0, search_origin_address="Av. Paulista, São Paulo",
             )
             async with session_factory() as session:
                 await save_icp_profile(session, profile)
@@ -1058,6 +1058,7 @@ def test_save_icp_profile_round_trips():
             assert loaded.place_category == "car_dealer"
             assert loaded.company_size_hint == "media"
             assert loaded.radius_km == 25.0
+            assert loaded.search_origin_address == "Av. Paulista, São Paulo"
 
     asyncio.run(run())
 

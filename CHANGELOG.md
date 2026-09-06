@@ -4,6 +4,20 @@
 
 ### Adicionado
 
+- **Coleta de sinal do Google Places** (Fase E, módulo 2
+  `places-signal-collector`): `GoogleMapsProvider` implementado e ligado
+  em `SOURCES` (Configurações de Fontes). `discover(origin_address,
+  radius_km, place_category)` geocodifica a origem e busca lugares
+  próximos, devolvendo sinal bruto (`PlaceSignal`: categoria,
+  business_status, rating, contagem de reviews) — nunca decide
+  oportunidade. Decisão de arquitetura: não participa do `/sync`
+  periódico (`fetch_companies()` sempre `[]` de propósito) — a busca é
+  sob demanda, futuramente disparada pelo wizard (módulo 6). Origem
+  geográfica vem de `ICPProfile.search_origin_address` (endereço
+  cadastrado manualmente, decisão confirmada com o usuário). Endpoints
+  confirmados via fonte oficial do Google (Geocoding API + Places API
+  New). Ver `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Armazenamento de critério de ICP** (Fase E, módulo 1
   `icp-profile-store`): `GET`/`PUT /icp-profile` guardam produto de
   referência, categoria do Google Places, porte-alvo e raio de busca —

@@ -80,3 +80,88 @@ scoring/oportunidade vazou pra este módulo).
 - [x] `place_category`/`company_size_hint` sem taxonomia fechada.
 - [x] `GET` antes do primeiro `PUT` nunca 404.
 - [x] Suíte completa e revisão de código sem pendências.
+
+## Módulo 2 — `places-signal-collector`
+
+**Decisão de arquitetura resolvida durante a implementação** (não estava
+resolvida no capability map original): `DataProvider.fetch_companies()`
+genérico é chamado por `backend/sync.py::sync_source()` via `provider =
+source.build(env)` — construção síncrona, só a partir do `.env`, sem
+acesso a sessão de banco. O critério de busca do Google Maps (origem
+geográfica, raio, categoria) mora no `ICPProfile` (banco, módulo 1), não
+no `.env`. Resolvido decidindo que `GoogleMapsProvider` **não participa**
+do laço `/sync` periódico — `fetch_companies()` sempre retorna `[]` de
+propósito (documentado em 3 lugares: docstring do módulo, comentário do
+método, este spec). A busca de verdade é `discover(origin_address,
+radius_km, place_category) -> list[PlaceSignal]`, sob demanda, que será
+chamada pelo wizard (módulo 6, ainda não construído).
+
+**Decisão de produto perguntada direto ao usuário** (não era óbvia nem
+mecânica, apesar do módulo estar classificado "mecânico" no capability
+map): de onde vem a origem geográfica da busca? Resposta: endereço
+cadastrado manualmente no ICP, não derivado de cliente nenhum — mais
+simples e previsível, funciona mesmo sem clientes cadastrados ainda.
+Adicionado `ICPProfile.search_origin_address: str | None` (módulo 1,
+retroativo).
+
+Endpoints confirmados via fonte oficial (WebFetch, mesma disciplina da
+Fase A): Geocoding API (`GET .../geocode/json`, status
+OK/ZERO_RESULTS/REQUEST_DENIED/INVALID_REQUEST/OVER_QUERY_LIMIT) e
+Places API (New) Nearby Search (`POST
+https://places.googleapis.com/v1/places:searchNearby`, headers
+`X-Goog-Api-Key`/`X-Goog-FieldMask`, corpo
+`locationRestriction.circle.center.{latitude,longitude}`+`radius` em
+metros, `includedTypes`). `_MAX_RADIUS_KM = 50.0` — limite físico da
+API (50000m) — validado ANTES de qualquer chamada de rede, junto com
+`radius_km <= 0`.
+
+`PlaceSignal` (place_id, name, category, business_status, rating,
+review_count, formatted_address) é só dataclass de transporte — nenhuma
+lógica de scoring/threshold aqui (isso é `geo-scoring-rules`, módulo 4).
+
+**Achados da revisão de código** (2, Important, ambos corrigidos):
+1. `_geocode`/`discover` indexavam o corpo da resposta direto
+   (`body["results"][0]...`, `place["id"]`) sem tratar o caso de status
+   "OK"/200 com formato inesperado (results vazio, campo faltando) —
+   vazaria `KeyError`/`IndexError` cru pra quem chama `discover()`
+   diretamente (o wizard, módulo 6, não tem nenhum try/except genérico
+   no meio como `test_connection()` tem via `routes_settings.py`).
+   Corrigido com `try/except (KeyError, IndexError/TypeError)` →
+   `ProviderError(INTEGRATION)` nos dois pontos.
+2. Faltava teste do caminho "erro transitório persiste além do retry" —
+   regra "retry só em transitório, nunca em credencial inválida"
+   (CLAUDE.md) não tinha cobertura de que o retry realmente para depois
+   de 1 tentativa extra e vira `CONNECTIVITY`. Adicionado pros dois
+   pontos de chamada de rede (`_geocode` e `searchNearby`).
+
+### Não objetivo deste módulo
+
+- Nenhuma persistência de `PlaceSignal` — é transporte efêmero,
+  consumido por quem chamar `discover()` (módulo 4, ainda não existe).
+- Nenhuma UI — wizard é módulo 6.
+- Nenhuma lógica de scoring/descarte de fechados — isso é módulo 4.
+
+### Teste
+
+- Contrato: `GoogleMapsProvider` implementa `DataProvider`; chave
+  ausente levanta `ConfigurationError`.
+- `fetch_companies()`/`fetch_contacts()` sempre `[]`, nunca fazem
+  requisição de rede (mock com `assert False` no handler prova isso).
+- `discover()`: raio ≤0 e raio >50km rejeitados sem chamada de rede;
+  fluxo feliz geocodifica então busca e normaliza sinal; categoria
+  ausente omite `includedTypes`; erros categorizados (`ZERO_RESULTS`,
+  `REQUEST_DENIED`, 403, 429); retry persistente em 5xx (`_geocode` e
+  `searchNearby`) vira `CONNECTIVITY` após exatamente 1 retry; resposta
+  malformada (`OK` com `results=[]`, `place` sem `id`) nunca vaza
+  `KeyError`/`IndexError`.
+
+### Critério de sucesso
+
+- [x] `GoogleMapsProvider` implementado, integrado em `SOURCES`
+      (`implemented=True`).
+- [x] `fetch_companies()` nunca quebra o `/sync` — retorna `[]` de
+      propósito, documentado.
+- [x] `discover()` nunca vaza exceção técnica crua — toda falha vira
+      `ProviderError` categorizado.
+- [x] Suíte completa (20 arquivos) e revisão de código sem pendências
+      após os 2 achados corrigidos.

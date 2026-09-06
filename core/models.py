@@ -409,4 +409,11 @@ class ICPProfile(BaseModel):
     place_category: str | None = None
     company_size_hint: str | None = None
     radius_km: float | None = None
+    # Fase E, módulo 2 — origem geográfica da busca (endereço em texto
+    # livre, geocodificado sob demanda por GoogleMapsProvider.discover()).
+    # Decisão explícita (o roadmap não especifica de onde vem o "centro"
+    # da busca): endereço cadastrado manualmente, não derivado de cliente
+    # nenhum — mais simples e previsível, funciona mesmo sem clientes
+    # cadastrados ainda.
+    search_origin_address: str | None = None
     updated_at: datetime = Field(default_factory=_now)

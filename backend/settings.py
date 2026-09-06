@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from providers.base import DataProvider
+from providers.google_maps import GoogleMapsProvider
 from providers.manual import ManualProvider
 from providers.salesforce import SalesforceProvider
 
@@ -97,7 +98,7 @@ SOURCES: list[SourceDescriptor] = [
         id="google_maps",
         label="Google Maps",
         enabled_key="GOOGLE_MAPS_ENABLED",
-        implemented=False,
+        implemented=True,
         fields=[
             SourceField(
                 key="GOOGLE_MAPS_API_KEY",
@@ -106,6 +107,11 @@ SOURCES: list[SourceDescriptor] = [
                 secret=True,
             ),
         ],
+        # GoogleMapsProvider.fetch_companies() devolve [] de propósito — não
+        # participa do /sync periódico (ver providers/google_maps.py). O
+        # test_connection real da chave acontece via .discover()/geocode,
+        # exercitado pela tela de Configurações (botão "Testar conexão").
+        build=lambda env: GoogleMapsProvider(env.get("GOOGLE_MAPS_API_KEY", "")),
     ),
 ]
 

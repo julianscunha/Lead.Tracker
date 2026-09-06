@@ -591,7 +591,8 @@ async def save_icp_profile(session: AsyncSession, profile: ICPProfile) -> None:
     await _upsert(session, ICPProfileORM(
         id=profile.id, reference_product_id=profile.reference_product_id,
         place_category=profile.place_category, company_size_hint=profile.company_size_hint,
-        radius_km=profile.radius_km, updated_at=profile.updated_at,
+        radius_km=profile.radius_km, search_origin_address=profile.search_origin_address,
+        updated_at=profile.updated_at,
     ))
 
 
@@ -601,5 +602,6 @@ async def get_icp_profile(session: AsyncSession) -> ICPProfile | None:
         return None
     return ICPProfile(
         id=row.id, reference_product_id=row.reference_product_id, place_category=row.place_category,
-        company_size_hint=row.company_size_hint, radius_km=row.radius_km, updated_at=_ensure_utc(row.updated_at),
+        company_size_hint=row.company_size_hint, radius_km=row.radius_km,
+        search_origin_address=row.search_origin_address, updated_at=_ensure_utc(row.updated_at),
     )

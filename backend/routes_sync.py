@@ -149,6 +149,7 @@ class ICPProfileIn(BaseModel):
     place_category: str | None = None
     company_size_hint: str | None = None
     radius_km: float | None = Field(default=None, ge=0)
+    search_origin_address: str | None = None
 
 
 class ICPProfileOut(BaseModel):
@@ -156,6 +157,7 @@ class ICPProfileOut(BaseModel):
     place_category: str | None
     company_size_hint: str | None
     radius_km: float | None
+    search_origin_address: str | None
 
 
 class RuleIn(BaseModel):
@@ -391,10 +393,14 @@ async def get_icp_profile_route() -> ICPProfileOut:
         # Sem configuração ainda — corpo vazio (todo mundo None) é o
         # estado esperado antes do primeiro save, nunca 404: é um
         # singleton de configuração, não um recurso que "não existe".
-        return ICPProfileOut(reference_product_id=None, place_category=None, company_size_hint=None, radius_km=None)
+        return ICPProfileOut(
+            reference_product_id=None, place_category=None, company_size_hint=None, radius_km=None,
+            search_origin_address=None,
+        )
     return ICPProfileOut(
         reference_product_id=profile.reference_product_id, place_category=profile.place_category,
         company_size_hint=profile.company_size_hint, radius_km=profile.radius_km,
+        search_origin_address=profile.search_origin_address,
     )
 
 
@@ -403,12 +409,14 @@ async def update_icp_profile_route(body: ICPProfileIn) -> ICPProfileOut:
     profile = ICPProfile(
         reference_product_id=body.reference_product_id, place_category=body.place_category,
         company_size_hint=body.company_size_hint, radius_km=body.radius_km,
+        search_origin_address=body.search_origin_address,
     )
     async with session_factory() as session:
         await save_icp_profile(session, profile)
     return ICPProfileOut(
         reference_product_id=profile.reference_product_id, place_category=profile.place_category,
         company_size_hint=profile.company_size_hint, radius_km=profile.radius_km,
+        search_origin_address=profile.search_origin_address,
     )
 
 

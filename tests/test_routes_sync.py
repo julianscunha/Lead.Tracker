@@ -242,16 +242,19 @@ def test_get_icp_profile_before_any_save_returns_all_none_never_404():
         body = resp.json()
         assert body == {
             "reference_product_id": None, "place_category": None, "company_size_hint": None, "radius_km": None,
+            "search_origin_address": None,
         }
 
 
 def test_put_icp_profile_round_trips_and_upserts():
     with _TempDb():
         resp = client.put("/modules/lead_tracker/icp-profile", json={
-            "reference_product_id": "p1", "place_category": "car_dealer", "company_size_hint": "media", "radius_km": 25.0,
+            "reference_product_id": "p1", "place_category": "car_dealer", "company_size_hint": "media",
+            "radius_km": 25.0, "search_origin_address": "Av. Paulista, São Paulo",
         })
         assert resp.status_code == 200
         assert resp.json()["place_category"] == "car_dealer"
+        assert resp.json()["search_origin_address"] == "Av. Paulista, São Paulo"
 
         resp2 = client.put("/modules/lead_tracker/icp-profile", json={"place_category": "restaurant", "radius_km": 10.0})
         assert resp2.status_code == 200
