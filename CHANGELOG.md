@@ -4,6 +4,18 @@
 
 ### Adicionado
 
+- **Catálogo de campos personalizados do Salesforce** (Fase F, módulo 1
+  `sobject-field-catalog`, inicia a Fase F): novo método
+  `SalesforceProvider.describe_custom_account_fields()`, via
+  `sobjectDescribe` do Account, lista campos personalizados
+  (`custom=True AND updateable=True`) com nome/rótulo/tipo — base pra
+  a futura tela de mapeamento campo→papel semântico, sem exigir que o
+  usuário digite API name. Cache em memória por instância com TTL de
+  1h (describe é uma chamada pesada, conta pro limite diário da org),
+  com bypass explícito via `force_refresh`. Decisões técnicas em
+  consulta ao agente Salesforce Architect. Ver
+  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+
 - **Exportação da prospecção geográfica** (Fase E, módulo 8
   `geo-export`, fecha a Fase E): botões "PDF"/"Excel" na tela de
   resultado do wizard, reaproveitando 100% o exportador já existente

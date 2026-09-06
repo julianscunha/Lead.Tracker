@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -29,6 +30,25 @@ _MAX_PAGES = 1000  # guarda contra nextRecordsUrl em loop (bug do Salesforce ou 
 # aqui fecha a fronteira de confiança antes de interpolar em SOQL (nunca
 # confiar em company_id vindo do chamador para montar a query).
 _SALESFORCE_ID_RE = re.compile(r"^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$")
+
+# Fase F, módulo 1 — describe() é uma chamada pesada (payload com todos os
+# campos padrão+custom da org, geralmente centenas) e conta pro limite diário
+# de requisições da org; TTL de 1h em memória evita repetir a cada abertura
+# da tela de mapeamento. `force_refresh` (botão "atualizar catálogo" na UI,
+# e o health check do módulo 6) bypassa o cache — consultado com o Salesforce
+# Architect.
+_FIELD_CATALOG_TTL = timedelta(hours=1)
+
+
+@dataclass
+class SalesforceFieldInfo:
+    """Um campo do Account oferecido pra mapeamento — nunca um valor de
+    conta, só metadado (nome/rótulo/tipo). Papel semântico do módulo 2
+    decide compatibilidade de `type` (ex.: renewal_date só aceita `date`) —
+    esse catálogo não filtra por tipo, só por custom+updateable."""
+    name: str
+    label: str
+    type: str
 
 # Fase C, Fatia 4a — mapeamento determinístico de Title -> nível hierárquico
 # (proxy de autoridade). Ordem importa: checado de cima pra baixo, primeiro
@@ -87,6 +107,7 @@ class SalesforceProvider(DataProvider):
         self._client = client or httpx.AsyncClient(timeout=_TIMEOUT)
         self._access_token: str | None = None
         self._instance_url: str | None = None
+        self._field_catalog_cache: tuple[list[SalesforceFieldInfo], datetime] | None = None
 
     @property
     def id(self) -> str:
@@ -278,3 +299,80 @@ class SalesforceProvider(DataProvider):
             return ProviderContext(company_id=company_id)
         custom_fields = {key: value for key, value in records[0].items() if key != "attributes"}
         return ProviderContext(company_id=company_id, extra={"custom_fields": custom_fields})
+
+    async def _describe_account(self, _reauthed: bool = False) -> dict:
+        if self._access_token is None:
+            await self._authenticate()
+
+        response = await self._send(
+            "GET",
+            f"{self._instance_url}/services/data/{_API_VERSION}/sobjects/Account/describe",
+            headers={"Authorization": f"Bearer {self._access_token}"},
+        )
+        if response.status_code in (401, 403):
+            if not _reauthed:
+                self._access_token = None
+                await self._authenticate()
+                return await self._describe_account(_reauthed=True)
+            raise ProviderError(
+                "Sessão do Salesforce expirada ou sem permissão.",
+                category=ErrorCategory.AUTHENTICATION,
+                recommended_action="Verifique as credenciais/permissões do Salesforce nas configurações do módulo.",
+            )
+        if response.status_code == 404:
+            raise ProviderError(
+                "Objeto Account não está acessível para este usuário de integração.",
+                category=ErrorCategory.NOT_FOUND,
+            )
+        if response.status_code in _TRANSIENT_STATUS:
+            raise ProviderError(
+                "Salesforce temporariamente indisponível.",
+                category=ErrorCategory.CONNECTIVITY,
+                recommended_action="Tente novamente em alguns instantes.",
+            )
+        if response.status_code != 200:
+            raise ProviderError(
+                f"Salesforce retornou erro ({response.status_code}) ao consultar campos do Account.",
+                category=ErrorCategory.INTEGRATION,
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            # Consistente com _authenticate: nunca deixar um 200 com corpo
+            # não-JSON vazar como exceção técnica crua, mesmo que hoje o
+            # único chamador também capture isso — o método precisa ser
+            # seguro por si só (achado da revisão de código).
+            raise ProviderError(
+                "Resposta inesperada do Salesforce ao consultar campos do Account.",
+                category=ErrorCategory.INTEGRATION,
+            ) from exc
+
+    async def describe_custom_account_fields(self, force_refresh: bool = False) -> list[SalesforceFieldInfo]:
+        """Fase F, módulo 1 (`sobject-field-catalog`) — catálogo de campos
+        personalizados (`__c`) do Account via sobjectDescribe, pra popular o
+        dropdown de mapeamento sem o usuário digitar API name. Filtro
+        `custom and updateable` (não `calculated`): `updateable=False` já é
+        a interseção certa — cobre fórmula, rollup summary e qualquer campo
+        protegido, sem precisar checar múltiplos flags (orientação do
+        Salesforce Architect)."""
+        now = datetime.now(timezone.utc)
+        if not force_refresh and self._field_catalog_cache is not None:
+            cached_fields, cached_at = self._field_catalog_cache
+            if now - cached_at < _FIELD_CATALOG_TTL:
+                return cached_fields
+
+        try:
+            body = await self._describe_account()
+            fields = [
+                SalesforceFieldInfo(name=f["name"], label=f["label"], type=f["type"])
+                for f in body["fields"]
+                if f.get("custom") and f.get("updateable")
+            ]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ProviderError(
+                "Resposta inesperada do Salesforce ao consultar campos do Account.",
+                category=ErrorCategory.INTEGRATION,
+            ) from exc
+
+        self._field_catalog_cache = (fields, now)
+        return fields

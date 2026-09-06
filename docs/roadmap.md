@@ -326,6 +326,7 @@ Depende do endereço já vindo na Fase A.
   pra uma reunião sem precisar pedir print pra alguém técnico.
 
 ### Fase F — Mapeamento configurável de campo personalizado
+**Status:** em andamento (spec: `docs/specs/fase-f-mapeamento-campo-personalizado.md`).
 Depende da Fase A (contexto bruto já chegando) e reaproveita a mesma tela de
 configuração de fontes já cogitada antes desta sessão de planejamento.
 

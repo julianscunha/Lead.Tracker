@@ -1,0 +1,115 @@
+# Fase F — Mapeamento configurável de campo personalizado
+
+Depende da Fase A (contexto bruto do Salesforce já chegando via
+`fetch_context`/`FIELDS(CUSTOM)`) e reaproveita a mesma tela de
+configuração de fontes já existente (Fase 0).
+
+## Mapa de capacidades (confirmado pelo usuário)
+
+| Ordem | Módulo | Responsabilidade | Consulta a especialista |
+|---|---|---|---|
+| 1 | `sobject-field-catalog` | Descoberta via `sobjectDescribe` dos campos personalizados do `Account` (rótulo + tipo), sem exigir API name. | Salesforce Architect |
+| 2 | `semantic-field-role` | Enum fechado e genérico no core (`industry_hint`, `deal_size_hint`, `renewal_date`, ...), sem referência a Salesforce. | Não (mecânico) |
+| 3 | `field-mapping-store` | Config por instalação (não por company): `(provider_id, source_field_api_name, source_field_label, role)`, mesmo padrão de `ICPProfile`/`RepTarget`. | Não (mecânico) |
+| 4 | `mapping-driven-context-split` | Campo mapeado grava no destino certo (reaproveitando `Company.industry`/`Company.renewal_date` quando existem); campo sem mapeamento continua em `custom_fields` pra IA — Fase A não pode regredir. | Salesforce Architect (curta — decisão de precedência/destino) |
+| 5 | `mapping-config-ui` | Tela: campo do Salesforce → dropdown de papel semântico → status, linguagem não-técnica. | Sales Engineer |
+| 6 | `mapping-health-check` | Catálogo atual vs. mapeamentos salvos; campo sumido/mudado de tipo vira aviso em linguagem de negócio no `health_check()`. | Sales Engineer |
+
+**Decisão confirmada (`raw_context`)**: não é um valor explícito do
+enum — é a ausência de linha na tabela de mapeamento, idêntico ao
+comportamento já existente da Fase A (campo sem mapeamento continua
+como contexto bruto pra IA, sem exigir uma escolha extra do usuário).
+
+**Riscos de arquitetura identificados no planejamento** (a mitigar
+módulo a módulo, não resolvidos de antemão):
+- `field-mapping-store` guarda `provider_id` como string genérica —
+  nunca uma tabela/import específico de Salesforce no core.
+- Precedência quando `Company.industry`/`renewal_date` já têm valor
+  estrutural E existe um mapeamento pro mesmo papel: mapeamento só
+  preenche campo vazio, nunca sobrescreve (mesmo padrão de
+  `merge_pair`) — decisão a confirmar no módulo 4.
+- `deal_size_hint` (e qualquer papel sem campo estrutural hoje) só
+  ganha destino novo quando realmente necessário — nada de `dict`
+  genérico especulativo criado cedo demais.
+- `mapping-health-check` é checagem de configuração, nunca um segundo
+  motor de regras — nunca decide oportunidade nem reclassifica campo
+  sozinho.
+
+## Módulo 1 — `sobject-field-catalog`
+
+Consulta ao agente Salesforce Architect antes de implementar (decisões
+abaixo não devem ser reabertas):
+
+- **Chamada**: `GET {instance_url}/services/data/v59.0/sobjects/Account/describe`
+  (Metadata API — endpoint REST direto, não SOQL; reaproveita `_send`
+  pra timeout/retry, não passa por `_query`).
+- **Filtro de campos oferecidos**: `custom=True AND updateable=True`.
+  `updateable=False` já é a interseção certa — cobre fórmula, rollup
+  summary e qualquer campo protegido, sem precisar checar `calculated`
+  separadamente. Nenhum filtro por `type`: decidir se um tipo serve
+  pra um papel semântico é responsabilidade da UI de mapeamento
+  (módulo 5), não deste catálogo.
+- **Cache**: em memória por instância do provider
+  (`self._field_catalog_cache: tuple[list[SalesforceFieldInfo], datetime] | None`),
+  TTL de 1h — describe é uma chamada pesada (payload com todos os
+  campos padrão+custom da org) e conta pro limite diário de
+  requisições. `force_refresh: bool = False` bypassa o cache — vai
+  virar o botão "atualizar catálogo" da UI (módulo 5) e também é
+  usado pelo `mapping-health-check` (módulo 6), que não pode confiar
+  em cache desatualizado pra detectar campo removido.
+- **Erros**: reautentica uma vez em 401/403 (mesmo padrão recursivo de
+  `_query`); 404 vira `NOT_FOUND` ("objeto Account não acessível");
+  5xx/429 reusa `_TRANSIENT_STATUS`/retry existente; corpo malformado
+  (200 mas JSON inesperado) vira `INTEGRATION`, nunca uma exceção
+  técnica crua.
+
+**Achados da revisão de código** (3 Sugestões, todas aplicadas —
+nenhum Crítico/Importante):
+1. `_describe_account` fazia `response.json()` sem `try/except`
+   próprio — funcionava porque o único chamador já envolvia a chamada
+   num `try/except (ValueError, ...)`, mas deixava o método inseguro
+   por si só caso ganhasse outro chamador no futuro. Corrigido: parse
+   de JSON agora tem seu próprio `try/except → ProviderError`, mesmo
+   padrão de `_authenticate`.
+2. Faltava teste pra campo do describe sem as chaves `custom`/
+   `updateable` (em vez de `false` explícito) — `.get()` já tratava
+   corretamente (default `None`, falsy), mas sem teste provando.
+   Adicionado `test_describe_custom_account_fields_treats_missing_flags_as_false`.
+3. Teste de TTL expirado manipula `provider._field_catalog_cache`
+   diretamente (sem clock injetável) — aceito como está pela revisão;
+   é o jeito mais simples dado que o provider não tem um `_now()`
+   injetável hoje.
+
+### Não objetivo deste módulo
+
+- Filtro por `type` de campo — fica pra tela de mapeamento (módulo 5),
+  que sabe qual tipo serve pra qual papel semântico.
+- Cache persistente (SQLite/Redis) — TTL em memória por processo já
+  cobre o caso de uso (tela de configuração aberta várias vezes na
+  mesma sessão do backend).
+- Teste de isolamento de cache entre duas instâncias distintas do
+  provider — trivialmente correto por ser atributo de instância
+  (sugestão da revisão, não crítico o suficiente pra travar aqui).
+
+### Teste
+
+- `describe_custom_account_fields`: filtra corretamente
+  custom+updateable (fórmula custom fica de fora, campo padrão
+  updateable fica de fora); cache reusado entre chamadas na mesma
+  janela de TTL; `force_refresh=True` sempre busca de novo; cache
+  expirado (TTL passado) busca de novo mesmo sem `force_refresh`;
+  404→`NOT_FOUND`; reautentica uma vez em 401 e recupera; corpo
+  malformado→`INTEGRATION`; campo sem chaves `custom`/`updateable`
+  tratado como ausente, nunca `KeyError`.
+- Suíte completa (30 testes em `test_salesforce_provider.py`, todos
+  via `httpx.MockTransport`, nenhuma chamada de rede real).
+
+### Critério de sucesso
+
+- [x] Nenhum código específico de Salesforce vaza pro contrato
+      genérico `DataProvider` (`describe_custom_account_fields` é
+      método próprio do `SalesforceProvider`, não um dos 4 métodos
+      abstratos).
+- [x] Erro técnico nunca vaza cru — todo caminho de falha vira
+      `ProviderError` com categoria e mensagem acionável.
+- [x] Revisão de código sem achados Críticos/Importantes.

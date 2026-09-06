@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.errors import ErrorCategory
 from providers.base import DataProvider, ProviderError
-from providers.salesforce import SalesforceProvider, _infer_seniority_tier
+from providers.salesforce import SalesforceProvider, SalesforceFieldInfo, _infer_seniority_tier
 
 _TOKEN_BODY = {"access_token": "tok-123", "instance_url": "https://example.my.salesforce.com"}
 _VALID_ACCOUNT_ID = "001XX000003DHPh"  # 15 chars, formato válido de ID do Salesforce
@@ -463,6 +463,166 @@ def test_connection_fails_with_friendly_message_on_bad_credentials():
     asyncio.run(run())
 
 
+_DESCRIBE_BODY = {
+    "fields": [
+        {"name": "Segmento__c", "label": "Segmento", "type": "picklist", "custom": True, "updateable": True},
+        {"name": "Data_Renovacao__c", "label": "Data de Renovacao", "type": "date", "custom": True, "updateable": True},
+        {"name": "Formula_Score__c", "label": "Score Calculado", "type": "double", "custom": True, "updateable": False},
+        {"name": "Industry", "label": "Industry", "type": "picklist", "custom": False, "updateable": True},
+    ]
+}
+
+
+def test_describe_custom_account_fields_filters_custom_and_updateable_only():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        assert request.url.path == "/services/data/v59.0/sobjects/Account/describe"
+        return httpx.Response(200, json=_DESCRIBE_BODY)
+
+    async def run():
+        provider = _provider(handler)
+        fields = await provider.describe_custom_account_fields()
+        assert fields == [
+            SalesforceFieldInfo(name="Segmento__c", label="Segmento", type="picklist"),
+            SalesforceFieldInfo(name="Data_Renovacao__c", label="Data de Renovacao", type="date"),
+        ]
+
+    asyncio.run(run())
+
+
+def test_describe_custom_account_fields_caches_across_calls():
+    calls = {"describe": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        calls["describe"] += 1
+        return httpx.Response(200, json=_DESCRIBE_BODY)
+
+    async def run():
+        provider = _provider(handler)
+        await provider.describe_custom_account_fields()
+        await provider.describe_custom_account_fields()
+
+    asyncio.run(run())
+    assert calls["describe"] == 1  # segunda chamada reusa o cache em memória
+
+
+def test_describe_custom_account_fields_force_refresh_bypasses_cache():
+    calls = {"describe": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        calls["describe"] += 1
+        return httpx.Response(200, json=_DESCRIBE_BODY)
+
+    async def run():
+        provider = _provider(handler)
+        await provider.describe_custom_account_fields()
+        await provider.describe_custom_account_fields(force_refresh=True)
+
+    asyncio.run(run())
+    assert calls["describe"] == 2
+
+
+def test_describe_custom_account_fields_expired_cache_refetches():
+    """Cache expirado (TTL de 1h) precisa buscar de novo mesmo sem
+    force_refresh -- o health check (módulo 6) depende desse comportamento
+    pra não achar um campo removido há mais de 1h ainda "saudável"."""
+    calls = {"describe": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        calls["describe"] += 1
+        return httpx.Response(200, json=_DESCRIBE_BODY)
+
+    async def run():
+        from datetime import datetime, timedelta, timezone
+        provider = _provider(handler)
+        await provider.describe_custom_account_fields()
+        stale_fields, _ = provider._field_catalog_cache
+        provider._field_catalog_cache = (stale_fields, datetime.now(timezone.utc) - timedelta(hours=2))
+        await provider.describe_custom_account_fields()
+
+    asyncio.run(run())
+    assert calls["describe"] == 2
+
+
+def test_describe_custom_account_fields_missing_object_raises_not_found():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(404, json={"error": "not found"})
+
+    async def run():
+        provider = _provider(handler)
+        try:
+            await provider.describe_custom_account_fields()
+            assert False, "deveria ter levantado ProviderError"
+        except ProviderError as exc:
+            assert exc.category == ErrorCategory.NOT_FOUND
+
+    asyncio.run(run())
+
+
+def test_describe_custom_account_fields_reauthenticates_once_on_expired_session():
+    calls = {"token": 0, "describe": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            calls["token"] += 1
+            return httpx.Response(200, json=_TOKEN_BODY)
+        calls["describe"] += 1
+        if calls["describe"] == 1:
+            return httpx.Response(401, json={"error": "session_expired"})
+        return httpx.Response(200, json=_DESCRIBE_BODY)
+
+    async def run():
+        provider = _provider(handler)
+        fields = await provider.describe_custom_account_fields()
+        assert len(fields) == 2
+
+    asyncio.run(run())
+    assert calls["token"] == 2
+    assert calls["describe"] == 2
+
+
+def test_describe_custom_account_fields_treats_missing_flags_as_false():
+    """Campo sem as chaves `custom`/`updateable` (em vez de explicitamente
+    `false`) precisa ser tratado como ausente, não derrubar com KeyError."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={"fields": [{"name": "Sem_Flags__c", "label": "Sem Flags", "type": "text"}]})
+
+    async def run():
+        provider = _provider(handler)
+        fields = await provider.describe_custom_account_fields()
+        assert fields == []
+
+    asyncio.run(run())
+
+
+def test_describe_custom_account_fields_malformed_response_raises_integration_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={"unexpected": "shape"})
+
+    async def run():
+        provider = _provider(handler)
+        try:
+            await provider.describe_custom_account_fields()
+            assert False, "deveria ter levantado ProviderError"
+        except ProviderError as exc:
+            assert exc.category == ErrorCategory.INTEGRATION
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_salesforce_provider_implements_contract()
     test_missing_config_raises_configuration_error()
@@ -489,4 +649,12 @@ if __name__ == "__main__":
     test_infer_seniority_tier_covers_each_category_and_defaults_to_none()
     test_connection_ok_when_authentication_succeeds()
     test_connection_fails_with_friendly_message_on_bad_credentials()
+    test_describe_custom_account_fields_filters_custom_and_updateable_only()
+    test_describe_custom_account_fields_caches_across_calls()
+    test_describe_custom_account_fields_force_refresh_bypasses_cache()
+    test_describe_custom_account_fields_expired_cache_refetches()
+    test_describe_custom_account_fields_missing_object_raises_not_found()
+    test_describe_custom_account_fields_reauthenticates_once_on_expired_session()
+    test_describe_custom_account_fields_treats_missing_flags_as_false()
+    test_describe_custom_account_fields_malformed_response_raises_integration_error()
     print("OK — todos os testes do provider Salesforce passaram")
