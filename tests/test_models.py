@@ -6,7 +6,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.models import (
     Address, Company, CompanySignal, ContextNote, CorrelationRule, ICPProfile, Product, ProductRelation,
-    RuleError, Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange, Portfolio,
+    RuleError, SemanticFieldRole, Service, SourceRef, Vendor, Opportunity, OpportunityStatus, OpportunityStatusChange,
+    Portfolio,
 )
 
 
@@ -39,6 +40,12 @@ def test_opportunity_default_status_is_detected():
 def test_opportunity_status_flow_values():
     expected = ["detected", "qualified", "reviewed", "contacted", "opportunity", "dismissed"]
     assert [s.value for s in OpportunityStatus] == expected
+
+
+def test_semantic_field_role_values_are_generic_never_vendor_specific():
+    values = [r.value for r in SemanticFieldRole]
+    assert values == ["industry_hint", "deal_size_hint", "renewal_date"]
+    assert not any("salesforce" in v.lower() for v in values)
 
 
 def test_portfolio_scoped_to_company():
@@ -179,6 +186,7 @@ if __name__ == "__main__":
     test_product_belongs_to_vendor()
     test_opportunity_default_status_is_detected()
     test_opportunity_status_flow_values()
+    test_semantic_field_role_values_are_generic_never_vendor_specific()
     test_portfolio_scoped_to_company()
     test_company_fase_b_fields_default_to_none_or_empty()
     test_company_account_standard_fields_default_to_none()

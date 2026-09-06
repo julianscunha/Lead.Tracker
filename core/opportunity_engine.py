@@ -162,10 +162,19 @@ def rep_target_id(rep_id: str, period_type: PeriodType, period_key: str) -> str:
     return str(uuid5(NAMESPACE_URL, key))
 
 
+def field_mapping_id(provider_id: str, source_field_api_name: str) -> str:
+    """Fase F, módulo 3 (`field-mapping-store`) — id determinístico, mesmo
+    padrão de `rep_target_id` (agrupado aqui por consistência com os demais
+    helpers de id determinístico de config, não por ser lógica de scoring):
+    cadastrar mapeamento de novo pro mesmo campo é upsert, nunca duplicata."""
+    key = f"field_mapping:{provider_id}:{source_field_api_name}"
+    return str(uuid5(NAMESPACE_URL, key))
+
+
 __all__ = [
     "AGING_SLA_ENV_KEY", "CorrelationRule", "RuleError", "compute_account_health",
     "compute_qbr_suggested_days", "compute_severity_band", "current_period_key", "evaluate_rules",
-    "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days", "rep_target_id",
+    "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days", "rep_target_id",
     "requires_status_change_justification",
 ]
 

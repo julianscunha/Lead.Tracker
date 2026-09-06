@@ -12,17 +12,18 @@ from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
     Address, Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError,
-    ICPProfile, Opportunity, OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, RepTarget,
-    SourceRef, StatusChangeRequiresJustificationError, Vendor,
+    FieldMapping, ICPProfile, Opportunity, OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio,
+    RepTarget, SemanticFieldRole, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
-from core.opportunity_engine import CorrelationRule, evaluate_rules, rep_target_id
+from core.opportunity_engine import CorrelationRule, evaluate_rules, field_mapping_id, rep_target_id
 from core.repository import (
-    count_geo_discoveries_today, get_company, get_icp_profile, get_opportunity, get_portfolio_by_company,
-    list_active_rules, list_companies, list_company_signals, list_contacts, list_latest_snapshot,
-    list_opportunities, list_opportunity_status_changes, list_rep_targets, list_rules, list_vendors,
-    recompute_daily_snapshot, save_company, save_company_signal, save_contact, save_icp_profile,
-    save_opportunity, save_opportunity_status_change, save_portfolio, save_rep_target, save_rule,
-    save_vendor, update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    count_geo_discoveries_today, delete_field_mapping, get_company, get_icp_profile, get_opportunity,
+    get_portfolio_by_company, list_active_rules, list_companies, list_company_signals, list_contacts,
+    list_field_mappings, list_latest_snapshot, list_opportunities, list_opportunity_status_changes,
+    list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company, save_company_signal,
+    save_contact, save_field_mapping, save_icp_profile, save_opportunity, save_opportunity_status_change,
+    save_portfolio, save_rep_target, save_rule, save_vendor, update_company_renewal_date,
+    update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -1079,6 +1080,97 @@ def test_save_icp_profile_is_singleton_never_duplicates():
     asyncio.run(run())
 
 
+def test_save_field_mapping_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            mapping = FieldMapping(
+                id=field_mapping_id("salesforce", "Segmento__c"), provider_id="salesforce",
+                source_field_api_name="Segmento__c", source_field_label="Segmento",
+                role=SemanticFieldRole.INDUSTRY_HINT,
+            )
+            async with session_factory() as session:
+                await save_field_mapping(session, mapping)
+                loaded = await list_field_mappings(session, "salesforce")
+            assert len(loaded) == 1
+            assert loaded[0].source_field_api_name == "Segmento__c"
+            assert loaded[0].role == SemanticFieldRole.INDUSTRY_HINT
+
+    asyncio.run(run())
+
+
+def test_save_field_mapping_same_field_upserts_never_duplicates():
+    """Reconfigurar o papel do mesmo campo (mesmo provider+api_name) é
+    upsert na mesma linha (id determinístico), nunca um 2º mapeamento
+    concorrente pro mesmo campo."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("salesforce", "Segmento__c"), provider_id="salesforce",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("salesforce", "Segmento__c"), provider_id="salesforce",
+                    source_field_api_name="Segmento__c", source_field_label="Segmento",
+                    role=SemanticFieldRole.DEAL_SIZE_HINT,
+                ))
+                loaded = await list_field_mappings(session, "salesforce")
+            assert len(loaded) == 1
+            assert loaded[0].role == SemanticFieldRole.DEAL_SIZE_HINT
+
+    asyncio.run(run())
+
+
+def test_list_field_mappings_filters_by_provider():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("salesforce", "A__c"), provider_id="salesforce",
+                    source_field_api_name="A__c", source_field_label="A", role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("website", "A__c"), provider_id="website",
+                    source_field_api_name="A__c", source_field_label="A", role=SemanticFieldRole.RENEWAL_DATE,
+                ))
+                loaded = await list_field_mappings(session, "salesforce")
+            assert len(loaded) == 1
+            assert loaded[0].provider_id == "salesforce"
+
+    asyncio.run(run())
+
+
+def test_delete_field_mapping_removes_it():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            mapping_id = field_mapping_id("salesforce", "Segmento__c")
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=mapping_id, provider_id="salesforce", source_field_api_name="Segmento__c",
+                    source_field_label="Segmento", role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+                await delete_field_mapping(session, mapping_id)
+                loaded = await list_field_mappings(session, "salesforce")
+            assert loaded == []
+
+    asyncio.run(run())
+
+
+def test_delete_field_mapping_unknown_id_is_a_noop():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await delete_field_mapping(session, "nao-existe")
+
+    asyncio.run(run())
+
+
 def test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -1182,6 +1274,11 @@ if __name__ == "__main__":
     test_get_icp_profile_returns_none_before_first_save()
     test_save_icp_profile_round_trips()
     test_save_icp_profile_is_singleton_never_duplicates()
+    test_save_field_mapping_round_trips()
+    test_save_field_mapping_same_field_upserts_never_duplicates()
+    test_list_field_mappings_filters_by_provider()
+    test_delete_field_mapping_removes_it()
+    test_delete_field_mapping_unknown_id_is_a_noop()
     test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep()
     test_count_geo_discoveries_today_ignores_other_days()
     test_count_geo_discoveries_today_compares_against_utc_date_not_local()

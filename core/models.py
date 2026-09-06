@@ -167,6 +167,39 @@ class DismissalReason(str, Enum):
     OTHER = "other"
 
 
+class SemanticFieldRole(str, Enum):
+    """Fase F, módulo 2 (`semantic-field-role`) — papel semântico que um
+    campo personalizado de um provider (Salesforce hoje, qualquer outro
+    amanhã) pode assumir. Enum fechado e genérico: nenhuma referência a
+    Salesforce/nome de campo real aqui — quem liga um `source_field_api_name`
+    a um destes papéis é o mapeamento por instalação (módulo 3).
+
+    Não inclui um valor "contexto bruto" — campo sem mapeamento já continua
+    como contexto bruto pra IA por padrão (comportamento da Fase A), sem
+    exigir uma escolha explícita do usuário (decisão confirmada no
+    planejamento da Fase F)."""
+    INDUSTRY_HINT = "industry_hint"
+    DEAL_SIZE_HINT = "deal_size_hint"
+    RENEWAL_DATE = "renewal_date"
+
+
+class FieldMapping(BaseModel):
+    """Mapeamento campo personalizado → papel semântico, por instalação
+    (Fase F, módulo 3 `field-mapping-store`), nunca por company — mesmo
+    padrão de config já usado em `ICPProfile`/`RepTarget`. `provider_id`
+    é string livre e genérica (hoje só "salesforce" popula, mas o core
+    nunca importa nada de `providers/salesforce.py` aqui — mesmo cuidado
+    que `ICPProfile.place_category` tomou). Chave natural
+    `(provider_id, source_field_api_name)`: cadastrar mapeamento de novo
+    pro mesmo campo é upsert (id determinístico, `field_mapping_id`),
+    nunca duplicata."""
+    id: str = Field(default_factory=_new_id)
+    provider_id: str
+    source_field_api_name: str
+    source_field_label: str
+    role: SemanticFieldRole
+
+
 class Opportunity(BaseModel):
     id: str = Field(default_factory=_new_id)
     company_id: str

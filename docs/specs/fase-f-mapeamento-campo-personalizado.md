@@ -113,3 +113,64 @@ nenhum Crítico/Importante):
 - [x] Erro técnico nunca vaza cru — todo caminho de falha vira
       `ProviderError` com categoria e mensagem acionável.
 - [x] Revisão de código sem achados Críticos/Importantes.
+
+## Módulos 2 e 3 — `semantic-field-role` e `field-mapping-store`
+
+Ambos classificados como mecânicos no mapa de capacidades (sem
+consulta a especialista) e revisados juntos por serem pequenos e o
+módulo 3 depender diretamente do enum do módulo 2.
+
+**Módulo 2**: `SemanticFieldRole(str, Enum)` em `core/models.py` —
+`INDUSTRY_HINT`, `DEAL_SIZE_HINT`, `RENEWAL_DATE`. **Decisão
+confirmada**: nenhum valor `raw_context` no enum — campo sem
+mapeamento explícito já continua como contexto bruto pra IA por
+padrão (comportamento pré-existente da Fase A); a ausência de linha
+na tabela de mapeamento (módulo 3) já significa isso.
+
+**Módulo 3**: `FieldMapping` (`core/models.py`) + `FieldMappingORM`
+(`core/db_models.py`) + repositório (`save_field_mapping`,
+`list_field_mappings(session, provider_id)`,
+`delete_field_mapping(session, mapping_id)`). Config **por
+instalação**, nunca por company — mesmo padrão de `ICPProfile`/
+`RepTarget`. Id determinístico via `field_mapping_id(provider_id,
+source_field_api_name)` (`core/opportunity_engine.py`, mesmo padrão
+de `rep_target_id`): cadastrar mapeamento de novo pro mesmo campo é
+upsert, nunca duplicata. `provider_id` é string livre e genérica —
+nenhuma referência a Salesforce em `core/`.
+
+**Revisão de código**: aprovada sem achados Críticos/Importantes.
+Um ponto investigado e conscientemente não escalado: leitura de
+`FieldMapping.role` a partir do banco (`SemanticFieldRole(row.role)`)
+não tem try/except — um valor de role legado/removido derrubaria a
+leitura com `ValueError` cru. Não é regressão deste módulo (mesmo
+padrão já usado em todo enum persistido como string no repositório) e
+não há hoje nenhum caminho de remoção/deprecação de valor de enum na
+Fase F — risco especulativo, não real; se blindar, é item transversal
+("todos os enums persistidos"), não específico deste diff. A revisão
+também corrigiu o comentário desatualizado em
+`test_db_table_registration.py` (ainda dizia "13 tabelas"/lista sem
+`field_mappings`).
+
+### Não objetivo destes módulos
+
+- Try/except na leitura de enum persistido — aceito como risco
+  especulativo transversal, não resolvido aqui.
+- Rota HTTP/UI pra criar ou listar mapeamentos — isso é módulo 5
+  (`mapping-config-ui`), que ainda não existe nesta fatia.
+
+### Teste
+
+- `SemanticFieldRole`: valores exatos e nunca contêm referência a
+  "salesforce" (guard-rail automatizado da regra "core genérico").
+- `FieldMapping`: round-trip; upsert pro mesmo (provider_id,
+  source_field_api_name) nunca duplica; dois providers diferentes
+  mapeando o mesmo `source_field_api_name` não colidem; delete remove;
+  delete de id inexistente é no-op seguro.
+- `test_db_table_registration.py`: contagem bumped de 13→14
+  (`field_mappings`).
+
+### Critério de sucesso
+
+- [x] Nenhuma referência a Salesforce em `core/`.
+- [x] Upsert por chave natural nunca duplica mapeamento.
+- [x] Revisão de código sem achados Críticos/Importantes.

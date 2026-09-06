@@ -201,3 +201,17 @@ class ICPProfileORM(Base):
     radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     search_origin_address: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[datetime] = mapped_column()
+
+
+class FieldMappingORM(Base):
+    """Fase F, módulo 3 (`field-mapping-store`) — id determinístico
+    (`field_mapping_id`, mesmo padrão de `rep_target_id`) a partir de
+    (provider_id, source_field_api_name): cadastrar mapeamento de novo
+    pro mesmo campo é upsert, nunca duplicata. `provider_id` string
+    genérica — nenhuma referência a Salesforce aqui."""
+    __tablename__ = "field_mappings"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    provider_id: Mapped[str] = mapped_column(String)
+    source_field_api_name: Mapped[str] = mapped_column(String)
+    source_field_label: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)

@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **Papel semântico e armazenamento de mapeamento de campo** (Fase F,
+  módulos 2 `semantic-field-role` e 3 `field-mapping-store`): novo
+  enum `SemanticFieldRole` (`industry_hint`/`deal_size_hint`/
+  `renewal_date`, sem valor "raw_context" — ausência de mapeamento já
+  é o comportamento padrão) e config `FieldMapping` por instalação
+  (id determinístico, upsert por `provider_id`+`source_field_api_name`,
+  mesmo padrão de `ICPProfile`/`RepTarget`). Ver
+  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+
 - **Catálogo de campos personalizados do Salesforce** (Fase F, módulo 1
   `sobject-field-catalog`, inicia a Fase F): novo método
   `SalesforceProvider.describe_custom_account_fields()`, via

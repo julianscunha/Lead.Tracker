@@ -16,15 +16,15 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
-    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, ICPProfileORM, OpportunityORM,
+    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, RepTargetORM, ServiceORM,
     VendorORM,
 )
 from core.models import (
     Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
-    DismissalReasonRequiredError, ICPProfile, Opportunity, OpportunitySnapshot,
+    DismissalReasonRequiredError, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, Product, ProductRelation, RepTarget,
-    Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
+    SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import is_zombie_opportunity, requires_status_change_justification
 
@@ -622,3 +622,40 @@ async def get_icp_profile(session: AsyncSession) -> ICPProfile | None:
         company_size_hint=row.company_size_hint, radius_km=row.radius_km,
         search_origin_address=row.search_origin_address, updated_at=_ensure_utc(row.updated_at),
     )
+
+
+# ── FieldMapping ─────────────────────────────────────────────────────────────
+
+async def save_field_mapping(session: AsyncSession, mapping: FieldMapping) -> None:
+    """Id determinístico (`field_mapping_id`) — cadastrar mapeamento de
+    novo pro mesmo (provider_id, source_field_api_name) é upsert via
+    `_upsert`/`session.merge`, nunca duplicata."""
+    await _upsert(session, FieldMappingORM(
+        id=mapping.id, provider_id=mapping.provider_id,
+        source_field_api_name=mapping.source_field_api_name,
+        source_field_label=mapping.source_field_label, role=mapping.role.value,
+    ))
+
+
+def _field_mapping_from_row(row: FieldMappingORM) -> FieldMapping:
+    return FieldMapping(
+        id=row.id, provider_id=row.provider_id, source_field_api_name=row.source_field_api_name,
+        source_field_label=row.source_field_label, role=SemanticFieldRole(row.role),
+    )
+
+
+async def list_field_mappings(session: AsyncSession, provider_id: str) -> list[FieldMapping]:
+    rows = (await session.execute(
+        select(FieldMappingORM).where(FieldMappingORM.provider_id == provider_id)
+    )).scalars().all()
+    return [_field_mapping_from_row(r) for r in rows]
+
+
+async def delete_field_mapping(session: AsyncSession, mapping_id: str) -> None:
+    """Desfazer um mapeamento — campo volta a ser contexto bruto pra IA
+    (comportamento padrão da Fase A), sem exigir um valor "raw_context"
+    explícito no enum (decisão confirmada no planejamento da Fase F)."""
+    row = await session.get(FieldMappingORM, mapping_id)
+    if row is not None:
+        await session.delete(row)
+        await session.commit()
