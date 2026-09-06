@@ -236,3 +236,63 @@ isso no wizard, módulo 6, ainda não construído).
 - [x] Nomes de campo nunca colidem com taxonomias incompatíveis entre
       módulos.
 - [x] Suíte completa e revisão de código sem pendências.
+
+## Módulo 4 — `geo-scoring-rules`
+
+Consulta ao agente Outbound Strategist antes de implementar (hierarquia
+de sinais e pesos são decisão de negócio, registrada no docstring de
+`core/geo_scoring.py`). `score_place_signal(signal, icp_category) ->
+float | None` pontua `PlaceSignal` (módulo 2) em 3 camadas:
+
+1. `business_status` em `CLOSED_TEMPORARILY`/`CLOSED_PERMANENTLY` →
+   **descarte determinístico**, `None` (não `0.0`) — tipo de retorno
+   diferente, não valor baixo, pra nenhum threshold do módulo 5
+   conseguir reverter e reativar um lugar fechado.
+2. Categoria bate (`base=0.7`) / não bate (`base=0.2`, nunca descarte —
+   só `business_status` tem garantia "ponto final") / sem ICP
+   configurado (`base=0.5`, neutro).
+3. `rating`(1.0-5.0)/`review_count` (cap 50) — bônus até 0.15 cada,
+   máximo combinado 0.30, sempre menor que o gap 0.7-0.2=0.5 entre bate
+   e não bate — a hierarquia nunca se inverte. Ausência de dado é
+   neutra (bônus 0.0), nunca penalidade.
+
+**Achado da revisão de código** (Important, corrigido): a checagem
+original só tratava `None`/`"OPERATIONAL"` como não-descarte, mas
+`"BUSINESS_STATUS_UNSPECIFIED"` é um valor real do enum da Places API
+que significa "não sabemos", nunca "sabemos que fechou" — tratá-lo como
+fechado descartaria lugares só por falta de certeza do Google. Corrigido
+pra incluir esse valor junto com `None` no não-descarte. Testes
+adicionais também cobriram `category_matches` com string vazia e
+`rating` fora da faixa 1.0-5.0 (clamp nos dois extremos).
+
+### Não objetivo deste módulo
+
+- Nenhuma decisão de "vira Opportunity ou não" — isso é
+  `anti-spam-promotion-gate` (módulo 5), que aplica o corte sobre o
+  score contínuo devolvido aqui.
+- Nenhuma persistência — função pura, sem I/O.
+
+### Teste
+
+- Descarte: `CLOSED_TEMPORARILY`/`CLOSED_PERMANENTLY` sempre `None`
+  independente de outros sinais; `None`/`"OPERATIONAL"`/
+  `"BUSINESS_STATUS_UNSPECIFIED"` nunca descartam.
+- Hierarquia: pior caso de "bate" (sem reviews) sempre acima do melhor
+  caso de "não bate" (reviews máximos) — verificado matematicamente e
+  por teste.
+- `category_matches`: case-insensitive; `None`/string vazia em qualquer
+  lado nunca "bate" (incluindo o caso de ambos os lados vazios).
+- Bônus: rating mínimo/máximo (1.0/5.0) e fora da faixa (0.0/6.0)
+  clampados corretamente; review count no cap (50) e acima dele
+  produzem o mesmo bônus máximo; ausência de rating/reviews é neutra
+  (score = base exata, nunca penalizado); score nunca passa de 1.0.
+
+### Critério de sucesso
+
+- [x] Descarte de `business_status` é tipo de retorno diferente
+      (`None`), nunca valor dentro da escala 0-1.
+- [x] Hierarquia categoria > reviews matematicamente garantida, nunca
+      dependente só de teste.
+- [x] `BUSINESS_STATUS_UNSPECIFIED` tratado como "não sabemos", nunca
+      como fechado.
+- [x] Suíte completa e revisão de código sem pendências.

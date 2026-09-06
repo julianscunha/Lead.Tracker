@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Pontuação determinística de sinal geográfico** (Fase E, módulo 4
+  `geo-scoring-rules`): `score_place_signal` pontua `PlaceSignal` (módulo
+  2) em 3 camadas — `business_status` fechado é descarte determinístico
+  (`None`, tipo de retorno diferente de score baixo); categoria bate/não
+  bate; `rating`/`review_count` como bônus fraco que nunca inverte a
+  hierarquia. Hierarquia e pesos decididos em consulta ao agente Outbound
+  Strategist. `BUSINESS_STATUS_UNSPECIFIED` (achado da revisão de código)
+  tratado como "não sabemos", nunca como fechado. Ver
+  `docs/specs/fase-e-prospeccao-geografica.md`.
+
 - **Derivação automática de critério de ICP** (Fase E, módulo 3
   `icp-auto-derivation`): `GET /icp-suggestion` deriva `industry_hint`
   (moda de `Company.industry` entre clientes satisfeitos) e
