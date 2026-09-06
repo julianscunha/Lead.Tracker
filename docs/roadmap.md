@@ -117,7 +117,10 @@ virar item formal — corrigindo aqui.
   nunca aparece em log/erro/export" aplicada aqui).
 
 ### Fase A — Ingestão ampliada do Salesforce
-**Status:** em andamento (spec já escrita: `docs/specs/salesforce-custom-fields-context.md`)
+**Status:** em andamento — campos personalizados entregues (spec:
+`docs/specs/salesforce-custom-fields-context.md`); campos padrão
+adicionais de `Account` (bullet abaixo) ainda pendente, sem spec própria
+ainda.
 **Depende da Fase 0** pra ter como configurar credenciais sem editar `.env`
 na mão — mas o provider em si já foi implementado e testado antes dessa
 lacuna ser percebida; a spec/código de ingestão não muda, só a forma como o
@@ -126,8 +129,8 @@ usuário final liga isso.
 - Campos padrão adicionais de `Account`: endereço (`BillingCity/State/PostalCode/Country`
   — sem `BillingStreet` por ora, custo de PII sem ganho de precisão de geocoding),
   `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `Type`, `LastActivityDate`, `CreatedDate`.
-- Campos personalizados (`__c`) como contexto bruto via `FIELDS(CUSTOM)` —
-  guardado, não interpretado (spec já escrita).
+- [x] Campos personalizados (`__c`) como contexto bruto via `FIELDS(CUSTOM)` —
+  guardado, não interpretado.
 - **Adiado para depois da Fase B, não desta fase:** dados de `Opportunity`/
   `OpportunityLineItem` existentes no CRM do cliente (histórico de compra) —
   é sinal de alto valor, mas depende do modelo de proveniência de sinal da

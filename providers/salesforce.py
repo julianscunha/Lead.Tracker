@@ -140,7 +140,7 @@ class SalesforceProvider(DataProvider):
                 category=ErrorCategory.INTEGRATION,
             ) from exc
 
-    async def _query(self, soql: str, _reauthed: bool = False) -> list[dict]:
+    async def _query(self, soql: str, _reauthed: bool = False, treat_malformed_query_as_empty: bool = False) -> list[dict]:
         if self._access_token is None:
             await self._authenticate()
 
@@ -163,12 +163,26 @@ class SalesforceProvider(DataProvider):
                 if not _reauthed:
                     self._access_token = None
                     await self._authenticate()
-                    return await self._query(soql, _reauthed=True)
+                    return await self._query(soql, _reauthed=True, treat_malformed_query_as_empty=treat_malformed_query_as_empty)
                 raise ProviderError(
                     "Sessão do Salesforce expirada ou sem permissão.",
                     category=ErrorCategory.AUTHENTICATION,
                     recommended_action="Verifique as credenciais do Salesforce nas configurações do módulo.",
                 )
+            if treat_malformed_query_as_empty and response.status_code == 400:
+                # FIELDS(CUSTOM) numa org sem nenhum campo personalizado devolve
+                # MALFORMED_QUERY (400) — não é falha real, é a resposta esperada
+                # pra "sem customização". Só esse errorCode específico vira lista
+                # vazia; qualquer outro 400 (SOQL malformado de verdade) continua
+                # caindo no `raise` genérico abaixo. Corpo não-JSON (proxy/WAF
+                # atípico na frente do 400) nunca vira exceção técnica crua —
+                # cai no `raise` genérico abaixo como qualquer outro 400.
+                try:
+                    errors = response.json()
+                except ValueError:
+                    errors = None
+                if isinstance(errors, list) and any(e.get("errorCode") == "MALFORMED_QUERY" for e in errors):
+                    return []
             if response.status_code in _TRANSIENT_STATUS:
                 raise ProviderError(
                     "Salesforce temporariamente indisponível.",
@@ -226,6 +240,21 @@ class SalesforceProvider(DataProvider):
         ]
 
     async def fetch_context(self, company_id: str) -> ProviderContext:
-        # ponytail: sem contexto rico ainda (raw_text/pages) — Salesforce não tem
-        # "texto de site"; ampliar aqui se algum dia precisarmos de notas/atividades da conta.
-        return ProviderContext(company_id=company_id)
+        """Campos personalizados (`__c`) da conta, como contexto bruto pra
+        uso futuro de IA — nunca interpretado aqui, nunca vira regra de
+        oportunidade (isso é trabalho do opportunity_engine). `FIELDS(CUSTOM)`
+        (spec: docs/specs/salesforce-custom-fields-context.md) evita precisar
+        conhecer os nomes dos campos de antemão — cada org Salesforce tem um
+        conjunto diferente. Sem contexto rico ainda (raw_text/pages) —
+        Salesforce não tem "texto de site"."""
+        if not _SALESFORCE_ID_RE.fullmatch(company_id):
+            raise ProviderError("Identificador de empresa inválido.", category=ErrorCategory.INVALID_DATA)
+
+        records = await self._query(
+            f"SELECT FIELDS(CUSTOM) FROM Account WHERE Id = '{company_id}' LIMIT 1",
+            treat_malformed_query_as_empty=True,
+        )
+        if not records:
+            return ProviderContext(company_id=company_id)
+        custom_fields = {key: value for key, value in records[0].items() if key != "attributes"}
+        return ProviderContext(company_id=company_id, extra={"custom_fields": custom_fields})

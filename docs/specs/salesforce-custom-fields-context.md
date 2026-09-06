@@ -124,13 +124,23 @@ Casos obrigatórios:
 
 ## Critérios de sucesso
 
-- [ ] `fetch_context()` retorna campos personalizados reais de uma conta
+- [x] `fetch_context()` retorna campos personalizados reais de uma conta
       Salesforce, no formato `extra["custom_fields"]`.
-- [ ] Org sem campos personalizados não gera erro — devolve `extra={}`.
-- [ ] `company_id` inválido continua bloqueado antes de qualquer chamada de
+- [x] Org sem campos personalizados não gera erro — devolve `extra={}`.
+- [x] `company_id` inválido continua bloqueado antes de qualquer chamada de
       rede (mesma proteção contra injeção já validada em `fetch_contacts`).
-- [ ] Todos os testes novos + suíte completa (16 arquivos) passam.
-- [ ] `CHANGELOG.md` atualizado.
+- [x] Todos os testes novos + suíte completa (19 arquivos hoje) passam.
+- [x] `CHANGELOG.md` atualizado.
+
+## Revisão de código
+
+Achado importante corrigido antes do commit: `CHANGELOG.md` inicialmente
+esquecido, adicionado. Achado de sugestão também corrigido: `_query`
+fazia `response.json()` sem tratamento num 400 tratado como "sem campos
+personalizados" — corpo não-JSON de um proxy/WAF atípico na frente
+propagaria `json.JSONDecodeError` cru (viola CLAUDE.md "nunca vazar
+exceção técnica"); envolvido em `try/except ValueError`, cai no `raise`
+genérico como qualquer outro 400 real.
 
 ## Questões em aberto
 

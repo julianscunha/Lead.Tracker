@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **Campos personalizados do Salesforce como contexto bruto** (Fase A):
+  `SalesforceProvider.fetch_context()` traz os campos `__c` da conta via
+  SOQL `FIELDS(CUSTOM)`, guardados sem interpretação em
+  `ProviderContext.extra["custom_fields"]` — nunca vira regra de
+  oportunidade nem passa por IA nesta fase, só deixa o dado pronto pra
+  quando o pipeline de IA real existir. Org sem nenhum campo personalizado
+  (`MALFORMED_QUERY`) nunca gera erro. Ver
+  `docs/specs/salesforce-custom-fields-context.md`.
+
 - **Dashboard consome todo o dado da Fase D** (Fase D, módulo 8 — fecha a
   fase): cards de KPI ganham linha de explicação (potencial ponderado
   avaliado/estimado, oportunidades zumbi, triagem atrasada, e os 8 cards

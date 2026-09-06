@@ -81,6 +81,81 @@ def test_fetch_contacts_filters_by_account_id():
     asyncio.run(run())
 
 
+def test_fetch_context_returns_custom_fields_from_account():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        assert "FIELDS(CUSTOM)" in unquote(str(request.url))
+        assert f"Id = '{_VALID_ACCOUNT_ID}'" in unquote(str(request.url))
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{
+                "attributes": {"type": "Account", "url": "/services/data/v59.0/sobjects/Account/001XX000003DHPh"},
+                "Segmento__c": "Enterprise", "Data_Renovacao__c": "2026-12-01",
+            }],
+        })
+
+    async def run():
+        provider = _provider(handler)
+        context = await provider.fetch_context(_VALID_ACCOUNT_ID)
+        assert context.extra["custom_fields"] == {"Segmento__c": "Enterprise", "Data_Renovacao__c": "2026-12-01"}
+        assert "attributes" not in context.extra["custom_fields"]
+
+    asyncio.run(run())
+
+
+def test_fetch_context_org_without_custom_fields_never_raises():
+    """FIELDS(CUSTOM) numa org sem nenhum campo `__c` devolve MALFORMED_QUERY
+    (400) — resposta esperada pra "sem customização", nunca uma falha real."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(400, json=[{
+            "message": "\nFIELDS(CUSTOM)\n^\nERROR at Row:1:Column:8\nNo such column...",
+            "errorCode": "MALFORMED_QUERY",
+        }])
+
+    async def run():
+        provider = _provider(handler)
+        context = await provider.fetch_context(_VALID_ACCOUNT_ID)
+        assert context.extra == {}
+
+    asyncio.run(run())
+
+
+def test_fetch_context_rejects_invalid_company_id_before_any_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert False, "nenhuma requisição deveria ter sido feita"
+    async def run():
+        provider = _provider(handler)
+        try:
+            await provider.fetch_context("' OR '1'='1")
+            assert False, "deveria ter levantado ProviderError"
+        except ProviderError as exc:
+            assert exc.category == ErrorCategory.INVALID_DATA
+
+    asyncio.run(run())
+
+
+def test_fetch_context_other_400_errors_still_raise():
+    """Só MALFORMED_QUERY vira lista vazia — qualquer outro 400 (SOQL
+    malformado de verdade, por exemplo) continua sendo erro real."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(400, json=[{"message": "algo errado de verdade", "errorCode": "INVALID_FIELD"}])
+
+    async def run():
+        provider = _provider(handler)
+        try:
+            await provider.fetch_context(_VALID_ACCOUNT_ID)
+            assert False, "deveria ter levantado ProviderError"
+        except ProviderError as exc:
+            assert exc.category == ErrorCategory.INTEGRATION
+
+    asyncio.run(run())
+
+
 def test_invalid_company_id_rejected_before_any_request():
     async def run():
         def handler(request: httpx.Request) -> httpx.Response:
@@ -344,6 +419,10 @@ if __name__ == "__main__":
     test_missing_config_raises_configuration_error()
     test_fetch_companies_authenticates_then_queries()
     test_fetch_contacts_filters_by_account_id()
+    test_fetch_context_returns_custom_fields_from_account()
+    test_fetch_context_org_without_custom_fields_never_raises()
+    test_fetch_context_rejects_invalid_company_id_before_any_request()
+    test_fetch_context_other_400_errors_still_raise()
     test_invalid_company_id_rejected_before_any_request()
     test_invalid_credentials_raise_authentication_error_without_retry()
     test_transient_error_retries_then_succeeds()
