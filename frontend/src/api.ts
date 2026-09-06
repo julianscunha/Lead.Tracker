@@ -611,3 +611,56 @@ export async function createRepTarget(target: RepTarget): Promise<RepTarget> {
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }
+
+// ── Mapeamento de campo personalizado (Fase F) ──────────────────────────────
+// Só Salesforce tem catálogo/mapeamento nesta fase — mesma convenção do
+// backend (provider_id fixo na rota, não no core).
+export type SemanticFieldRole = 'industry_hint' | 'deal_size_hint' | 'renewal_date'
+
+export interface FieldCatalogItem {
+  sourceFieldApiName: string
+  sourceFieldLabel: string
+  fieldType: string
+  role: SemanticFieldRole | null
+}
+
+interface FieldCatalogItemApi {
+  source_field_api_name: string
+  source_field_label: string
+  field_type: string
+  role: SemanticFieldRole | null
+}
+
+export async function getFieldCatalog(forceRefresh = false): Promise<FieldCatalogItem[]> {
+  const resp = await fetch(`${BASE}/settings/salesforce/field-catalog?force_refresh=${forceRefresh}`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data: FieldCatalogItemApi[] = await resp.json()
+  return data.map(d => ({
+    sourceFieldApiName: d.source_field_api_name, sourceFieldLabel: d.source_field_label,
+    fieldType: d.field_type, role: d.role,
+  }))
+}
+
+export async function upsertFieldMapping(
+  apiName: string, label: string, role: SemanticFieldRole,
+): Promise<{ reassignedFromApiName: string | null; reassignedFromLabel: string | null }> {
+  const resp = await fetch(`${BASE}/settings/salesforce/field-mapping`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_field_api_name: apiName, source_field_label: label, role }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data = await resp.json()
+  // reassignedFromApiName é o identificador estável pra reconciliar estado
+  // local — reassignedFromLabel só compõe a frase do toast (dois campos
+  // com o mesmo rótulo numa org mal configurada não podem depender do
+  // rótulo pra decidir qual linha perdeu o papel; achado de revisão de código).
+  return { reassignedFromApiName: data.reassigned_from_api_name, reassignedFromLabel: data.reassigned_from_label }
+}
+
+export async function unmapField(apiName: string): Promise<void> {
+  const resp = await fetch(`${BASE}/settings/salesforce/field-mapping/${encodeURIComponent(apiName)}`, {
+    method: 'DELETE',
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}

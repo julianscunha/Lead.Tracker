@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import { FieldMappingSection } from './FieldMappingSection'
 import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
@@ -63,6 +64,7 @@ export function SettingsScreen() {
         ))}
       </div>
 
+      {sources.find(s => s.id === 'salesforce')?.enabled && <FieldMappingSection />}
       <RulesSection />
       <RepTargetsSection />
     </div>

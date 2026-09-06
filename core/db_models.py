@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, Float, Integer, String
+from sqlalchemy import JSON, Boolean, Date, Float, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -209,8 +209,17 @@ class FieldMappingORM(Base):
     (`field_mapping_id`, mesmo padrão de `rep_target_id`) a partir de
     (provider_id, source_field_api_name): cadastrar mapeamento de novo
     pro mesmo campo é upsert, nunca duplicata. `provider_id` string
-    genérica — nenhuma referência a Salesforce aqui."""
+    genérica — nenhuma referência a Salesforce aqui.
+
+    `UniqueConstraint(provider_id, role)` (achado da revisão de código do
+    módulo 5): um papel só pode ter uma fonte por vez (decisão do Sales
+    Engineer) — sem essa trava no banco, duas requisições concorrentes de
+    reatribuição pro MESMO papel (ex.: duas abas) poderiam cada uma ler o
+    mapeamento anterior, deletar, e inserir o próprio campo, deixando dois
+    campos mapeados pro mesmo papel ao mesmo tempo. A trava faz a 2ª
+    inserção falhar em vez de silenciosamente violar a garantia."""
     __tablename__ = "field_mappings"
+    __table_args__ = (UniqueConstraint("provider_id", "role", name="uq_field_mappings_provider_role"),)
     id: Mapped[str] = mapped_column(String, primary_key=True)
     provider_id: Mapped[str] = mapped_column(String)
     source_field_api_name: Mapped[str] = mapped_column(String)

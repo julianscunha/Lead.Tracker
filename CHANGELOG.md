@@ -4,6 +4,19 @@
 
 ### Adicionado
 
+- **Tela de mapeamento de campo personalizado** (Fase F, módulo 5
+  `mapping-config-ui`, única tela desta fase): nova seção em
+  Configurações — tabela de campos personalizados do Salesforce com
+  dropdown de papel semântico por linha, salvando ao selecionar (sem
+  botão "Salvar"), reatribuição automática com aviso quando dois
+  campos disputam o mesmo papel. Linguagem 100% de negócio (nunca
+  "hint"/termo técnico), decidida em consulta ao agente Sales
+  Engineer. Achados de revisão corrigidos: trava de unicidade no
+  banco (`provider_id`+`role`) impede dois campos mapeados pro mesmo
+  papel sob concorrência; reconciliação de estado no frontend usa
+  identificador estável (API name), nunca o rótulo exibido. Ver
+  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+
 - **Divisão de contexto guiada por mapeamento** (Fase F, módulo 4
   `mapping-driven-context-split`): `/sync` agora aplica os
   `FieldMapping` configurados — campo customizado mapeado sobrescreve

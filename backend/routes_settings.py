@@ -13,9 +13,11 @@ from pathlib import Path
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from backend.db_session import session_factory
 from backend.http_errors import raise_http
 from backend.settings import SOURCES, get_source
 from core.config import load_env, set_env_values
@@ -24,7 +26,9 @@ from core.geo_promotion import (
     GEO_PROMOTION_DAILY_CAP_ENV_KEY, GEO_PROMOTION_MIN_SCORE_ENV_KEY, parse_promotion_daily_cap,
     parse_promotion_min_score,
 )
-from core.opportunity_engine import AGING_SLA_ENV_KEY, parse_aging_sla_days
+from core.models import FieldMapping, SemanticFieldRole
+from core.opportunity_engine import AGING_SLA_ENV_KEY, field_mapping_id, parse_aging_sla_days
+from core.repository import delete_field_mapping, list_field_mappings, save_field_mapping
 from providers.base import ConnectionTestResult, ProviderError
 
 _MODULE_ROOT = Path(__file__).parent.parent
@@ -164,3 +168,113 @@ async def test_settings(source_id: str) -> LastCheck:
         return LastCheck(status="failed", message="Não consegui verificar a conexão com esta fonte. Tente novamente.")
 
     return LastCheck(status="connected" if result.is_connected else "failed", message=result.message)
+
+
+# ── Fase F, módulo 5 (`mapping-config-ui`) ────────────────────────────────────
+# Só Salesforce tem catálogo/mapeamento nesta fase — provider_id fica fixo
+# aqui na rota (camada de aplicação), não no core (core/field_mapping.py,
+# core/repository.py continuam genéricos, sem saber que só um provider
+# popula isso hoje).
+_FIELD_MAPPING_PROVIDER_ID = "salesforce"
+
+
+class FieldCatalogItem(BaseModel):
+    source_field_api_name: str
+    source_field_label: str
+    field_type: str
+    role: SemanticFieldRole | None = None
+
+
+@router.get("/salesforce/field-catalog")
+async def get_salesforce_field_catalog(force_refresh: bool = False) -> list[FieldCatalogItem]:
+    """Sales Engineer consultado (docs/specs/fase-f-mapeamento-campo-personalizado.md,
+    módulo 5): a tela nunca mostra o campo cru sem contexto — cada linha já
+    chega com o papel atualmente mapeado (ou nenhum), pra tabela renderizar
+    direto sem uma segunda chamada."""
+    env = load_env(_ENV_PATH)
+    source = _require_source(_FIELD_MAPPING_PROVIDER_ID)
+    try:
+        provider = source.build(env)
+        fields = await provider.describe_custom_account_fields(force_refresh=force_refresh)
+    except ProviderError as exc:
+        raise_http(exc)
+
+    async with session_factory() as session:
+        mappings = await list_field_mappings(session, _FIELD_MAPPING_PROVIDER_ID)
+    role_by_field = {m.source_field_api_name: m.role for m in mappings}
+
+    return [
+        FieldCatalogItem(
+            source_field_api_name=f.name, source_field_label=f.label, field_type=f.type,
+            role=role_by_field.get(f.name),
+        )
+        for f in fields
+    ]
+
+
+class FieldMappingRequest(BaseModel):
+    source_field_api_name: str
+    source_field_label: str
+    role: SemanticFieldRole
+
+
+class FieldMappingResponse(BaseModel):
+    source_field_api_name: str
+    role: SemanticFieldRole
+    reassigned_from_api_name: str | None = None
+    reassigned_from_label: str | None = None
+
+
+@router.put("/salesforce/field-mapping")
+async def upsert_salesforce_field_mapping(body: FieldMappingRequest) -> FieldMappingResponse:
+    """Sales Engineer consultado: um papel só pode ter uma fonte por vez —
+    mapear um 2º campo pro mesmo papel reatribui automaticamente (nunca os
+    dois mapeados silenciosamente ao mesmo papel), e o front mostra um
+    toast curto avisando a troca. `reassigned_from_api_name` (achado da
+    revisão de código) é o identificador estável pro front reconciliar
+    estado local — `reassigned_from_label` é só pra compor a frase do
+    toast; dois campos com o mesmo rótulo (org mal configurada) não podem
+    depender do rótulo pra decidir qual linha perdeu o papel."""
+    async with session_factory() as session:
+        existing = await list_field_mappings(session, _FIELD_MAPPING_PROVIDER_ID)
+        reassigned_from_api_name = None
+        reassigned_from_label = None
+        for mapping in existing:
+            if mapping.role == body.role and mapping.source_field_api_name != body.source_field_api_name:
+                await delete_field_mapping(session, mapping.id)
+                reassigned_from_api_name = mapping.source_field_api_name
+                reassigned_from_label = mapping.source_field_label
+
+        try:
+            await save_field_mapping(session, FieldMapping(
+                id=field_mapping_id(_FIELD_MAPPING_PROVIDER_ID, body.source_field_api_name),
+                provider_id=_FIELD_MAPPING_PROVIDER_ID, source_field_api_name=body.source_field_api_name,
+                source_field_label=body.source_field_label, role=body.role,
+            ))
+        except IntegrityError:
+            # UniqueConstraint(provider_id, role) barrou uma corrida real
+            # (duas requisições reatribuindo o mesmo papel ao mesmo tempo) —
+            # nunca vaza IntegrityError crua, pede pro usuário tentar de novo
+            # vendo o estado já atualizado.
+            await session.rollback()
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA,
+                "Esse papel acabou de ser atribuído a outro campo por outra pessoa.",
+                "Atualize a tela e tente novamente.",
+            ))
+
+    return FieldMappingResponse(
+        source_field_api_name=body.source_field_api_name, role=body.role,
+        reassigned_from_api_name=reassigned_from_api_name, reassigned_from_label=reassigned_from_label,
+    )
+
+
+@router.delete("/salesforce/field-mapping/{source_field_api_name}")
+async def unmap_salesforce_field(source_field_api_name: str) -> dict:
+    """Desfazer é sempre permitido e sem confirmação — campo volta a ser
+    contexto bruto pra IA, nunca um estado de erro (Sales Engineer:
+    mapeamento é 100% opcional e reversível a qualquer momento)."""
+    mapping_id = field_mapping_id(_FIELD_MAPPING_PROVIDER_ID, source_field_api_name)
+    async with session_factory() as session:
+        await delete_field_mapping(session, mapping_id)
+    return {"unmapped": True}

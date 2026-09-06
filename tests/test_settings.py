@@ -14,7 +14,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import main as backend_main
+import backend.settings as settings_module
 from backend import routes_settings
+from core.db import create_engine, init_db, make_session_factory
+from providers.salesforce import SalesforceFieldInfo
 
 app = FastAPI()
 app.include_router(backend_main.router)
@@ -37,6 +40,57 @@ class _TempEnv:
     def __exit__(self, *exc):
         routes_settings._ENV_PATH = self._original
         self._tmpdir.cleanup()
+
+
+class _TempEnvAndDb:
+    """Mesmo padrão de _TempEnv, mas também redireciona
+    routes_settings.session_factory pra um banco SQLite temporário — as
+    rotas de field-mapping (Fase F, módulo 5) precisam dos dois."""
+
+    def __enter__(self):
+        self._original_env = routes_settings._ENV_PATH
+        self._original_sf = routes_settings.session_factory
+        self._tmpdir = tempfile.TemporaryDirectory()
+        tmp_path = Path(self._tmpdir.name)
+
+        env_path = tmp_path / ".env"
+        env_path.write_text("APP_ENV=local\n", encoding="utf-8")
+        routes_settings._ENV_PATH = env_path
+
+        import asyncio
+        engine = create_engine(tmp_path / "test.db")
+        asyncio.run(init_db(engine))
+        self.session_factory = make_session_factory(engine)
+        routes_settings.session_factory = self.session_factory
+        return self
+
+    def __exit__(self, *exc):
+        routes_settings._ENV_PATH = self._original_env
+        routes_settings.session_factory = self._original_sf
+        self._tmpdir.cleanup()
+
+
+class _StubSalesforceProvider:
+    """Substitui SalesforceProvider real na rota de catálogo — nunca bate
+    na rede de verdade em teste (CLAUDE.md: providers sempre mockados)."""
+    fields: list = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def describe_custom_account_fields(self, force_refresh: bool = False):
+        return _StubSalesforceProvider.fields
+
+
+class _FieldCatalogStub:
+    def __enter__(self):
+        self._original = settings_module.SalesforceProvider
+        settings_module.SalesforceProvider = _StubSalesforceProvider
+        _StubSalesforceProvider.fields = []
+        return self
+
+    def __exit__(self, *exc):
+        settings_module.SalesforceProvider = self._original
 
 
 def test_list_settings_returns_all_sources_with_defaults():
@@ -180,6 +234,98 @@ def test_put_geo_promotion_config_rejects_non_positive_cap():
         assert "limite" in resp.json()["detail"]
 
 
+def test_get_field_catalog_returns_fields_with_no_mapping_by_default():
+    with _TempEnvAndDb(), _FieldCatalogStub():
+        _StubSalesforceProvider.fields = [
+            SalesforceFieldInfo(name="Segmento__c", label="Segmento", type="picklist"),
+        ]
+        resp = client.get("/modules/lead_tracker/settings/salesforce/field-catalog")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["source_field_api_name"] == "Segmento__c"
+        assert body[0]["role"] is None
+
+
+def test_get_field_catalog_reflects_existing_mapping():
+    with _TempEnvAndDb() as env, _FieldCatalogStub():
+        _StubSalesforceProvider.fields = [
+            SalesforceFieldInfo(name="Segmento__c", label="Segmento", type="picklist"),
+        ]
+        put_resp = client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Segmento__c", "source_field_label": "Segmento", "role": "industry_hint",
+        })
+        assert put_resp.status_code == 200
+        assert put_resp.json()["reassigned_from_label"] is None
+
+        resp = client.get("/modules/lead_tracker/settings/salesforce/field-catalog")
+        body = resp.json()
+        assert body[0]["role"] == "industry_hint"
+
+
+def test_put_field_mapping_reassigns_role_from_previous_field():
+    """Sales Engineer consultado: um papel só pode ter uma fonte por vez —
+    mapear um 2º campo pro mesmo papel reatribui, nunca deixa os dois
+    mapeados simultaneamente."""
+    with _TempEnvAndDb():
+        client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Segmento__c", "source_field_label": "Segmento", "role": "industry_hint",
+        })
+        resp = client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Vertical__c", "source_field_label": "Vertical", "role": "industry_hint",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["reassigned_from_label"] == "Segmento"
+
+        with _FieldCatalogStub():
+            _StubSalesforceProvider.fields = [
+                SalesforceFieldInfo(name="Segmento__c", label="Segmento", type="picklist"),
+                SalesforceFieldInfo(name="Vertical__c", label="Vertical", type="picklist"),
+            ]
+            catalog = client.get("/modules/lead_tracker/settings/salesforce/field-catalog").json()
+        by_name = {f["source_field_api_name"]: f["role"] for f in catalog}
+        assert by_name["Vertical__c"] == "industry_hint"
+        assert by_name["Segmento__c"] is None
+
+
+def test_put_field_mapping_same_field_updates_role_never_duplicates():
+    with _TempEnvAndDb() as env:
+        client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Valor__c", "source_field_label": "Valor", "role": "industry_hint",
+        })
+        resp = client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Valor__c", "source_field_label": "Valor", "role": "deal_size_hint",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["reassigned_from_label"] is None  # mesmo campo, não é reatribuição de outro
+
+
+def test_delete_field_mapping_unmaps_it():
+    with _TempEnvAndDb(), _FieldCatalogStub():
+        _StubSalesforceProvider.fields = [SalesforceFieldInfo(name="Segmento__c", label="Segmento", type="picklist")]
+        client.put("/modules/lead_tracker/settings/salesforce/field-mapping", json={
+            "source_field_api_name": "Segmento__c", "source_field_label": "Segmento", "role": "industry_hint",
+        })
+        resp = client.delete("/modules/lead_tracker/settings/salesforce/field-mapping/Segmento__c")
+        assert resp.status_code == 200
+
+        catalog = client.get("/modules/lead_tracker/settings/salesforce/field-catalog").json()
+        assert catalog[0]["role"] is None
+
+
+def test_delete_field_mapping_unknown_field_never_errors():
+    with _TempEnvAndDb():
+        resp = client.delete("/modules/lead_tracker/settings/salesforce/field-mapping/Nao_Existe__c")
+        assert resp.status_code == 200
+
+
+def test_get_field_catalog_without_credentials_returns_friendly_error():
+    with _TempEnvAndDb():
+        resp = client.get("/modules/lead_tracker/settings/salesforce/field-catalog")
+        assert resp.status_code == 503  # ErrorCategory.CONFIGURATION
+        assert "incompleta" in resp.json()["detail"]
+
+
 if __name__ == "__main__":
     test_list_settings_returns_all_sources_with_defaults()
     test_secret_field_never_returns_value_in_claro()
@@ -196,4 +342,11 @@ if __name__ == "__main__":
     test_put_geo_promotion_config_accepts_range_boundaries()
     test_put_geo_promotion_config_rejects_score_out_of_range()
     test_put_geo_promotion_config_rejects_non_positive_cap()
+    test_get_field_catalog_returns_fields_with_no_mapping_by_default()
+    test_get_field_catalog_reflects_existing_mapping()
+    test_put_field_mapping_reassigns_role_from_previous_field()
+    test_put_field_mapping_same_field_updates_role_never_duplicates()
+    test_delete_field_mapping_unmaps_it()
+    test_delete_field_mapping_unknown_field_never_errors()
+    test_get_field_catalog_without_credentials_returns_friendly_error()
     print("OK — todos os testes de configurações de fontes passaram")

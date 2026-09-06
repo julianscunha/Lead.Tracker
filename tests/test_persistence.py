@@ -1171,6 +1171,45 @@ def test_delete_field_mapping_unknown_id_is_a_noop():
     asyncio.run(run())
 
 
+def test_save_field_mapping_rejects_two_different_fields_for_same_role():
+    """Achado da revisão de código do módulo 5 — UniqueConstraint(provider_id,
+    role) trava no banco a garantia de que só um campo mapeia pra cada
+    papel, mesmo se a lógica de reatribuição da rota falhar (ex.: corrida
+    entre duas requisições concorrentes)."""
+    from sqlalchemy.exc import IntegrityError
+
+    async def run():
+        # ignore_cleanup_errors: no Windows, um commit que falha por
+        # UniqueConstraint deixa o handle do arquivo SQLite (aiosqlite)
+        # preso tempo suficiente pra travar o rmtree do TemporaryDirectory
+        # mesmo depois de rollback + engine.dispose() — não é um bug deste
+        # teste, é uma particularidade de SQLite+Windows após violação de
+        # constraint; ignorar a falha de limpeza aqui é seguro (é um dir
+        # temporário, o SO limpa depois).
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            engine = create_engine(Path(tmp) / "test.db")
+            await init_db(engine)
+            session_factory = make_session_factory(engine)
+            async with session_factory() as session:
+                await save_field_mapping(session, FieldMapping(
+                    id=field_mapping_id("salesforce", "A__c"), provider_id="salesforce",
+                    source_field_api_name="A__c", source_field_label="A", role=SemanticFieldRole.INDUSTRY_HINT,
+                ))
+                raised = False
+                try:
+                    await save_field_mapping(session, FieldMapping(
+                        id=field_mapping_id("salesforce", "B__c"), provider_id="salesforce",
+                        source_field_api_name="B__c", source_field_label="B", role=SemanticFieldRole.INDUSTRY_HINT,
+                    ))
+                except IntegrityError:
+                    raised = True
+                    await session.rollback()
+                assert raised
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
 def test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
@@ -1279,6 +1318,7 @@ if __name__ == "__main__":
     test_list_field_mappings_filters_by_provider()
     test_delete_field_mapping_removes_it()
     test_delete_field_mapping_unknown_id_is_a_noop()
+    test_save_field_mapping_rejects_two_different_fields_for_same_role()
     test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep()
     test_count_geo_discoveries_today_ignores_other_days()
     test_count_geo_discoveries_today_compares_against_utc_date_not_local()

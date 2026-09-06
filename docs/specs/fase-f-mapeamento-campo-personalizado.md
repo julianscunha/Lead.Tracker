@@ -278,3 +278,92 @@ Sugestão de teste aplicada; demais aceitas sem ação):
 - [x] `renewal_date`/`deal_size_hint`/`industry` mapeados nunca são
       revertidos por uma sincronização subsequente.
 - [x] Revisão de código sem achados Críticos pendentes.
+
+## Módulo 5 — `mapping-config-ui`
+
+Única tela desta fase. Consulta ao agente Sales Engineer (decisões
+abaixo confirmadas, não reabrir):
+
+1. Rótulos em linguagem de vendedor, nunca "hint"/termo técnico:
+   `industry_hint` → "Setor / segmento do cliente", `deal_size_hint`
+   → "Porte estimado do negócio", `renewal_date` → "Data de
+   renovação do contrato".
+2. "Sempre vence" comunicado por UMA frase inline após a seleção,
+   nunca modal/alerta assustador — é uma escolha do vendedor, não um
+   risco.
+3. Coluna "status" colapsa no próprio dropdown de papel: Campo do
+   Salesforce | dropdown (vazio = não mapeado). Sem coluna
+   "Mapeado/Não mapeado" separada.
+4. Campo não mapeado não recebe nenhuma explicação por linha —
+   silêncio é a resposta certa; um parágrafo de contexto uma vez no
+   topo da tela já cobre isso.
+5. Dois campos pro mesmo papel: nunca permitido simultaneamente —
+   reatribuição automática (tira do campo anterior) + toast curto.
+6. Tabela única (sem seções separadas mapeado/disponível), mapeados
+   no topo por ordenação. Sem botão "Salvar" — cada seleção já salva.
+
+**Backend**: `GET /settings/salesforce/field-catalog` junta
+`describe_custom_account_fields()` (módulo 1) com
+`list_field_mappings()` (módulo 3) numa resposta só. `PUT
+/settings/salesforce/field-mapping` faz upsert e reatribuição
+automática (busca mapeamento existente do MESMO papel com API name
+diferente, remove, insere o novo). `DELETE
+/settings/salesforce/field-mapping/{api_name}` desmapeia usando o id
+determinístico direto (`field_mapping_id`), sem query.
+
+**Achados da revisão de código** (2 Importantes, ambos corrigidos):
+1. A reatribuição automática era só lógica de aplicação
+   (ler→deletar→inserir), sem nenhuma trava no banco — duas
+   requisições concorrentes pro MESMO papel (ex.: duas abas) podiam
+   cada uma ler o mapeamento anterior, deletar, e inserir o próprio
+   campo, deixando dois campos mapeados pro mesmo papel ao mesmo
+   tempo (violaria a decisão 5 do Sales Engineer). Corrigido:
+   `UniqueConstraint(provider_id, role)` em `FieldMappingORM` — a 2ª
+   inserção falha no banco em vez de corromper silenciosamente o
+   estado; a rota captura `IntegrityError` e devolve erro amigável
+   ("outra pessoa acabou de atribuir esse papel, atualize a tela").
+2. O frontend reconciliava o campo que perdeu o papel comparando por
+   **rótulo** (`source_field_label`) em vez de API name — numa org
+   Salesforce com dois campos custom compartilhando o mesmo rótulo
+   (plausível, org mal configurada), a UI zeraria o papel de TODAS as
+   linhas com aquele rótulo, não só da que realmente foi desmapeada
+   no servidor. Corrigido: backend agora devolve
+   `reassigned_from_api_name` (identificador estável) além de
+   `reassigned_from_label` (só pra compor o texto do toast);
+   frontend reconcilia pelo api_name.
+
+### Não objetivo deste módulo
+
+- Teste de integração HTTP simulando a corrida real de duas
+  requisições concorrentes — a garantia é validada no nível de
+  repositório (constraint do banco rejeita a 2ª escrita) e a rota
+  trata o erro; simular a janela de corrida via HTTP exigiria threads
+  reais, desproporcional ao risco (tela de configuração de admin
+  único).
+- Extrair a lógica de reconciliação do frontend pra uma função pura
+  testada isoladamente (sugestão da revisão, não Importante) — o
+  componente já ficou pequeno o suficiente pra revisão manual
+  cobrir; extrair só se crescer.
+
+### Teste
+
+- Backend (`tests/test_settings.py`, 7 testes): catálogo sem/com
+  mapeamento; reatribuição automática troca o papel e some do campo
+  anterior; upsert no mesmo campo nunca duplica; delete remove e é
+  no-op seguro pra id inexistente; credenciais ausentes viram erro
+  amigável (503).
+- Repositório (`tests/test_persistence.py`, 1 teste novo): `Unique
+  Constraint(provider_id, role)` rejeita de fato uma 2ª inserção pro
+  mesmo papel com `IntegrityError` (prova a trava do achado 1).
+- Frontend: `tsc --noEmit` e `vite build` limpos; suíte de componente
+  (29 testes) inalterada — sem framework de teste de componente React
+  no projeto (mesmo limite já registrado nos módulos 6/7 da Fase E).
+
+### Critério de sucesso
+
+- [x] Um papel nunca tem 2 campos mapeados simultaneamente, mesmo sob
+      concorrência (garantido pelo banco, não só pela aplicação).
+- [x] Reconciliação de estado no frontend nunca depende de um campo
+      não-único (rótulo) pra decidir qual linha mudou.
+- [x] As 6 decisões de UX do Sales Engineer implementadas fielmente.
+- [x] Revisão de código sem achados Importantes pendentes.
