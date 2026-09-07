@@ -44,6 +44,23 @@
 
 ### Corrigido
 
+- **Padrão de campo/botão/listbox consolidado em toda a interface**
+  (achado de auditoria de UX): existiam 4 formas ligeiramente diferentes
+  de estilizar "rótulo + controle" (`.lt-filters label`, `.lt-severity
+  label`, `.lt-panel label`, `.lt-field`), e só uma delas cobria
+  `<select>` — os outros três casos usavam a aparência nativa do
+  navegador, destoando do resto. Unificado numa única definição
+  canônica. Rótulos soltos sem nenhuma classe (8 ocorrências em
+  `App.tsx`/`Filters.tsx`/`OpportunityTable.tsx`) foram convertidos pro
+  padrão único — corrige o campo "Seu id de representante" que
+  renderizava colado no input. O botão "Nova meta" também parou de
+  ficar mais alto que "Nova regra": o toolbar deixava um botão sozinho
+  esticar de altura pra acompanhar um campo com rótulo mais alto ao
+  lado. **Listbox ilegível no tema escuro** corrigido com `color-scheme`
+  em `.lt-root` — sem essa propriedade, o navegador assume esquema claro
+  pro popup nativo do `<select>` mesmo com CSS customizado no controle
+  fechado, deixando as opções abertas com texto claro sobre fundo claro.
+
 - **Tamanho de fonte inconsistente em vários textos** (achado de
   auditoria de UX): `.lt-root` nunca definia um `font-size` base, então
   qualquer texto sem classe própria — a frase de explicação de cada
