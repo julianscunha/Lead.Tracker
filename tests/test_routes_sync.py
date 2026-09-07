@@ -16,9 +16,9 @@ from fastapi.testclient import TestClient
 import main as backend_main
 from backend import routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, Opportunity, OpportunityStatus, OutreachTouch, Product, Service, SourceRef
+from core.models import Company, Contact, Opportunity, OpportunityStatus, OutreachTouch, Product, Service, SourceRef
 from core.repository import (
-    recompute_daily_snapshot, save_company, save_opportunity, save_product, save_service,
+    recompute_daily_snapshot, save_company, save_contact, save_opportunity, save_product, save_service,
     update_company_renewal_date,
 )
 
@@ -836,6 +836,8 @@ def test_get_next_suggested_touch_returns_first_step_for_new_opportunity():
         assert resp.json() == {
             "state": "sugestao", "channel": "email", "reason_category": "continuidade_uso_atual",
             "silence_reason": None, "silence_days": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "last_contact_id": None,
         }
 
 
@@ -875,6 +877,8 @@ def test_post_outreach_touch_then_next_suggestion_awaits_interval():
         assert resp.json() == {
             "state": "aguardando_intervalo", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "last_contact_id": None,
         }
 
 
@@ -1012,6 +1016,8 @@ def test_get_next_suggested_touch_reflects_daily_cap_reached():
         assert resp.json() == {
             "state": "cap_diario_atingido", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "last_contact_id": None,
         }
 
 
@@ -1061,6 +1067,8 @@ def test_get_next_suggested_touch_suppresses_silence_when_daily_cap_reached():
         assert resp.json() == {
             "state": "cap_diario_atingido", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "last_contact_id": None,
         }
 
 
@@ -1121,6 +1129,144 @@ def test_get_next_suggested_touch_no_silence_signal_for_opportunity_past_status(
         assert body["silence_days"] is None
 
 
+def test_get_company_contacts_returns_id_and_name():
+    with _TempDb() as db:
+        import asyncio
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        contact = Contact(company_id=company.id, name="Joana Alves", seniority_tier="decisor")
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+        asyncio.run(seed())
+
+        resp = client.get(f"/modules/lead_tracker/companies/{company.id}/contacts")
+        assert resp.status_code == 200
+        assert resp.json() == [{"id": contact.id, "name": "Joana Alves"}]
+
+
+def test_get_company_contacts_empty_for_company_without_contacts():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", is_customer=True)
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+        asyncio.run(seed())
+
+        resp = client.get(f"/modules/lead_tracker/companies/{company.id}/contacts")
+        assert resp.json() == []
+
+
+def test_get_next_suggested_touch_includes_threading_risk_when_data_is_sufficient():
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+        from core.repository import save_outreach_touch
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        contact = Contact(company_id=company.id, name="Joana Alves", seniority_tier="operacional")
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=1),
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+                await save_opportunity(session, opportunity)
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", contact_id=contact.id,
+                    channel="email", reason_label="abertura", sent_at=now,
+                ))
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        body = resp.json()
+        assert set(body["threading_risk_reasons"]) == {"single_threaded_risk", "no_economic_buyer_contact"}
+        assert body["active_contact_count"] == 1
+        assert body["has_active_decisor"] is False
+        assert body["last_contact_id"] == contact.id
+
+
+def test_get_next_suggested_touch_last_contact_id_reflects_true_most_recent_touch():
+    """Achado da revisão de código: `last_contact_id` tem que refletir o
+    `contact_id` do toque MAIS RECENTE por `sent_at`, mesmo que seja `None`
+    — nunca cair pra um toque mais antigo só porque ele tem `contact_id`
+    preenchido. Toques inseridos fora de ordem cronológica pra também
+    provar que a escolha usa `sent_at`, não ordem de inserção."""
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+        from core.repository import save_outreach_touch
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        contact = Contact(company_id=company.id, name="Joana Alves", seniority_tier="decisor")
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=5),
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+                await save_opportunity(session, opportunity)
+                # Toque mais recente (sem contact_id) inserido ANTES do mais
+                # antigo (com contact_id) — prova que a escolha usa sent_at,
+                # não ordem de inserção nem "procura o mais recente com dado".
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", contact_id=None,
+                    channel="email", reason_label="follow-up", sent_at=now,
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", contact_id=contact.id,
+                    channel="email", reason_label="abertura", sent_at=now - timedelta(days=4),
+                ))
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.json()["last_contact_id"] is None
+
+
+def test_get_next_suggested_touch_no_threading_risk_when_contact_id_never_set():
+    """Achado do Deal Strategist: sem nenhum contact_id nos toques, o sinal
+    é dado insuficiente (None), nunca "0 contato ativo" fabricado."""
+    with _TempDb() as db:
+        import asyncio
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        body = resp.json()
+        assert body["threading_risk_reasons"] == []
+        assert body["active_contact_count"] is None
+        assert body["has_active_decisor"] is None
+        assert body["last_contact_id"] is None
+
+
 if __name__ == "__main__":
     test_get_companies_returns_empty_list_on_fresh_install()
     test_get_companies_returns_persisted_company()
@@ -1175,4 +1321,9 @@ if __name__ == "__main__":
     test_get_next_suggested_touch_suppresses_silence_when_daily_cap_reached()
     test_get_next_suggested_touch_flags_silence_for_never_contacted_opportunity()
     test_get_next_suggested_touch_no_silence_signal_for_opportunity_past_status()
+    test_get_company_contacts_returns_id_and_name()
+    test_get_company_contacts_empty_for_company_without_contacts()
+    test_get_next_suggested_touch_includes_threading_risk_when_data_is_sufficient()
+    test_get_next_suggested_touch_last_contact_id_reflects_true_most_recent_touch()
+    test_get_next_suggested_touch_no_threading_risk_when_contact_id_never_set()
     print("OK — todos os testes HTTP de dado real passaram")

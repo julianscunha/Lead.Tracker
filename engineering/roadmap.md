@@ -380,7 +380,7 @@ em paralelo às Fases D/E/F, não depende delas.
   ao envio de e-mail.
 
 ### Fase H — Cobertura de stakeholder e risco de single-thread
-**Status:** em andamento.
+**Status:** concluída (spec: `engineering/specs/fase-h-cobertura-stakeholder.md`).
 Depende só da Fase A (`Contact` já existe, com `seniority_tier` inferido de
 `role` desde a Fase C — decisor/influenciador_tecnico/operacional). Pode
 rodar em paralelo às demais fases, não depende delas.

@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  generateEmailDraft, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
-  updateOpportunityQualification, updateOpportunityStatus, type EmailDraft, type NextSuggestedTouch,
+  generateEmailDraft, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
+  updateOpportunityQualification, updateOpportunityStatus,
+  type CompanyContact, type EmailDraft, type NextSuggestedTouch,
 } from './api'
 import type { AccountHealth, Criticality, DismissalReason, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
@@ -323,6 +324,21 @@ export const CADENCE_REASON_PHRASE: Record<string, (row: OpportunityRow) => stri
     'Ligar com um ângulo diferente — a primeira abordagem não avançou, vale tentar outro gancho.',
 }
 
+// Fase H, módulo 4 (Sales Engineer consultado) — título de convite, nunca
+// alarme; frase muda conforme os motivos presentes (nunca concatena as
+// duas, senão vira uma lista burocrática em vez de uma síntese).
+function threadingRiskPhrase(reasons: NextSuggestedTouch['threadingRiskReasons']): string {
+  const hasSingleThread = reasons.includes('single_threaded_risk')
+  const hasNoDecisor = reasons.includes('no_economic_buyer_contact')
+  if (hasSingleThread && hasNoDecisor) {
+    return 'Os toques recentes chegaram a uma pessoa só, e não a um decisor. Bom momento pra ampliar quem participa da conversa.'
+  }
+  if (hasSingleThread) {
+    return 'Só um contato ativo tem recebido seus toques recentes. Vale envolver mais uma pessoa da conta.'
+  }
+  return 'Nenhum decisor apareceu nos toques recentes. Vale trazer quem decide pra conversa.'
+}
+
 function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: string }) {
   const [suggestion, setSuggestion] = useState<NextSuggestedTouch | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -330,14 +346,27 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'ready'>('idle')
   const [copying, setCopying] = useState(false)
   const [marking, setMarking] = useState(false)
+  const [contacts, setContacts] = useState<CompanyContact[]>([])
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
 
-  const load = () => getNextSuggestedTouch(row.id, repId).then(s => { setSuggestion(s); setCopyState('idle') })
+  const load = () => getNextSuggestedTouch(row.id, repId).then(s => {
+    setSuggestion(s)
+    setCopyState('idle')
+    setSelectedContactId(s.lastContactId)
+  })
 
   useEffect(() => {
     setLoadError(null)
     load().catch(err => setLoadError(err instanceof Error ? err.message : 'Falha ao calcular a próxima ação.'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id, repId])
+
+  useEffect(() => {
+    // Dropdown é opcional/best-effort — falha aqui nunca deve virar erro
+    // bloqueante (o rep ainda consegue copiar/marcar como enviado sem
+    // atribuir contato nenhum), então some silenciosamente pra lista vazia.
+    getCompanyContacts(row.companyId).then(setContacts).catch(() => setContacts([]))
+  }, [row.companyId])
 
   if (!repId.trim()) {
     return <p className="lt-hint">Informe seu id de representante acima para ver a próxima ação sugerida.</p>
@@ -356,10 +385,20 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
     </p>
   )
 
+  // Fase H, módulo 4 — independente de tudo acima, mesmo espírito do
+  // silenceBanner: soma um alerta, nunca substitui a sugestão de toque.
+  const threadingBanner = suggestion.threadingRiskReasons.length > 0 && (
+    <div className="lt-severity">
+      <strong>Vale ampliar os contatos aqui</strong>
+      <p>{threadingRiskPhrase(suggestion.threadingRiskReasons)}</p>
+    </div>
+  )
+
   if (suggestion.state === 'aguardando_intervalo') {
     return (
       <>
         {silenceBanner}
+        {threadingBanner}
         <p className="lt-hint">Sem ação sugerida agora — dentro do intervalo da cadência.</p>
       </>
     )
@@ -368,6 +407,7 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
     return (
       <>
         {silenceBanner}
+        {threadingBanner}
         <p className="lt-hint">Sem retorno até agora — decida o próximo passo no status acima (encerrar ou continuar manualmente).</p>
       </>
     )
@@ -379,6 +419,7 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
     return (
       <>
         {silenceBanner}
+        {threadingBanner}
         <p className="lt-hint">Você atingiu o limite de contatos de hoje. Essa sugestão volta amanhã.</p>
       </>
     )
@@ -410,7 +451,7 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   const markSent = async () => {
     setMarking(true)
     try {
-      await markOutreachTouchSent(row.id, repId, channel, phrase)
+      await markOutreachTouchSent(row.id, repId, channel, phrase, selectedContactId)
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Falha ao registrar o contato.')
       setMarking(false)
@@ -431,7 +472,15 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   return (
     <div className="lt-severity">
       {silenceBanner}
+      {threadingBanner}
       <p>{phrase}</p>
+      <label>
+        Contato (opcional)
+        <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
+          <option value="">Não atribuído</option>
+          {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
       {copyState === 'idle' && (
         <button type="button" className="lt-btn" onClick={copy} disabled={copying}>
           {copying ? 'Copiando…' : channel === 'email' ? 'Copiar rascunho' : 'Copiar'}

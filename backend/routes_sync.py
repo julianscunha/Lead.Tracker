@@ -42,14 +42,14 @@ from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     CADENCE_DAILY_CAP_REACHED, CadenceSuggestion, compute_account_health, compute_next_suggested_touch,
-    compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, current_period_key,
-    is_aging_opportunity, parse_aging_sla_days, rep_target_id,
+    compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, compute_threading_risk_signal,
+    current_period_key, is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, get_company, get_icp_profile, get_opportunity,
-    list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_outreach_touches,
-    list_products, list_rep_targets, list_rules, list_services, list_vendors, save_company, save_icp_profile,
-    save_opportunity, save_outreach_touch, save_rep_target, save_rule, update_company_renewal_date,
+    list_companies, list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
+    list_outreach_touches, list_products, list_rep_targets, list_rules, list_services, list_vendors, save_company,
+    save_icp_profile, save_opportunity, save_outreach_touch, save_rep_target, save_rule, update_company_renewal_date,
     update_opportunity_qualification, update_opportunity_status,
 )
 from providers.base import ProviderError
@@ -201,6 +201,20 @@ async def sync_now() -> list[SyncResultOut]:
 async def get_companies() -> list[Company]:
     async with session_factory() as session:
         return await list_companies(session)
+
+
+class ContactOut(BaseModel):
+    """Fase H, módulo 4 — só o que a UI precisa pro dropdown de "com quem
+    falei" (nunca a tela de contatos completa, fora de escopo deste módulo)."""
+    id: str
+    name: str
+
+
+@router.get("/companies/{company_id}/contacts")
+async def get_company_contacts_route(company_id: str) -> list[ContactOut]:
+    async with session_factory() as session:
+        contacts = await list_contacts(session, company_id)
+    return [ContactOut(id=c.id, name=c.name) for c in contacts]
 
 
 async def _account_health_map(
@@ -358,6 +372,15 @@ class NextSuggestedTouchOut(BaseModel):
     reason_category: str | None = None
     silence_reason: Literal["nunca_contatado", "cadencia_esgotada_silencio"] | None = None
     silence_days: int | None = None
+    # Fase H, módulo 4 — independente de tudo acima, mesmo espírito do
+    # silence_reason: soma um alerta, nunca substitui a sugestão de toque.
+    threading_risk_reasons: list[str] = Field(default_factory=list)
+    active_contact_count: int | None = None
+    has_active_decisor: bool | None = None
+    # Contato do último toque desta oportunidade — a UI pré-seleciona no
+    # dropdown de "marcar como enviado" (decisão do Sales Engineer: rep só
+    # reabre o dropdown quando quer trocar de pessoa).
+    last_contact_id: str | None = None
 
 
 class OutreachTouchIn(BaseModel):
@@ -392,18 +415,33 @@ async def get_next_suggested_touch_route(
             status=opportunity.status.value, touches=touches, first_detected_at=opportunity.first_detected_at,
             is_customer=company.is_customer, now=now, sla_days=aging_sla_days,
         )
+        contacts = await list_contacts(session, opportunity.company_id)
+        threading_risk = compute_threading_risk_signal(
+            status=opportunity.status.value, contacts=contacts, touches=touches, now=now,
+        )
     # Cap batido some com o sinal de silêncio (achado da revisão de código):
     # "você bateu a cota, essa sugestão volta amanhã" e "decida agora: outro
     # ângulo, escalar ou dispensar" puxam o rep em direções opostas na mesma
     # resposta — mesma precedência já aplicada dentro de
     # compute_next_suggested_touch (cap sempre mascara CADENCE_EXHAUSTED).
+    # threading_risk nunca é mascarado por cap — é sobre COBERTURA de
+    # stakeholder, não sobre "aja agora", não contradiz "espere até amanhã"
+    # (decisão do Sales Engineer/reconciliação do módulo 3).
     show_silence = silence is not None and suggestion != CADENCE_DAILY_CAP_REACHED
     silence_kwargs = {"silence_reason": silence.reason, "silence_days": silence.days_silent} if show_silence else {}
+    threading_kwargs = {
+        "threading_risk_reasons": list(threading_risk.reasons),
+        "active_contact_count": threading_risk.active_contact_count,
+        "has_active_decisor": threading_risk.has_active_decisor,
+    } if threading_risk else {}
+    last_touch = max(touches, key=lambda t: t.sent_at) if touches else None
+    last_contact_id = last_touch.contact_id if last_touch else None
     if isinstance(suggestion, CadenceSuggestion):
         return NextSuggestedTouchOut(
-            state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category, **silence_kwargs,
+            state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category,
+            last_contact_id=last_contact_id, **silence_kwargs, **threading_kwargs,
         )
-    return NextSuggestedTouchOut(state=suggestion, **silence_kwargs)
+    return NextSuggestedTouchOut(state=suggestion, last_contact_id=last_contact_id, **silence_kwargs, **threading_kwargs)
 
 
 @router.post("/opportunities/{opportunity_id}/outreach-touches")

@@ -78,6 +78,7 @@ export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraf
 
 export type CadenceState = 'sugestao' | 'aguardando_intervalo' | 'cadencia_esgotada' | 'cap_diario_atingido'
 export type SilenceReason = 'nunca_contatado' | 'cadencia_esgotada_silencio'
+export type ThreadingRiskReason = 'single_threaded_risk' | 'no_economic_buyer_contact'
 
 export interface NextSuggestedTouch {
   state: CadenceState
@@ -85,6 +86,10 @@ export interface NextSuggestedTouch {
   reasonCategory: string | null
   silenceReason: SilenceReason | null
   silenceDays: number | null
+  threadingRiskReasons: ThreadingRiskReason[]
+  activeContactCount: number | null
+  hasActiveDecisor: boolean | null
+  lastContactId: string | null
 }
 
 export async function getNextSuggestedTouch(opportunityId: string, repId: string): Promise<NextSuggestedTouch> {
@@ -96,18 +101,31 @@ export async function getNextSuggestedTouch(opportunityId: string, repId: string
   return {
     state: d.state, channel: d.channel, reasonCategory: d.reason_category,
     silenceReason: d.silence_reason, silenceDays: d.silence_days,
+    threadingRiskReasons: d.threading_risk_reasons, activeContactCount: d.active_contact_count,
+    hasActiveDecisor: d.has_active_decisor, lastContactId: d.last_contact_id,
   }
 }
 
 export async function markOutreachTouchSent(
-  opportunityId: string, repId: string, channel: string, reasonLabel: string,
+  opportunityId: string, repId: string, channel: string, reasonLabel: string, contactId: string | null,
 ): Promise<void> {
   const resp = await fetch(`${BASE}/opportunities/${opportunityId}/outreach-touches`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rep_id: repId, channel, reason_label: reasonLabel }),
+    body: JSON.stringify({ rep_id: repId, contact_id: contactId, channel, reason_label: reasonLabel }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
+export interface CompanyContact {
+  id: string
+  name: string
+}
+
+export async function getCompanyContacts(companyId: string): Promise<CompanyContact[]> {
+  const resp = await fetch(`${BASE}/companies/${companyId}/contacts`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
 }
 
 export interface SourceField {

@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Cobertura de stakeholder na tela de Oportunidades** (Fase H, módulo 4
+  `stakeholder-coverage-ui`, fecha a Fase H): dropdown opcional "Contato"
+  no fluxo de marcar-como-enviado (pré-seleciona o último contato tocado
+  nessa oportunidade) — é o que dá ao sinal de risco de single-thread
+  (módulo 3) uma forma real de ter dado, já que não havia nenhuma tela de
+  contatos no produto até aqui. Quando há dado suficiente, mostra "Vale
+  ampliar os contatos aqui" com frase específica por motivo, ao lado da
+  próxima ação sugerida — nunca badge de alarme na tabela. Copy/UX em
+  consulta ao agente Sales Engineer. Ver
+  `engineering/specs/fase-h-cobertura-stakeholder.md`.
+
 - **Sinal de risco de single-thread** (Fase H, módulo 3
   `single-threaded-risk-signal`): `compute_threading_risk_signal` sinaliza
   `single_threaded_risk` (só 1 contato ativo nos últimos 90 dias) e/ou

@@ -204,3 +204,107 @@ fácil de ler que nos `is_zombie_opportunity`/`is_aging_opportunity`.
       reconciliação).
 - [x] `contact_id` desconhecido nunca derruba a função.
 - [x] Revisão de código sem achados Importantes/Críticos.
+
+## Módulo 4 — `stakeholder-coverage-ui`
+
+Último módulo da fase. Primeira rota/UI nova desde o módulo 1 — sync pra
+cópia instalada + verificação ao vivo exigidas.
+
+**Consulta ao Sales Engineer** (antes de implementar — cobrindo o gap
+real descoberto ao planejar: não existe tela de contatos nenhuma no
+produto hoje, então sem alguma UI o sinal do módulo 3 nunca teria dado
+suficiente pra calcular nada, pra sempre):
+
+- **Dropdown mínimo, não tela de contatos completa.** Menor esforço que
+  destrava o sinal: um `<select>` opcional dentro do fluxo de "marcar
+  como enviado" já existente (Fase G), não uma tela nova de gestão de
+  contatos (isso fica pra quando "gestão de contatos" virar prioridade
+  própria — inclui edição de `stance`/`seniority_tier`, ainda sem rota).
+- **Onde o sinal aparece**: no painel de detalhe, ao lado da "próxima
+  ação sugerida" — nunca badge na linha da tabela (é sinal qualitativo
+  que precisa de contexto, e a tabela já compete por espaço com badges
+  de severidade/saúde).
+- **Tom**: convite, nunca alarme — título "Vale ampliar os contatos
+  aqui", nunca "Risco: single-thread".
+- **Frase por combinação de motivos** (nunca concatenar as duas — vira
+  lista burocrática em vez de síntese):
+  - só `single_threaded_risk`: "Só um contato ativo tem recebido seus
+    toques recentes. Vale envolver mais uma pessoa da conta."
+  - só `no_economic_buyer_contact`: "Nenhum decisor apareceu nos toques
+    recentes. Vale trazer quem decide pra conversa."
+  - os dois juntos: "Os toques recentes chegaram a uma pessoa só, e não
+    a um decisor. Bom momento pra ampliar quem participa da conversa."
+- **UX do dropdown**: sempre visível, nunca obrigatório, label discreta
+  ("Contato (opcional)"), placeholder "Não atribuído"; pré-seleciona
+  automaticamente o `contact_id` do último `OutreachTouch` da mesma
+  oportunidade — rep só reabre quando quer trocar de pessoa. `<select>`
+  nativo, sem busca/autocomplete (lista curta por conta).
+
+### Implementação
+
+- `backend/routes_sync.py`:
+  - `GET /companies/{company_id}/contacts` (`ContactOut(id, name)`) —
+    só leitura, só o que a UI precisa pro dropdown, nunca `stance`/
+    `seniority_tier` (não é endpoint de gestão de contatos).
+  - `NextSuggestedTouchOut` ganha `threading_risk_reasons`,
+    `active_contact_count`, `has_active_decisor` (do módulo 3) e
+    `last_contact_id` (contato do toque mais recente por `sent_at`,
+    pra UI pré-selecionar o dropdown). `threading_risk_reasons` NUNCA é
+    suprimido por `cap_diario_atingido` (diferente do `silence_reason`)
+    — é sobre cobertura, não sobre "aja agora", não contradiz "espere
+    até amanhã".
+- `frontend/src/api.ts` — `getCompanyContacts`, `NextSuggestedTouch`
+  ganha os 4 campos novos, `markOutreachTouchSent` ganha parâmetro
+  `contactId`.
+- `frontend/src/OpportunityTable.tsx` — `threadingRiskPhrase(reasons)`,
+  `threadingBanner` (aditivo em cima de todos os 4 estados de cadência,
+  mesmo padrão de `silenceBanner`), dropdown de contato no fluxo
+  copiar→marcar-como-enviado, `selectedContactId` reinicializado a
+  cada `load()` a partir de `lastContactId`.
+
+### Achado da revisão de código (1 Importante, corrigido)
+
+Nenhum teste provava que `last_contact_id` reflete o toque
+GENUINAMENTE mais recente por `sent_at` quando esse toque não tem
+`contact_id` mas um toque MAIS ANTIGO tem — o código já estava correto
+(`max(touches, key=lambda t: t.sent_at)`, nunca busca um toque antigo
+com dado), mas nada pegaria uma regressão que "ajudasse" a cair pro
+toque antigo. Adicionado teste com toques fora de ordem de inserção,
+provando que a escolha usa `sent_at`, não ordem de inserção nem "acha
+o mais recente com contato". Sugestão não-bloqueante aplicada:
+comentário explicando que a falha silenciosa ao buscar contatos é
+deliberada (dropdown é best-effort, nunca bloqueia o fluxo principal).
+
+### Não objetivo deste módulo
+
+- Tela de gestão de contatos (listar/editar `stance`/`seniority_tier`
+  via UI) — fica pra quando isso virar prioridade própria.
+- Badge de risco na linha da tabela — decisão explícita do Sales
+  Engineer, evita competir por espaço com os badges já existentes.
+- Validação de `contact_id` contra `Contact`/`company_id` — continua
+  responsabilidade futura, não deste módulo (módulo 1 já documentou
+  essa decisão).
+
+### Teste
+
+- `tests/test_routes_sync.py` (+5, e 4 asserts existentes atualizados
+  pros campos novos): rota de contatos devolve id/nome; rota de
+  contatos vazia pra conta sem contato; `threading_risk_reasons`/
+  `active_contact_count`/`has_active_decisor`/`last_contact_id`
+  presentes quando há dado suficiente; ausentes (defaults) quando não
+  há; `last_contact_id` reflete o toque mais recente por `sent_at`
+  mesmo fora de ordem de inserção e mesmo quando esse toque não tem
+  contato (achado da revisão de código).
+- `npx tsc --noEmit` e `npx vitest run` (30 testes) sem regressão.
+
+### Critério de sucesso
+
+- [x] Sinal do módulo 3 tem, pela primeira vez, uma forma real de
+      receber dado (`contact_id` atribuível via UI) — deixa de ser uma
+      função permanentemente "insuficiente por design".
+- [x] Nenhuma tela de gestão de contatos criada fora de escopo.
+- [x] `threading_risk_reasons` nunca contradiz `cap_diario_atingido`.
+- [x] `last_contact_id` reflete o toque genuinamente mais recente,
+      provado por teste com dado fora de ordem.
+- [x] Sincronizado pra cópia instalada e verificado ao vivo.
+- [x] Revisão de código sem achados Importantes/Críticos pendentes.
