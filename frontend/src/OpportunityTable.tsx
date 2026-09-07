@@ -111,8 +111,8 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
 
   return (
     <div className="lt-severity">
-      <label>
-        Status
+      <label className="lt-field">
+        <span>Status</span>
         <select value={pendingStatus ?? row.status} onChange={e => handleSelect(e.target.value as OpportunityRow['status'])} disabled={saving}>
           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -123,8 +123,8 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
         </p>
       )}
       {needsDismissalReason && (
-        <label>
-          Motivo do descarte
+        <label className="lt-field">
+          <span>Motivo do descarte</span>
           <select value={dismissalReason} onChange={e => setDismissalReason(e.target.value as DismissalReason)}>
             <option value="">Selecione um motivo</option>
             {DISMISSAL_REASON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -132,8 +132,8 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
         </label>
       )}
       {needsNote && (
-        <label>
-          Justificativa (pulou etapas ou reabriu uma oportunidade descartada)
+        <label className="lt-field">
+          <span>Justificativa (pulou etapas ou reabriu uma oportunidade descartada)</span>
           <textarea value={note} onChange={e => setNote(e.target.value)} />
         </label>
       )}
@@ -217,8 +217,8 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
 
   return (
     <div className="lt-severity">
-      <label>
-        Alcance do gap
+      <label className="lt-field">
+        <span>Alcance do gap</span>
         <select
           value={scopeNote ?? ''}
           onChange={e => {
@@ -231,8 +231,8 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           {SCOPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
-      <label>
-        Criticidade
+      <label className="lt-field">
+        <span>Criticidade</span>
         <select
           value={criticality ?? ''}
           onChange={e => {
@@ -245,8 +245,8 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           {CRITICALITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </label>
-      <label>
-        Observação (opcional)
+      <label className="lt-field">
+        <span>Observação (opcional)</span>
         <textarea
           value={severityNote}
           onChange={e => setSeverityNote(e.target.value)}
@@ -295,8 +295,8 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
           {' '}({QBR_REASON_LABEL[row.qbrReason] ?? row.qbrReason})
         </span>
       </div>
-      <label>
-        Data de renovação do contrato
+      <label className="lt-field">
+        <span>Data de renovação do contrato</span>
         <input
           type="date"
           value={renewalDate}
@@ -525,8 +525,8 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
       {threadingBanner}
       <p className="lt-panel-text">{phrase}</p>
       <div className="lt-panel-row">
-        <label>
-          Contato (opcional)
+        <label className="lt-field">
+          <span>Contato (opcional)</span>
           <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
             <option value="">Não atribuído</option>
             {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

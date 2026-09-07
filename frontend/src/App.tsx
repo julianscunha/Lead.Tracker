@@ -70,8 +70,8 @@ function OpportunitiesView() {
         <p>Lead.Tracker · {filtered.length} de {rows.length} oportunidades</p>
       </div>
       <div className="lt-toolbar">
-        <label>
-          Seu id de representante
+        <label className="lt-field">
+          <span>Seu id de representante</span>
           <input value={repId} onChange={e => handleRepIdChange(e.target.value)} placeholder="Id ou nome do representante" />
         </label>
         <button type="button" className="lt-btn" onClick={() => handleExport('pdf')} disabled={exporting !== null} aria-busy={exporting === 'pdf'}>

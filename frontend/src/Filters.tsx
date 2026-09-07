@@ -29,8 +29,8 @@ export function Filters({
 
   return (
     <div className="lt-filters" role="group" aria-label="Filtros de oportunidades">
-      <label htmlFor="lt-filter-client">
-        Cliente
+      <label htmlFor="lt-filter-client" className="lt-field">
+        <span>Cliente</span>
         <select
           id="lt-filter-client"
           value={value.client}
@@ -42,32 +42,32 @@ export function Filters({
         </select>
       </label>
 
-      <label htmlFor="lt-filter-product">
-        Produto
+      <label htmlFor="lt-filter-product" className="lt-field">
+        <span>Produto</span>
         <select id="lt-filter-product" value={value.product} onChange={e => onChange({ ...value, product: e.target.value })}>
           <option value="todos">Todos</option>
           {products.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
       </label>
 
-      <label htmlFor="lt-filter-service">
-        Serviço
+      <label htmlFor="lt-filter-service" className="lt-field">
+        <span>Serviço</span>
         <select id="lt-filter-service" value={value.service} onChange={e => onChange({ ...value, service: e.target.value })}>
           <option value="todos">Todos</option>
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
 
-      <label htmlFor="lt-filter-source">
-        Fonte
+      <label htmlFor="lt-filter-source" className="lt-field">
+        <span>Fonte</span>
         <select id="lt-filter-source" value={value.source} onChange={e => onChange({ ...value, source: e.target.value })}>
           <option value="todos">Todas</option>
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
 
-      <label htmlFor="lt-filter-score">
-        Score mínimo
+      <label htmlFor="lt-filter-score" className="lt-field">
+        <span>Score mínimo</span>
         <input
           id="lt-filter-score"
           type="number" min={0} max={1} step={0.1}

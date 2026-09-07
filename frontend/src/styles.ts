@@ -6,17 +6,13 @@ export const styles = `
    (~16px) — antes disso, elementos sem regra explícita destoavam do
    resto da escala (10/11/12/13/15/18px) por herdarem o default do
    navegador. Achado de auditoria de UX. */
-.lt-root { padding: 24px; font-family: inherit; font-size: 12px; color: hsl(var(--text)); }
+.lt-root { padding: 24px; font-family: inherit; font-size: 12px; color: hsl(var(--text)); color-scheme: light; }
+.theme-dark .lt-root { color-scheme: dark; }
 .lt-header { margin-bottom: 16px; }
 .lt-header h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .lt-header p { font-size: 11px; color: hsl(var(--text-muted)); margin: 0; }
 
 .lt-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.lt-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: hsl(var(--text-muted)); }
-.lt-filters select, .lt-filters input {
-  font-size: 12px; padding: 6px 8px; border-radius: 6px;
-  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
-}
 
 .lt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .lt-table th { text-align: left; padding: 8px; border-bottom: 1px solid hsl(var(--border)); color: hsl(var(--text-muted)); font-weight: 500; }
@@ -44,12 +40,6 @@ export const styles = `
 .lt-badge--discovery-rejected { background: hsl(var(--bg-subtle)); color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
 
 .lt-severity { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px; }
-.lt-severity label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: hsl(var(--text-muted)); }
-.lt-severity select, .lt-severity textarea {
-  font-size: 12px; padding: 6px 8px; border-radius: 6px;
-  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
-}
-.lt-severity textarea { min-width: 220px; min-height: 32px; resize: vertical; font-family: inherit; }
 
 /* Achado da auditoria de UI: bloco de conteúdo empilhado (título/texto +,
    opcionalmente, uma linha curta de controles) — nunca uma linha de campos
@@ -58,11 +48,6 @@ export const styles = `
 .lt-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .lt-panel > strong { font-size: 11px; font-weight: 600; color: hsl(var(--text)); }
 .lt-panel-text { margin: 0; font-size: 11px; }
-.lt-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: hsl(var(--text-muted)); }
-.lt-panel select, .lt-panel input {
-  font-size: 12px; padding: 6px 8px; border-radius: 6px;
-  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
-}
 .lt-panel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 
 .lt-expand-btn { all: unset; cursor: pointer; padding: 4px; border-radius: 4px; }
@@ -87,7 +72,7 @@ export const styles = `
 .lt-draft { margin-top: 12px; padding: 12px; border-radius: 6px; background: hsl(var(--bg)); border: 1px solid hsl(var(--border)); font-size: 11px; }
 .lt-draft p { margin: 0 0 8px; }
 
-.lt-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+.lt-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
 
 .lt-empty { text-align: center; padding: 48px 16px; color: hsl(var(--text-muted)); font-size: 12px; }
 
@@ -118,7 +103,16 @@ export const styles = `
 .lt-conn-indicator { font-size: 11px; color: hsl(var(--text-muted)); white-space: nowrap; }
 .lt-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
 .lt-source-card__form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
-.lt-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
-.lt-field span:first-child { font-weight: 600; color: hsl(var(--text)); }
-.lt-field input { font-size: 12px; padding: 6px 8px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text)); }
+/* Definição canônica de "campo com rótulo": única fonte de estilo pra
+   label+input/select/textarea em todo o módulo. Containers de layout
+   (.lt-filters, .lt-severity, .lt-panel, .lt-toolbar) nunca estilizam o
+   label/controle filho — só .lt-field faz isso, aplicado ao label inteiro
+   pra cobrir tanto texto solto (label>texto+controle, ex. Filters.tsx, que
+   usa htmlFor/id em vez de aninhar) quanto o padrão <span>Rótulo</span>. */
+.lt-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: hsl(var(--text-muted)); }
+.lt-field input, .lt-field select, .lt-field textarea {
+  font-size: 12px; font-weight: 400; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
+}
+.lt-field textarea { min-height: 60px; resize: vertical; font-family: inherit; }
 `
