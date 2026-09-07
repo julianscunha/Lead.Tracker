@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
-import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import {
+  listProducts, listServices, listSettings, triggerSync, type Product, type Service, type SourceStatus,
+  type SyncResult,
+} from '../api'
 import { AiConfigSection } from './AiConfigSection'
 import { FieldMappingSection } from './FieldMappingSection'
+import { PortfolioSection } from './PortfolioSection'
 import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
@@ -22,10 +26,20 @@ export function SettingsScreen() {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
+  // Catálogo (produtos/serviços) elevado pra cá — Portfólio cria e Regras
+  // consome; se cada seção buscasse por conta própria, um produto criado em
+  // Portfólio só apareceria em Regras depois de recarregar a página inteira.
+  const [products, setProducts] = useState<Product[] | null>(null)
+  const [services, setServices] = useState<Service[] | null>(null)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
+
   useEffect(() => {
     listSettings()
       .then(setSources)
       .catch(err => setError(err instanceof Error ? err.message : 'Não consegui carregar as configurações.'))
+    Promise.all([listProducts(), listServices()])
+      .then(([p, s]) => { setProducts(p); setServices(s) })
+      .catch(err => setCatalogError(err instanceof Error ? err.message : 'Não consegui carregar o portfólio.'))
   }, [])
 
   const handleSync = async () => {
@@ -69,7 +83,12 @@ export function SettingsScreen() {
       {sources.find(s => s.id === 'salesforce')?.enabled && <FieldMappingSection />}
       <AiConfigSection />
       <ThresholdsSection />
-      <RulesSection />
+      <PortfolioSection
+        products={products} services={services} loadError={catalogError}
+        onProductCreated={p => setProducts(prev => [...(prev ?? []), p])}
+        onServiceCreated={s => setServices(prev => [...(prev ?? []), s])}
+      />
+      <RulesSection products={products ?? []} services={services ?? []} />
       <RepTargetsSection />
     </div>
   )

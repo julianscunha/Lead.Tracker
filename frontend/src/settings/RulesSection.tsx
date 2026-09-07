@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createRule, listProducts, listRules, listServices, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
+import { createRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 
 type RuleKind = 'category' | 'presence' | 'relation'
 
@@ -13,10 +13,8 @@ export function describeRule(r: CorrelationRule): string {
   return `Item ${r.requires.join(', ')}${abs}`
 }
 
-export function RulesSection() {
+export function RulesSection({ products, services }: { products: Product[]; services: Service[] }) {
   const [rules, setRules] = useState<CorrelationRule[] | null>(null)
-  const [products, setProducts] = useState<Product[]>([])
-  const [services, setServices] = useState<Service[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
@@ -32,8 +30,8 @@ export function RulesSection() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([listRules(), listProducts(), listServices()])
-      .then(([r, p, s]) => { setRules(r); setProducts(p); setServices(s) })
+    listRules()
+      .then(setRules)
       .catch(err => setLoadError(err instanceof Error ? err.message : 'Não consegui carregar as regras.'))
   }, [])
 

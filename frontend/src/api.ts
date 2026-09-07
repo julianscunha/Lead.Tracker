@@ -644,6 +644,11 @@ export async function exportGeoDiscoveryExcel(result: GeoDiscoveryResult): Promi
 // Espelham core/models.py direto (mesmo padrão de SourceStatus) — sem
 // adaptador camelCase, é tela de configuração, não de resultado.
 
+export interface Vendor {
+  id: string
+  name: string
+}
+
 export interface Product {
   id: string
   vendor_id: string
@@ -679,14 +684,52 @@ export interface NewRule {
   relation_type?: string | null
 }
 
+export async function listVendors(): Promise<Vendor[]> {
+  const resp = await fetch(`${BASE}/vendors`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function createVendor(name: string): Promise<Vendor> {
+  const resp = await fetch(`${BASE}/vendors`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export async function listProducts(): Promise<Product[]> {
   const resp = await fetch(`${BASE}/products`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }
 
+export async function createProduct(
+  vendorId: string, name: string, category: string,
+): Promise<Product> {
+  const resp = await fetch(`${BASE}/products`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vendor_id: vendorId, name, category: category || null }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export async function listServices(): Promise<Service[]> {
   const resp = await fetch(`${BASE}/services`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function createService(name: string, category: string): Promise<Service> {
+  const resp = await fetch(`${BASE}/services`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, category: category || null }),
+  })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
 }

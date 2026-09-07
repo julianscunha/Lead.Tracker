@@ -34,7 +34,7 @@ from core.errors import DomainError, ErrorCategory
 from core.models import (
     Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
-    StatusChangeRequiresJustificationError,
+    StatusChangeRequiresJustificationError, Vendor,
 )
 from core.geo_discovery import build_discovery_records
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
@@ -49,8 +49,9 @@ from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, get_company, get_icp_profile, get_opportunity,
     list_companies, list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
     list_outreach_touches, list_products, list_rep_targets, list_rules, list_services, list_vendors, save_company,
-    save_icp_profile, save_opportunity, save_outreach_touch, save_rep_target, save_rule, update_company_renewal_date,
-    update_opportunity_qualification, update_opportunity_status,
+    save_icp_profile, save_opportunity, save_outreach_touch, save_product, save_rep_target, save_rule,
+    save_service, save_vendor, update_company_renewal_date, update_opportunity_qualification,
+    update_opportunity_status,
 )
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
@@ -175,6 +176,23 @@ class ICPSuggestionOut(BaseModel):
     company_size_hint_share: float | None
     sample_size: int
     confidence: str
+
+
+class VendorIn(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class ProductIn(BaseModel):
+    vendor_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    description: str | None = None
+    category: str | None = None
+
+
+class ServiceIn(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    category: str | None = None
 
 
 class RuleIn(BaseModel):
@@ -461,16 +479,51 @@ async def create_outreach_touch_route(opportunity_id: str, body: OutreachTouchIn
     return touch
 
 
+@router.get("/vendors")
+async def get_vendors() -> list[Vendor]:
+    async with session_factory() as session:
+        return await list_vendors(session)
+
+
+@router.post("/vendors")
+async def create_vendor(body: VendorIn) -> Vendor:
+    vendor = Vendor(name=body.name)
+    async with session_factory() as session:
+        await save_vendor(session, vendor)
+    return vendor
+
+
 @router.get("/products")
 async def get_products() -> list[Product]:
     async with session_factory() as session:
         return await list_products(session)
 
 
+@router.post("/products")
+async def create_product(body: ProductIn) -> Product:
+    async with session_factory() as session:
+        vendor_ids = {v.id for v in await list_vendors(session)}
+        if body.vendor_id not in vendor_ids:
+            raise_http(DomainError(ErrorCategory.INVALID_DATA, "Fabricante não encontrado."))
+        product = Product(
+            vendor_id=body.vendor_id, name=body.name, description=body.description, category=body.category,
+        )
+        await save_product(session, product)
+    return product
+
+
 @router.get("/services")
 async def get_services() -> list[Service]:
     async with session_factory() as session:
         return await list_services(session)
+
+
+@router.post("/services")
+async def create_service(body: ServiceIn) -> Service:
+    service = Service(name=body.name, description=body.description, category=body.category)
+    async with session_factory() as session:
+        await save_service(session, service)
+    return service
 
 
 @router.get("/rules")

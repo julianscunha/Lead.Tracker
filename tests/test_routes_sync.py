@@ -652,6 +652,53 @@ def test_get_products_and_services_return_catalog():
         assert services_resp.json()[0]["category"] == "monitoring"
 
 
+def test_post_vendor_creates_and_get_vendors_lists_it():
+    with _TempDb():
+        resp = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"})
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Veeam"
+
+        list_resp = client.get("/modules/lead_tracker/vendors")
+        assert len(list_resp.json()) == 1
+        assert list_resp.json()[0]["name"] == "Veeam"
+
+
+def test_post_product_creates_and_get_products_lists_it():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        resp = client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["vendor_id"] == vendor_id
+
+        list_resp = client.get("/modules/lead_tracker/products")
+        assert len(list_resp.json()) == 1
+        assert list_resp.json()[0]["name"] == "Veeam VBR"
+
+
+def test_post_product_with_unknown_vendor_returns_friendly_error():
+    with _TempDb():
+        resp = client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": "nao-existe", "name": "Veeam VBR"},
+        )
+        assert resp.status_code == 422
+        assert "Fabricante" in resp.json()["detail"]
+
+
+def test_post_service_creates_and_get_services_lists_it():
+    with _TempDb():
+        resp = client.post("/modules/lead_tracker/services", json={"name": "Zabbix", "category": "monitoring"})
+        assert resp.status_code == 200
+        assert resp.json()["category"] == "monitoring"
+
+        list_resp = client.get("/modules/lead_tracker/services")
+        assert len(list_resp.json()) == 1
+        assert list_resp.json()[0]["name"] == "Zabbix"
+
+
 def test_post_rule_creates_and_get_rules_lists_it():
     with _TempDb():
         body = {
