@@ -44,6 +44,16 @@
 
 ### Corrigido
 
+- **Contraste da paleta dos gráficos do dashboard no tema escuro**
+  (achado de auditoria de dados/visualização): os 3 gráficos
+  (distribuição por fabricante, clientes×prospects, funil de
+  oportunidades) sempre usavam a paleta categórica/sequencial validada
+  só pra fundo claro — no tema escuro, uma cor caía a 2.04:1 de
+  contraste (piso é 3:1) e o passo mais escuro do ramp do funil caía a
+  1.76:1 (piso 2:1), reprovando o validador da skill `dataviz`. Cada
+  gráfico agora escolhe a paleta `_DARK` correspondente (já existia no
+  código, só não era usada) quando o tema está escuro.
+
 - **Padrão de campo/botão/listbox consolidado em toda a interface**
   (achado de auditoria de UX): existiam 4 formas ligeiramente diferentes
   de estilizar "rótulo + controle" (`.lt-filters label`, `.lt-severity
