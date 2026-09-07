@@ -237,22 +237,47 @@ async def count_geo_discoveries_today(session: AsyncSession, rep_id: str, today:
 
 # ── Contact ──────────────────────────────────────────────────────────────────
 
+def _contact_from_row(row: ContactORM) -> Contact:
+    return Contact(
+        id=row.id, company_id=row.company_id, name=row.name, email=row.email,
+        role=row.role, phone=row.phone, sources=_sources_from_json(row.sources),
+        impacted_area=row.impacted_area, seniority_tier=row.seniority_tier, stance=row.stance,
+    )
+
+
 async def save_contact(session: AsyncSession, contact: Contact) -> None:
-    await _upsert(session, ContactORM(
-        id=contact.id, company_id=contact.company_id, name=contact.name,
-        email=contact.email, phone=contact.phone, role=contact.role,
-        sources=_sources_to_json(contact.sources), impacted_area=contact.impacted_area,
+    """Caminho de escrita do sync (mesmo padrão de `save_company`):
+    `stance` nunca entra no SET do upsert, mesmo que o `Contact` recebido
+    carregue um valor — é preenchimento manual do rep (Deal Strategist
+    consultado, Fase H módulo 2), e um /sync que roda depois reverteria a
+    avaliação mais recente se a linha inteira fosse sobrescrita. Só
+    `update_contact_stance` grava essa coluna."""
+    engine_columns = dict(
+        company_id=contact.company_id, name=contact.name, email=contact.email, phone=contact.phone,
+        role=contact.role, sources=_sources_to_json(contact.sources), impacted_area=contact.impacted_area,
         seniority_tier=contact.seniority_tier,
-    ))
+    )
+    stmt = sqlite_insert(ContactORM).values(id=contact.id, stance=None, **engine_columns)
+    stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
+    await session.execute(stmt)
+    await session.commit()
+
+
+async def update_contact_stance(session: AsyncSession, contact_id: str, stance: str | None) -> Contact | None:
+    """Único caminho de escrita de `stance` — só essa coluna, nunca
+    `session.merge()` da linha inteira (mesmo padrão de
+    `update_company_renewal_date`)."""
+    row = await session.get(ContactORM, contact_id)
+    if row is None:
+        return None
+    row.stance = stance
+    await session.commit()
+    return _contact_from_row(row)
 
 
 async def list_contacts(session: AsyncSession, company_id: str) -> list[Contact]:
     rows = (await session.execute(select(ContactORM).where(ContactORM.company_id == company_id))).scalars().all()
-    return [Contact(
-        id=r.id, company_id=r.company_id, name=r.name, email=r.email,
-        role=r.role, phone=r.phone, sources=_sources_from_json(r.sources),
-        impacted_area=r.impacted_area, seniority_tier=r.seniority_tier,
-    ) for r in rows]
+    return [_contact_from_row(r) for r in rows]
 
 
 # ── Opportunity ──────────────────────────────────────────────────────────────

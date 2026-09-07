@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **`Contact.stance` (eixo de disposição)** (Fase H, módulo 2
+  `contact-stance-field`): `champion`/`neutro`/`detrator`, distinto de
+  `seniority_tier` (autoridade) — sempre preenchimento manual, nunca
+  inferido, `None` = não avaliado. `save_contact` passa a excluir essa
+  coluna do upsert de `/sync` (mesmo padrão de
+  `Company.renewal_date`), senão todo sync reverteria a avaliação do
+  rep. Decisões em consulta ao agente Deal Strategist. Ver
+  `engineering/specs/fase-h-cobertura-stakeholder.md`.
+
 - **`OutreachTouch.contact_id` opcional** (Fase H, módulo 1
   `outreach-touch-contact-link`, inicia a Fase H): permite atribuir um
   toque a um contato específico da conta quando o rep sabe com quem

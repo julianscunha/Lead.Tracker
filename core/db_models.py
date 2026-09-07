@@ -75,6 +75,7 @@ class ContactORM(Base):
     sources: Mapped[list] = mapped_column(JSON, default=list)
     impacted_area: Mapped[str | None] = mapped_column(String, nullable=True)
     seniority_tier: Mapped[str | None] = mapped_column(String, nullable=True)
+    stance: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OpportunityORM(Base):

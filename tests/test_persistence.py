@@ -23,7 +23,7 @@ from core.repository import (
     list_outreach_touches, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company,
     save_company_signal, save_contact, save_field_mapping, save_icp_profile, save_opportunity,
     save_opportunity_status_change, save_outreach_touch, save_portfolio, save_rep_target, save_rule, save_vendor,
-    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    update_company_renewal_date, update_contact_stance, update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -795,6 +795,69 @@ def test_contact_seniority_tier_round_trip():
     asyncio.run(run())
 
 
+def test_update_contact_stance_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            contact = Contact(company_id=company.id, name="Fulano")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+                updated = await update_contact_stance(session, contact.id, "champion")
+            assert updated.stance == "champion"
+
+            async with session_factory() as session:
+                contacts = await list_contacts(session, company.id)
+            assert contacts[0].stance == "champion"
+
+    asyncio.run(run())
+
+
+def test_update_contact_stance_returns_none_for_unknown_id():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                result = await update_contact_stance(session, "unknown-id", "champion")
+            assert result is None
+
+    asyncio.run(run())
+
+
+def test_save_contact_never_reverts_stance_from_a_stale_in_memory_snapshot():
+    """Mesma classe de TOCTOU já corrigida em save_company/renewal_date:
+    backend/sync.py mantém o Contact em memória (capturado ANTES de
+    qualquer avaliação manual de stance concorrente) durante o /sync,
+    só chamando save_contact no fim. Upsert atômico que nunca lista
+    `stance` no SET fecha essa janela."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            company = Company(name="Aurora Sistemas")
+            contact = Contact(company_id=company.id, name="Fulano")
+
+            async with session_factory() as session:
+                await save_company(session, company)
+                await save_contact(session, contact)
+
+            stale_snapshot = contact.model_copy(update={"phone": "11999999999"})
+
+            async with session_factory() as session:
+                await update_contact_stance(session, contact.id, "champion")  # edição concorrente "chega primeiro"
+
+            async with session_factory() as session:
+                await save_contact(session, stale_snapshot)  # sync termina com o snapshot antigo (stance=None)
+
+            async with session_factory() as session:
+                contacts = await list_contacts(session, company.id)
+            assert contacts[0].stance == "champion"
+            assert contacts[0].phone == "11999999999"
+
+    asyncio.run(run())
+
+
 def test_opportunity_rich_evidence_fields_round_trip():
     """Fase C, Fatia 3 — evidence_summary/discovery_prompt/synced_at
     persistem e voltam intactos."""
@@ -1561,6 +1624,9 @@ if __name__ == "__main__":
     test_update_company_renewal_date_returns_none_for_unknown_id()
     test_save_company_never_reverts_renewal_date_from_a_stale_in_memory_snapshot()
     test_contact_seniority_tier_round_trip()
+    test_update_contact_stance_round_trips()
+    test_update_contact_stance_returns_none_for_unknown_id()
+    test_save_contact_never_reverts_stance_from_a_stale_in_memory_snapshot()
     test_update_opportunity_qualification_round_trip()
     test_update_opportunity_qualification_returns_none_for_unknown_id()
     test_save_opportunity_never_overwrites_manually_filled_qualification()

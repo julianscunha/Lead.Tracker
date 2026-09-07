@@ -406,7 +406,7 @@ da conta o rep realmente falou.
 | Ordem | Módulo | Responsabilidade | Consulta a especialista |
 |---|---|---|---|
 | 1 | `outreach-touch-contact-link` | `OutreachTouch.contact_id` opcional — permite (nunca exige) atribuir um toque a um contato específico da conta. | Não (mecânico) |
-| 2 | `contact-stance-field` | `Contact.stance` (enum aberto: `champion`/`neutro`/`detrator`/desconhecido) — eixo de DISPOSIÇÃO, distinto de `seniority_tier` (eixo de AUTORIDADE); nunca colapsam num só campo (mesmo princípio dos 4 números da oportunidade). | Deal Strategist |
+| 2 | `contact-stance-field` | `Contact.stance` (enum aberto: `champion`/`neutro`/`detrator` — `None` = "não avaliado", nunca um 4º valor de string) — eixo de DISPOSIÇÃO, distinto de `seniority_tier` (eixo de AUTORIDADE); nunca colapsam num só campo (mesmo princípio dos 4 números da oportunidade). | Deal Strategist |
 | 3 | `single-threaded-risk-signal` | Função pura (mesmo padrão de `is_zombie_opportunity`/`compute_silence_signal`): oportunidade qualificada+ OU conta com renovação próxima, com só 1 contato tocado nos últimos N dias, ou nenhum decisor (`seniority_tier=decisor`) tocado recentemente → sinaliza `single_threaded_risk`/`no_economic_buyer_contact`. Nunca muda status/dispara ação sozinha. | Deal Strategist + Account Strategist |
 | 4 | `stakeholder-coverage-ui` | Sinal exposto na tela de Oportunidades/Contas — linguagem de decisão ("vale abrir um segundo contato antes de avançar"), nunca alarme genérico. | Sales Engineer |
 

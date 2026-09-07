@@ -119,6 +119,21 @@ class Contact(BaseModel):
     # / "operacional" são só os valores de referência do mapeamento
     # automático. Sem match fica None — nunca inventa classificação.
     seniority_tier: str | None = None
+    # Fase H, módulo 2 (`contact-stance-field`) — eixo de DISPOSIÇÃO,
+    # deliberadamente separado de `seniority_tier` (eixo de AUTORIDADE):
+    # os dois nunca colapsam num só campo, mesmo princípio dos 4 números da
+    # oportunidade (Deal Strategist consultado). String aberta, valores de
+    # referência "champion"/"neutro"/"detrator" — SEMPRE preenchimento
+    # manual do rep, nunca inferido de `role` ou qualquer outro sinal
+    # (diferente de `seniority_tier`): não existe texto de cargo que diga
+    # se a pessoa é favorável ao fornecedor, inferir isso seria o núcleo
+    # inventando informação que não tem. `None` = "não avaliado ainda",
+    # nunca um default neutro assumido — ausência de dado é honesta, um
+    # "neutro" fabricado não seria. Escrito só por `update_contact_stance`
+    # (mesmo padrão de coluna única de `update_company_renewal_date`) —
+    # nunca pelo upsert de linha inteira de `save_contact` (que roda a
+    # cada /sync e reverteria a avaliação manual mais recente).
+    stance: str | None = None
 
 
 class Vendor(BaseModel):
