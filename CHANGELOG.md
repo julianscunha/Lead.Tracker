@@ -44,6 +44,33 @@
 
 ### Corrigido
 
+- **Configuração de IA sai do `.env` e ganha painel na interface** (achado
+  de auditoria de UX/acessibilidade): ativar o rascunho de e-mail por IA
+  exigia editar o `.env` na mão, inviável pro público leigo do produto.
+  Nova seção "Inteligência Artificial" em Configurações
+  (`GET`/`PUT /settings/ai`) escolhe provedor e cola a chave sem tocar
+  em arquivo nenhum; a chave nunca volta em claro na resposta. Mensagem
+  de erro do rascunho sem chave configurada também parou de citar o nome
+  da variável de ambiente (`AI_API_KEY`) — texto de produto agora.
+
+- **Desalinhamento visual em blocos de texto empilhado**: `.lt-severity`
+  (pensada pra linha de campos de formulário, `flex-direction: row`)
+  estava sendo reaproveitada como container genérico de título+parágrafo
+  em vários lugares (saúde da conta, próxima ação sugerida), causando
+  badge/dica/rótulo alinhados pelo rodapé em vez de empilhados. Nova
+  `.lt-panel`/`.lt-panel-row` dedicada a esse uso. Erros (`.lt-alert`,
+  vermelho) e avisos de negócio (`.lt-advisory`, laranja) ganharam
+  classes próprias, distintas de dica neutra (`.lt-hint`, cinza) — antes
+  todos os três usavam a mesma classe e não davam pra distinguir uma
+  falha de uma sugestão.
+
+- **Requisições repetidas ao recolher/reexpandir uma oportunidade**: a
+  sugestão de próxima ação e a lista de contatos da empresa eram
+  buscadas de novo toda vez que a linha reabria, mesmo sem nada ter
+  mudado. Agora ficam em cache em memória por oportunidade/empresa
+  enquanto a tela de Oportunidades continua montada; só refaz a busca
+  depois de marcar um toque como enviado (dado real mudou).
+
 - **Migração leve de schema em `init_db`**: `create_all` só criava tabela
   inteira nova, nunca adicionava coluna a uma tabela que já existia — uma
   instalação que já tinha `companies` antes de `Company.deal_size_hint`
