@@ -8,14 +8,32 @@ diferentes.
 from __future__ import annotations
 
 import re
+import unicodedata
 from urllib.parse import urlparse
 
 from core.models import Company, SourceRef
 
+# Sufixos jurídicos comuns no cadastro de empresa que não mudam a identidade
+# real ("Acme Ltda" e "Acme S.A." são a mesma empresa) — só usados aqui pra
+# não gerar Company duplicada quando a fonte não tem website (fallback de
+# nome do dedup_key). Checados em ordem: mais específico primeiro.
+_LEGAL_SUFFIXES = ("eireli", "ltda", "epp", "mei", "me", "sa")
+
 
 def normalize_name(name: str) -> str:
-    """Chave de comparação de nome — não é o nome exibido, só usado para casar registros."""
-    return re.sub(r"\s+", " ", name.strip().lower())
+    """Chave de comparação de nome — não é o nome exibido, só usado para
+    casar registros. Dobra acento (NFKD), pontuação e sufixo jurídico comum
+    (Ltda/LTDA./S.A./ME/EPP/EIRELI) pra que a mesma empresa real não vire
+    duas Company diferentes só por variação de cadastro entre fontes."""
+    folded = unicodedata.normalize("NFKD", name.strip().lower())
+    folded = "".join(c for c in folded if not unicodedata.combining(c))
+    folded = re.sub(r"[^\w\s]", "", folded)
+    collapsed = re.sub(r"\s+", " ", folded).strip()
+    for suffix in _LEGAL_SUFFIXES:
+        if collapsed.endswith(" " + suffix):
+            collapsed = collapsed[: -(len(suffix) + 1)].strip()
+            break
+    return collapsed
 
 
 def normalize_domain(website: str | None) -> str | None:

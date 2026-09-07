@@ -17,7 +17,7 @@ def test_normalize_domain_strips_protocol_www_and_path():
 
 
 def test_normalize_name_collapses_whitespace_and_case():
-    assert normalize_name("  Acme   Ltda  ") == "acme ltda"
+    assert normalize_name("  Beta   Corp  ") == "beta corp"
 
 
 def test_same_domain_from_different_sources_merges_into_one_company():
@@ -39,6 +39,24 @@ def test_different_domains_stay_separate():
     result = merge_companies([a, b])
 
     assert len(result) == 2
+
+
+def test_normalize_name_strips_common_legal_suffixes_and_accents():
+    """Regressão: mesma empresa real sem site cadastrado cai no fallback de
+    nome (dedup_key). Variações de sufixo jurídico (Ltda/LTDA./S.A./ME) ou
+    de acentuação não podem virar duas Company diferentes."""
+    assert normalize_name("Acme Ltda") == normalize_name("ACME LTDA.")
+    assert normalize_name("Acme S.A.") == normalize_name("Acme")
+    assert normalize_name("Distribuidora São Paulo Ltda") == normalize_name("distribuidora sao paulo")
+
+
+def test_no_website_with_varying_legal_suffix_merges_into_one_company():
+    a = Company(name="Acme Ltda", sources=[SourceRef(type="manual")])
+    b = Company(name="ACME S.A.", sources=[SourceRef(type="salesforce")])
+
+    result = merge_companies([a, b])
+
+    assert len(result) == 1
 
 
 def test_no_website_falls_back_to_normalized_name():
