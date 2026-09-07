@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyFilters, defaultFilters, summarizeFilters } from './Filters'
-import { sortRows } from './OpportunityTable'
+import { CADENCE_REASON_PHRASE, sortRows } from './OpportunityTable'
 import { sampleOpportunities } from './sampleData'
 
 describe('sortRows', () => {
@@ -47,5 +47,30 @@ describe('summarizeFilters', () => {
     const result = summarizeFilters({ ...defaultFilters, client: 'clientes', minScore: 0.5 })
     expect(result).toContain('clientes atuais')
     expect(result).toContain('score mínimo: 0.5')
+  })
+})
+
+describe('CADENCE_REASON_PHRASE', () => {
+  // Achado da verificação ao vivo (Fase G, módulo 7): o verbo da frase tem
+  // que bater com o canal real de core/opportunity_engine.py
+  // (_CUSTOMER_CADENCE/_PROSPECT_CADENCE) — "Ligar" pra categoria cujo canal
+  // é e-mail (ou vice-versa) faz o rep copiar um texto pra usar no canal
+  // errado. Duplicar aqui é o mesmo trade-off já aceito em STAGE_ORDER
+  // (comentário logo acima, no arquivo original): dá feedback imediato na
+  // UI, o backend continua sendo quem decide o canal de verdade.
+  const EXPECTED_VERB_BY_CATEGORY_AND_CHANNEL: Record<string, string> = {
+    continuidade_uso_atual: 'e-mail', // canal real: email
+    gap_portfolio: 'ligar', // canal real: ligação
+    prova_social_urgencia: 'linkedin', // canal real: linkedin
+    abertura_sinal: 'e-mail', // canal real: email
+    reforco_angulo_novo: 'ligar', // canal real: ligação
+  }
+
+  it('nunca menciona um canal diferente do canal real da categoria', () => {
+    const sampleRow = sampleOpportunities[0]
+    for (const [category, expectedWord] of Object.entries(EXPECTED_VERB_BY_CATEGORY_AND_CHANNEL)) {
+      const phrase = CADENCE_REASON_PHRASE[category](sampleRow).toLowerCase()
+      expect(phrase).toContain(expectedWord)
+    }
   })
 })

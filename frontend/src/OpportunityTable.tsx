@@ -303,12 +303,18 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
 
 // Fase G, módulo 7 — frase por categoria (Sales Engineer consultado): canal +
 // motivo em uma cláusula concreta, nunca o nome técnico da categoria. O canal
-// já está embutido no verbo da frase (Ligar/Enviar e-mail/Mandar mensagem).
-const CADENCE_REASON_PHRASE: Record<string, (row: OpportunityRow) => string> = {
+// já está embutido no verbo da frase (Ligar/Enviar e-mail/Mandar mensagem) —
+// tem que bater com o `channel` real de `_CUSTOMER_CADENCE`/`_PROSPECT_CADENCE`
+// (core/opportunity_engine.py), não com a suposição do agente consultado
+// (achado de verificação ao vivo: a frase original dizia "ligar" pra
+// continuidade_uso_atual, que na verdade é canal e-mail, e "enviar e-mail"
+// pra gap_portfolio, que na verdade é canal ligação — texto contradizia a
+// ação real, o rep leria "e-mail" e copiaria um texto pra usar numa ligação).
+export const CADENCE_REASON_PHRASE: Record<string, (row: OpportunityRow) => string> = {
   continuidade_uso_atual: row =>
-    `Ligar para saber como está o uso de ${row.product ?? row.service ?? 'seus produtos atuais'} — é hora de reforçar o relacionamento.`,
+    `Enviar e-mail perguntando como está o uso de ${row.product ?? row.service ?? 'seus produtos atuais'} — é hora de reforçar o relacionamento.`,
   gap_portfolio: row =>
-    `Enviar e-mail apresentando ${row.product ?? row.service ?? 'a solução recomendada'} — cliente já usa produtos relacionados mas não tem isso.`,
+    `Ligar apresentando ${row.product ?? row.service ?? 'a solução recomendada'} — cliente já usa produtos relacionados mas não tem isso.`,
   prova_social_urgencia: () =>
     'Mandar mensagem no LinkedIn com um caso parecido — bom momento pra criar urgência.',
   abertura_sinal: () =>
