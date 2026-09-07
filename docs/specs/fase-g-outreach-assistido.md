@@ -549,6 +549,20 @@ onde a tela vive):
    calcular a próxima ação", enganando o rep sobre se o registro
    aconteceu. Corrigido com mensagem distinta.
 
+### Achado da verificação ao vivo (Playwright, corrigido)
+
+A tabela de frases (`CADENCE_REASON_PHRASE`) foi transcrita a partir
+do texto do Sales Engineer sem cruzar contra o canal REAL de cada
+categoria em `_CUSTOMER_CADENCE` — duas frases saíram com o verbo
+errado: `continuidade_uso_atual` dizia "Ligar" mas o canal real é
+e-mail; `gap_portfolio` dizia "Enviar e-mail" mas o canal real é
+ligação. Só apareceu testando a tela de verdade (o botão já mostrava
+"Copiar" corretamente pro canal não-email, mas o TEXTO da frase
+contradizia a ação — o rep copiaria um texto de "e-mail" pra fazer uma
+ligação). Corrigido + regressão em `frontend/src/logic.test.ts`
+(`CADENCE_REASON_PHRASE`) comparando o verbo de cada frase contra o
+canal real da categoria.
+
 ### Não objetivo deste módulo
 
 - Banner agregado único de "cap do dia batido" cobrindo todas as
