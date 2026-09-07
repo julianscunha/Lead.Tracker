@@ -1437,6 +1437,74 @@ def test_init_db_adds_missing_column_to_a_table_that_already_existed():
     asyncio.run(run())
 
 
+def test_init_db_runs_alembic_and_tracks_it_in_alembic_version_table():
+    """Fecha o item de débito técnico do roadmap: Alembic agora roda em todo
+    `init_db` (via core/migrations.py), entre create_all e _add_missing_columns.
+    `alembic/versions/` está vazio (nenhuma mudança de rename/remover/mudar
+    tipo pendente ainda) — este teste só prova que a maquinaria roda sem
+    erro e deixa a tabela `alembic_version` gravada, não que uma migração
+    específica funciona (isso é responsabilidade de cada migração futura)."""
+    from sqlalchemy import text
+
+    async def run():
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            engine = create_engine(Path(tmp) / "test.db")
+            await init_db(engine)
+
+            async with engine.connect() as conn:
+                tables_result = await conn.execute(
+                    text("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'")
+                )
+                assert tables_result.fetchone() is not None
+
+            # Rodar de novo não pode quebrar (idempotente, mesmo padrão de
+            # create_all/_add_missing_columns já testados acima).
+            await init_db(engine)
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
+def test_init_db_runs_alembic_before_add_missing_columns():
+    """Achado da revisão de código: rodar `_add_missing_columns` ANTES do
+    Alembic quebra uma futura migração de renomear coluna — o
+    reconciliador genérico veria a coluna nova do rename como "campo novo"
+    e criaria ela vazia, orfanizando o dado que a migração real devia ter
+    movido; quando o Alembic rodasse depois, a coluna já existiria e a
+    migração falharia com coluna duplicada, PERMANENTEMENTE (todo boot
+    seguinte repete o mesmo erro, sem `alembic_version` nunca avançar).
+    Trava a ORDEM em si — não precisa de uma migração real pra provar isso."""
+    import core.db as db_module
+    from core import migrations as migrations_module
+
+    calls: list[str] = []
+    original_add_missing_columns = db_module._add_missing_columns
+    original_upgrade_head = migrations_module.upgrade_head
+
+    def spy_add_missing_columns(sync_conn):
+        calls.append("add_missing_columns")
+        return original_add_missing_columns(sync_conn)
+
+    def spy_upgrade_head(database_url):
+        calls.append("alembic")
+        return original_upgrade_head(database_url)
+
+    async def run():
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            engine = create_engine(Path(tmp) / "test.db")
+            db_module._add_missing_columns = spy_add_missing_columns
+            migrations_module.upgrade_head = spy_upgrade_head
+            try:
+                await init_db(engine)
+            finally:
+                db_module._add_missing_columns = original_add_missing_columns
+                migrations_module.upgrade_head = original_upgrade_head
+            await engine.dispose()
+
+    asyncio.run(run())
+    assert calls == ["alembic", "add_missing_columns"]
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_company_round_trip_preserves_account_standard_fields()
@@ -1499,4 +1567,6 @@ if __name__ == "__main__":
     test_count_outreach_touches_today_counts_only_that_rep_today()
     test_count_outreach_touches_today_compares_against_utc_date_not_local()
     test_init_db_adds_missing_column_to_a_table_that_already_existed()
+    test_init_db_runs_alembic_and_tracks_it_in_alembic_version_table()
+    test_init_db_runs_alembic_before_add_missing_columns()
     print("OK — todos os testes de persistência passaram")

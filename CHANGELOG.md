@@ -16,6 +16,19 @@
   Mesmo espírito do diff `.env`/`.env-model`: nunca sobrescreve ou remove
   dado existente, só completa o que falta.
 
+- **Alembic pra evolução de schema além de coluna nova** (fecha o item de
+  débito técnico do roadmap): `init_db` agora roda `alembic upgrade head`
+  (`core/migrations.py`) entre `create_all` e a migração leve de coluna,
+  mesmo padrão já usado pelo Tech.Forge Core. `alembic/versions/` nasce
+  vazio — só ganha migração real quando surgir mudança que `ALTER TABLE ADD
+  COLUMN` não resolve (renomear/remover coluna, mudar tipo), documentado em
+  `alembic/versions/README.md`. Revisão de código encontrou e corrigiu
+  antes de mergear: a ordem `_add_missing_columns` → Alembic corrompia
+  dado numa futura migração de renomear coluna (a reconciliação genérica
+  criava a coluna "nova" do rename vazia antes da migração real mover o
+  dado, e a migração falhava depois com coluna duplicada, permanentemente)
+  — corrigido invertendo a ordem, travado por teste de regressão.
+
 ### Adicionado
 
 - **Sinal de oportunidade silenciosa** (Fase G, módulo 8

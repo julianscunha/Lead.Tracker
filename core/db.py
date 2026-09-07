@@ -7,6 +7,7 @@ módulo rola a própria camada de persistência em vez de depender dele.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -18,6 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 _logger = logging.getLogger(__name__)
+
+# Guarda contra duas chamadas concorrentes de init_db no mesmo processo
+# (ex. install()/enable() disparados perto um do outro) — cada uma abriria
+# sua própria conexão Alembic pro mesmo arquivo SQLite (achado da revisão de
+# código), risco de "database is locked" vazando como exceção técnica crua
+# (proibido pelo CLAUDE.md). Protege só dentro do processo — não substitui
+# qualquer lock inter-processo que o Tech.Forge Core já garanta no lifecycle.
+_init_db_lock = asyncio.Lock()
 
 
 class Base(DeclarativeBase):
@@ -34,10 +43,21 @@ def make_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession
 
 
 async def init_db(engine: AsyncEngine) -> None:
-    """Cria as tabelas se não existirem e adiciona colunas novas às que já
-    existem. Sem Alembic aqui — schema simples, local-first; migração formal
-    só se/quando o schema evoluir de um jeito que ALTER TABLE ADD COLUMN não
-    resolva (renomear/remover coluna, mudar tipo).
+    """Cria as tabelas que faltam, roda qualquer migração Alembic pendente,
+    e só por último adiciona coluna nova a tabela que já existe — NESSA
+    ORDEM, sempre (achado da revisão de código: `_add_missing_columns`
+    ANTES do Alembic quebra uma migração de renomear coluna — ela cria a
+    coluna nova vazia achando que é campo novo, orfanizando o dado que
+    devia ter sido movido; quando o Alembic roda depois, a coluna "nova" já
+    existe e a migração falha com coluna duplicada, PERMANENTEMENTE — todo
+    boot seguinte repete o mesmo erro. Com Alembic primeiro, a migração real
+    resolve o rename antes de `_add_missing_columns` sequer olhar pra
+    tabela). `create_all` cobre tabela nova; `_add_missing_columns` cobre
+    coluna nova numa tabela já existente — nenhum dos dois precisa de
+    arquivo de migração. Alembic (`alembic/versions/`, vazio até que exista
+    mudança real) só entra em jogo pra renomear/remover coluna ou mudar
+    tipo — o que `ALTER TABLE ADD COLUMN` não resolve. Ver
+    `alembic/versions/README.md`.
 
     Import tardio e aparentemente não-usado é proposital: as classes ORM só
     se registram em Base.metadata quando o módulo que as define é importado.
@@ -46,9 +66,23 @@ async def init_db(engine: AsyncEngine) -> None:
     nunca importava core.db_models, então nenhuma tabela era criada em produção)."""
     import core.db_models  # noqa: F401
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_add_missing_columns)
+    async with _init_db_lock:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        from core import migrations
+        # upgrade_head() é síncrona (Alembic roda asyncio.run() internamente
+        # em alembic/env.py) — não pode ser chamada de dentro de um event
+        # loop já rodando, daí a thread separada (mesmo padrão do Tech.Forge
+        # Core). hide_password=False: `str(engine.url)` mascara senha como
+        # "***" por padrão — inofensivo em SQLite (sem credencial), mas
+        # quebraria silenciosamente se este padrão for reusado num engine
+        # com senha de verdade (Postgres/MySQL).
+        database_url = engine.url.render_as_string(hide_password=False)
+        await asyncio.to_thread(migrations.upgrade_head, database_url)
+
+        async with engine.begin() as conn:
+            await conn.run_sync(_add_missing_columns)
 
 
 def _add_missing_columns(sync_conn: Connection) -> None:

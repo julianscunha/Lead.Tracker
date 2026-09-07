@@ -29,7 +29,13 @@ async def run():
         engine = create_engine(db_path)
         await init_db(engine)
         conn = sqlite3.connect(db_path)
-        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        # alembic_version é bookkeeping do Alembic (core/migrations.py), não
+        # tabela de domínio registrada em Base.metadata — excluída da
+        # contagem pra não confundir "tabela do model" com "tabela interna
+        # de infraestrutura de migração".
+        tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name != 'alembic_version'"
+        ).fetchall()
         conn.close()
         await engine.dispose()
         print(len(tables))

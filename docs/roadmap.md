@@ -381,32 +381,39 @@ em paralelo às Fases D/E/F, não depende delas.
 
 ## Débito técnico que bloqueia release de produção (não bloqueia dev)
 
-**Migração de schema (Alembic) — mitigado, não fechado.** `core/db.py::init_db()`
-usava só `Base.metadata.create_all()` — cria tabela ausente, mas nunca
-adicionava coluna nova a uma tabela que já existe. Isso já tinha se
-provado um problema real durante o desenvolvimento (Fases B e C
-adicionaram colunas várias vezes; cada vez foi preciso apagar e recriar o
-banco de dev manualmente), e voltou a se provar real ao verificar a Fase G
-ao vivo: uma instalação com `companies` já criada antes de
-`Company.deal_size_hint` (Fase F) quebrava com "no such column" no
-primeiro `GET /companies`.
+**Migração de schema — fechado.** `core/db.py::init_db()` usava só
+`Base.metadata.create_all()` — cria tabela ausente, mas nunca adicionava
+coluna nova a uma tabela que já existe. Isso já tinha se provado um
+problema real durante o desenvolvimento (Fases B e C adicionaram colunas
+várias vezes; cada vez foi preciso apagar e recriar o banco de dev
+manualmente), e voltou a se provar real ao verificar a Fase G ao vivo: uma
+instalação com `companies` já criada antes de `Company.deal_size_hint`
+(Fase F) quebrava com "no such column" no primeiro `GET /companies`.
 
-**Mitigação já implementada** (ver `core/db.py::_add_missing_columns`,
-CHANGELOG): `init_db` agora inspeciona cada tabela existente e adiciona a
-coluna que falta, preenchendo linhas já gravadas com o default real da
-coluna quando ele é derivável (`False`/`[]`/etc.), e pulando com aviso só
-quando não há default nenhum pra uma coluna obrigatória. Resolve o caso
-que já aconteceu 3x neste projeto (coluna nova em tabela existente) sem
-precisar de Alembic.
+**O que foi implementado** (ver `core/db.py`, `core/migrations.py`,
+`alembic/`, CHANGELOG) — duas camadas, cada uma resolvendo a parte que a
+outra não cobre:
+1. **`_add_missing_columns`** — reconciliação automática, sem arquivo de
+   migração: toda vez que o módulo inicializa, adiciona a coluna que falta
+   numa tabela já existente, preenchendo linhas já gravadas com o default
+   real da coluna quando ele é derivável (`False`/`[]`/etc.). Resolve o
+   caso que já aconteceu 3x neste projeto (coluna nova em tabela
+   existente).
+2. **Alembic** (`alembic/versions/`, vazio até que exista mudança real) —
+   pras mudanças que `ALTER TABLE ADD COLUMN` não resolve: renomear/
+   remover coluna, mudar tipo. Mesmo padrão já usado pelo Tech.Forge Core
+   (`core/migrations.py` espelha `app/db/migrations.py` de lá).
 
-**O que continua fora desta mitigação, e ainda pede Alembic quando
-chegar a hora de release real:** renomear/remover coluna, mudar tipo de
-coluna existente, ou qualquer mudança que ALTER TABLE ADD COLUMN não
-resolva. O Tech.Forge Core já usa Alembic (é dependência dele, não uma
-ferramenta nova pro projeto) — adotar o mesmo aqui pras mudanças que a
-migração leve não cobre. Não é uma fase do produto (não entrega nada pro
-usuário final), é item de checklist de `shipping-and-launch` — fazer antes
-do primeiro release real, não antes de continuar as fases de feature.
+Ordem em `init_db` importa e é travada por teste de regressão
+(`test_init_db_runs_alembic_before_add_missing_columns`): `create_all` →
+Alembic → `_add_missing_columns`, nessa ordem — inverter a ordem faz uma
+futura migração de RENOMEAR coluna orfanizar dado e falhar
+permanentemente (achado real de revisão de código antes de mergear).
+
+**Convenção pra próxima mudança de schema** (documentada em
+`alembic/versions/README.md`): coluna nova continua automática, sem
+migração; renomear/remover/mudar tipo pede `alembic revision` com
+`upgrade()` defensivo/idempotente, mesmo padrão do Tech.Forge Core.
 
 ## Fora de escopo (mencionado pelas personas, descartado por ora)
 
