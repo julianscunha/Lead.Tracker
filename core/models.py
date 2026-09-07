@@ -308,16 +308,21 @@ class OpportunityStatusChange(BaseModel):
 
 
 class OutreachTouch(BaseModel):
-    """Fase G, módulo 5 (`outreach-touch-model`) — registro insert-only do
-    fato consumado ("marcado como enviado"), mesmo padrão de
-    `OpportunityStatusChange`. Nunca guarda "próximo passo planejado" — isso
-    é sempre derivado na leitura (módulo 6, `compute_next_suggested_touch`),
-    nunca persistido, mesmo princípio de `compute_qbr_suggested_days`
-    (Fase C). `channel`/`reason_label` ficam string livre — core genérico,
-    sem hardcode de canal (e-mail/ligação/LinkedIn/...) nem motivo fechado."""
+    """Registro insert-only do fato consumado ("marcado como enviado"),
+    mesmo padrão de `OpportunityStatusChange`. Nunca guarda "próximo passo
+    planejado" — isso é sempre derivado na leitura (`compute_next_suggested_touch`),
+    nunca persistido, mesmo princípio de `compute_qbr_suggested_days`.
+    `channel`/`reason_label` ficam string livre — core genérico, sem
+    hardcode de canal (e-mail/ligação/LinkedIn/...) nem motivo fechado.
+
+    `contact_id` opcional (nunca obrigatório): permite atribuir um toque a
+    um `Contact` específico da conta quando o rep sabe com quem falou, sem
+    forçar essa granularidade em toque nenhum antigo/já registrado — base
+    pro sinal de cobertura de stakeholder (single-threaded risk)."""
     id: str = Field(default_factory=_new_id)
     opportunity_id: str
     rep_id: str
+    contact_id: str | None = None
     channel: str
     reason_label: str
     sent_at: datetime = Field(default_factory=_now)

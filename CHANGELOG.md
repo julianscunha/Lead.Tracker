@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`OutreachTouch.contact_id` opcional** (Fase H, módulo 1
+  `outreach-touch-contact-link`, inicia a Fase H): permite atribuir um
+  toque a um contato específico da conta quando o rep sabe com quem
+  falou, sem exigir isso de toque nenhum — base pro sinal de risco de
+  single-thread. Nenhuma validação de referência ainda (fica pro módulo
+  que calcula o sinal). Ver
+  `engineering/specs/fase-h-cobertura-stakeholder.md`.
+
 ### Corrigido
 
 - **Migração leve de schema em `init_db`**: `create_all` só criava tabela

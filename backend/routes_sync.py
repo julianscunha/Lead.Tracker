@@ -362,6 +362,7 @@ class NextSuggestedTouchOut(BaseModel):
 
 class OutreachTouchIn(BaseModel):
     rep_id: str = Field(min_length=1)
+    contact_id: str | None = None
     channel: str = Field(min_length=1)
     reason_label: str = Field(min_length=1)
 
@@ -411,8 +412,12 @@ async def create_outreach_touch_route(opportunity_id: str, body: OutreachTouchIn
         opportunity = await get_opportunity(session, opportunity_id)
         if opportunity is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        # contact_id não é validado contra Contact/company_id aqui de propósito
+        # (Fase H, módulo 1 — só a plumbing; a checagem de referência entra
+        # quando o sinal de single-threaded risk for implementado).
         touch = OutreachTouch(
-            opportunity_id=opportunity_id, rep_id=body.rep_id, channel=body.channel, reason_label=body.reason_label,
+            opportunity_id=opportunity_id, rep_id=body.rep_id, contact_id=body.contact_id,
+            channel=body.channel, reason_label=body.reason_label,
         )
         await save_outreach_touch(session, touch)
     return touch

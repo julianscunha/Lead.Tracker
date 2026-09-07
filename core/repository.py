@@ -426,7 +426,8 @@ async def save_outreach_touch(session: AsyncSession, touch: OutreachTouch) -> No
     `OpportunityStatusChange`: histórico imutável)."""
     session.add(OutreachTouchORM(
         id=touch.id, opportunity_id=touch.opportunity_id, rep_id=touch.rep_id,
-        channel=touch.channel, reason_label=touch.reason_label, sent_at=touch.sent_at,
+        contact_id=touch.contact_id, channel=touch.channel, reason_label=touch.reason_label,
+        sent_at=touch.sent_at,
     ))
     await session.commit()
 
@@ -436,7 +437,7 @@ async def list_outreach_touches(session: AsyncSession, opportunity_id: str) -> l
         select(OutreachTouchORM).where(OutreachTouchORM.opportunity_id == opportunity_id)
     )).scalars().all()
     return [OutreachTouch(
-        id=r.id, opportunity_id=r.opportunity_id, rep_id=r.rep_id,
+        id=r.id, opportunity_id=r.opportunity_id, rep_id=r.rep_id, contact_id=r.contact_id,
         channel=r.channel, reason_label=r.reason_label, sent_at=_ensure_utc(r.sent_at),
     ) for r in rows]
 

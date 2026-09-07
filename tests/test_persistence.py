@@ -1309,6 +1309,25 @@ def test_save_outreach_touch_round_trips():
             assert len(loaded) == 1
             assert loaded[0].channel == "email"
             assert loaded[0].reason_label == "Reforçar diferencial X"
+            assert loaded[0].contact_id is None
+
+    asyncio.run(run())
+
+
+def test_save_outreach_touch_contact_id_round_trips_when_provided():
+    """`contact_id` é opcional (nunca exigido de toques antigos) — quando o
+    rep sabe com quem falou, o toque atribui a um `Contact` específico."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            touch = OutreachTouch(
+                opportunity_id="o1", rep_id="rep-1", contact_id="contact-1",
+                channel="ligação", reason_label="Falei com o decisor",
+            )
+            async with session_factory() as session:
+                await save_outreach_touch(session, touch)
+                loaded = await list_outreach_touches(session, "o1")
+            assert loaded[0].contact_id == "contact-1"
 
     asyncio.run(run())
 
@@ -1562,6 +1581,7 @@ if __name__ == "__main__":
     test_save_opportunity_never_resets_dismissal_reason_on_resync()
     test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
     test_save_outreach_touch_round_trips()
+    test_save_outreach_touch_contact_id_round_trips_when_provided()
     test_save_outreach_touch_multiple_touches_never_overwrite_each_other()
     test_list_outreach_touches_filters_by_opportunity()
     test_count_outreach_touches_today_counts_only_that_rep_today()
