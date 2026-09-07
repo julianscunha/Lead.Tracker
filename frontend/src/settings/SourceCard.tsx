@@ -94,8 +94,8 @@ export function SourceCard({ source, onChange }: { source: SourceStatus; onChang
         </div>
       </div>
 
-      {check.status === 'failed' && source.enabled && <p className="lt-hint" role="alert">{check.message}</p>}
-      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+      {check.status === 'failed' && source.enabled && <p className="lt-alert" role="alert">{check.message}</p>}
+      {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
 
       {formOpen && (
         <div className="lt-source-card__form">

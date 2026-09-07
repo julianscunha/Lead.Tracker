@@ -60,7 +60,8 @@ def test_email_draft_returns_503_without_api_key():
         "company_name": "Aurora", "opportunity_type": "cross-sell", "evidence": ["veeam_vbr"],
     })
     assert resp.status_code == 503
-    assert "AI_API_KEY" in resp.json()["detail"]
+    assert "Configurações" in resp.json()["detail"]
+    assert "AI_API_KEY" not in resp.json()["detail"]
 
 
 def test_export_pdf_rejects_invalid_body():

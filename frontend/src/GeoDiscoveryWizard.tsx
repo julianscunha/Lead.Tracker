@@ -145,7 +145,7 @@ export function GeoDiscoveryWizard() {
     }
   }
 
-  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
 
   if (result) {
     return (
@@ -161,7 +161,7 @@ export function GeoDiscoveryWizard() {
             {exporting === 'excel' ? 'Gerando Excel…' : 'Excel'}
           </button>
         </div>
-        {exportError && <p className="lt-hint" role="alert">{exportError}</p>}
+        {exportError && <p className="lt-alert" role="alert">{exportError}</p>}
         <div className="lt-stat-grid">
           <div className="lt-stat-tile">
             <div className="lt-stat-tile__value">{result.promoted.length}</div>
@@ -304,7 +304,7 @@ export function GeoDiscoveryWizard() {
             num raio de {radiusKm}km a partir de "{searchOriginAddress}", para {repId}.
           </p>
           {runError && (
-            <p className="lt-hint" role="alert">
+            <p className="lt-alert" role="alert">
               Não conseguimos completar a busca agora. Isso não é um problema com os seus critérios — pode ser uma
               instabilidade temporária. {runError}
             </p>

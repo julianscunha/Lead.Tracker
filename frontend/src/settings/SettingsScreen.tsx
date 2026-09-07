@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import { AiConfigSection } from './AiConfigSection'
 import { FieldMappingSection } from './FieldMappingSection'
 import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
@@ -39,7 +40,7 @@ export function SettingsScreen() {
     }
   }
 
-  if (error) return <p className="lt-hint" role="alert">{error}</p>
+  if (error) return <p className="lt-alert" role="alert">{error}</p>
   if (!sources) return <p className="lt-hint">Carregando...</p>
 
   return (
@@ -65,6 +66,7 @@ export function SettingsScreen() {
       </div>
 
       {sources.find(s => s.id === 'salesforce')?.enabled && <FieldMappingSection />}
+      <AiConfigSection />
       <RulesSection />
       <RepTargetsSection />
     </div>

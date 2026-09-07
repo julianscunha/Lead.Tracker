@@ -67,7 +67,7 @@ export function FieldMappingSection() {
     }
   }
 
-  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!fields) return <p className="lt-hint">Carregando campos do Salesforce…</p>
 
   const sorted = [...fields].sort((a, b) => (a.role === b.role ? 0 : a.role ? -1 : 1))
@@ -116,7 +116,7 @@ export function FieldMappingSection() {
                 </tr>
                 {f.broken && (
                   <tr>
-                    <td colSpan={2}><p className="lt-hint" role="alert">{f.brokenMessage}</p></td>
+                    <td colSpan={2}><p className="lt-alert" role="alert">{f.brokenMessage}</p></td>
                   </tr>
                 )}
               </Fragment>

@@ -71,7 +71,7 @@ export function RulesSection() {
     }
   }
 
-  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!rules) return <p className="lt-hint">Carregando regras…</p>
 
   const canSave = justification.trim() !== '' && (
@@ -158,7 +158,7 @@ export function RulesSection() {
             <input value={justification} onChange={e => setJustification(e.target.value)} />
           </label>
 
-          {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+          {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
           <div className="lt-detail-actions">
             <button type="button" className="lt-btn" onClick={handleCreate} disabled={saving || !canSave}>
               {saving ? 'Salvando…' : 'Criar regra'}

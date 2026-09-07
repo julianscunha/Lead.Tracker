@@ -166,6 +166,33 @@ export async function updateSettings(sourceId: string, enabled: boolean | null, 
   return resp.json()
 }
 
+export interface AiProviderOption {
+  value: string
+  label: string
+}
+
+export interface AiConfig {
+  provider: string
+  has_key: boolean
+  options: AiProviderOption[]
+}
+
+export async function getAiConfig(): Promise<AiConfig> {
+  const resp = await fetch(`${BASE}/settings/ai`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateAiConfig(provider: string, apiKey: string): Promise<AiConfig> {
+  const resp = await fetch(`${BASE}/settings/ai`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, api_key: apiKey }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export async function testSourceConnection(sourceId: string): Promise<LastCheck> {
   const resp = await fetch(`${BASE}/settings/${sourceId}/test`, { method: 'POST' })
   if (!resp.ok) throw new Error(await friendlyError(resp))

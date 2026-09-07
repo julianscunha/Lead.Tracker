@@ -131,7 +131,7 @@ async def email_draft(body: EmailDraftRequest) -> dict:
         _raise_http(DomainError(
             ErrorCategory.CONFIGURATION,
             "IA não configurada.",
-            "Defina AI_API_KEY nas configurações do módulo para gerar rascunhos.",
+            "Configure a chave de IA na aba Configurações (seção Inteligência Artificial) para gerar rascunhos.",
         ))
 
     provider = create_ai_provider(env.get("AI_PROVIDER", ""), api_key)

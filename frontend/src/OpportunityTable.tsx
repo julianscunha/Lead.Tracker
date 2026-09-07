@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   generateEmailDraft, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
   updateOpportunityQualification, updateOpportunityStatus,
@@ -147,7 +147,7 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
           Confirmar mudança
         </button>
       )}
-      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+      {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
     </div>
   )
 }
@@ -256,7 +256,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
       <span className={`lt-badge lt-badge--severity-${row.severityBand}`}>
         Severidade: {SEVERITY_LABEL[row.severityBand]}
       </span>
-      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+      {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
     </div>
   )
 }
@@ -279,15 +279,22 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
     }
   }
 
+  // .lt-panel-row (align-items: center) só pro badge+hint, que têm alturas
+  // parecidas; o campo de data (label de duas linhas: texto + input) fica
+  // numa linha própria abaixo — achado da auditoria de UI: os três num só
+  // .lt-severity com align-items:flex-end só alinhava os RODAPÉS dos itens,
+  // deixando os topos desencontrados em até 24px.
   return (
-    <div className="lt-severity">
-      <span className={`lt-badge lt-badge--health-${row.accountHealth}`}>
-        Saúde da conta: {HEALTH_LABEL[row.accountHealth]}
-      </span>
-      <span className="lt-hint">
-        Próxima revisão sugerida: {row.qbrSuggestedDays === 0 ? 'imediata' : `em ${row.qbrSuggestedDays} dias`}
-        {' '}({QBR_REASON_LABEL[row.qbrReason] ?? row.qbrReason})
-      </span>
+    <div className="lt-panel">
+      <div className="lt-panel-row">
+        <span className={`lt-badge lt-badge--health-${row.accountHealth}`}>
+          Saúde da conta: {HEALTH_LABEL[row.accountHealth]}
+        </span>
+        <span className="lt-hint">
+          Próxima revisão sugerida: {row.qbrSuggestedDays === 0 ? 'imediata' : `em ${row.qbrSuggestedDays} dias`}
+          {' '}({QBR_REASON_LABEL[row.qbrReason] ?? row.qbrReason})
+        </span>
+      </div>
       <label>
         Data de renovação do contrato
         <input
@@ -297,7 +304,7 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
           onBlur={() => save(renewalDate)}
         />
       </label>
-      {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+      {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
     </div>
   )
 }
@@ -339,7 +346,15 @@ function threadingRiskPhrase(reasons: NextSuggestedTouch['threadingRiskReasons']
   return 'Nenhum decisor apareceu nos toques recentes. Vale trazer quem decide pra conversa.'
 }
 
-function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: string }) {
+type SuggestionCache = Map<string, NextSuggestedTouch>
+type ContactsCache = Map<string, CompanyContact[]>
+
+function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
+  row: OpportunityRow
+  repId: string
+  suggestionCache: RefObject<SuggestionCache>
+  contactsCache: RefObject<ContactsCache>
+}) {
   const [suggestion, setSuggestion] = useState<NextSuggestedTouch | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   // idle -> botão "Copiar"; copied -> feedback "Copiado ✓" por 1,2s; ready -> botão "Marcar como enviado"
@@ -349,11 +364,29 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   const [contacts, setContacts] = useState<CompanyContact[]>([])
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
 
-  const load = () => getNextSuggestedTouch(row.id, repId).then(s => {
+  const cacheKey = `${row.id}:${repId}`
+
+  const applySuggestion = (s: NextSuggestedTouch) => {
     setSuggestion(s)
     setCopyState('idle')
     setSelectedContactId(s.lastContactId)
-  })
+  }
+
+  // Achado da auditoria de performance: recolher e reabrir a MESMA linha
+  // remontava o componente e refazia as duas chamadas de rede do zero —
+  // cache por linha (sobrevive ao expand/collapse, só reseta ao trocar de
+  // aba) evita isso. `forceRefresh` ignora o cache — usado só depois de
+  // `markSent`, quando o dado realmente mudou no servidor.
+  const load = (forceRefresh = false) => {
+    if (!forceRefresh && suggestionCache.current?.has(cacheKey)) {
+      applySuggestion(suggestionCache.current.get(cacheKey)!)
+      return Promise.resolve()
+    }
+    return getNextSuggestedTouch(row.id, repId).then(s => {
+      suggestionCache.current?.set(cacheKey, s)
+      applySuggestion(s)
+    })
+  }
 
   useEffect(() => {
     setLoadError(null)
@@ -362,23 +395,31 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   }, [row.id, repId])
 
   useEffect(() => {
+    const cached = contactsCache.current?.get(row.companyId)
+    if (cached) {
+      setContacts(cached)
+      return
+    }
     // Dropdown é opcional/best-effort — falha aqui nunca deve virar erro
     // bloqueante (o rep ainda consegue copiar/marcar como enviado sem
     // atribuir contato nenhum), então some silenciosamente pra lista vazia.
-    getCompanyContacts(row.companyId).then(setContacts).catch(() => setContacts([]))
+    getCompanyContacts(row.companyId)
+      .then(cs => { contactsCache.current?.set(row.companyId, cs); setContacts(cs) })
+      .catch(() => setContacts([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.companyId])
 
   if (!repId.trim()) {
     return <p className="lt-hint">Informe seu id de representante acima para ver a próxima ação sugerida.</p>
   }
-  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!suggestion) return <p className="lt-hint">Calculando próxima ação…</p>
 
   // Fase G, módulo 8 (Sales Coach consultado) — sinal independente do
   // `state` da cadência: soma um alerta, nunca substitui a sugestão de
   // toque. Framing de decisão, nunca de fracasso.
   const silenceBanner = suggestion.silenceReason && (
-    <p className="lt-hint" role="alert">
+    <p className="lt-advisory" role="alert">
       {suggestion.silenceReason === 'nunca_contatado'
         ? `Esta oportunidade está em qualificação há ${suggestion.silenceDays} dias sem nenhum contato registrado. Ainda faz sentido priorizá-la agora?`
         : `A cadência sugerida terminou há ${suggestion.silenceDays} dias sem retorno do lead. Bom momento pra decidir: tentar outro ângulo, escalar, ou dispensar.`}
@@ -387,10 +428,14 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
 
   // Fase H, módulo 4 — independente de tudo acima, mesmo espírito do
   // silenceBanner: soma um alerta, nunca substitui a sugestão de toque.
+  // .lt-panel (não .lt-severity): é um bloco de texto empilhado
+  // (título + parágrafo), não uma linha de campos de formulário — achado
+  // da auditoria de UI, .lt-severity é `flex-direction: row` e colocava os
+  // dois lado a lado.
   const threadingBanner = suggestion.threadingRiskReasons.length > 0 && (
-    <div className="lt-severity">
+    <div className="lt-panel">
       <strong>Vale ampliar os contatos aqui</strong>
-      <p>{threadingRiskPhrase(suggestion.threadingRiskReasons)}</p>
+      <p className="lt-advisory">{threadingRiskPhrase(suggestion.threadingRiskReasons)}</p>
     </div>
   )
 
@@ -458,7 +503,7 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
       return
     }
     try {
-      await load()
+      await load(true)
     } catch {
       // Contato já foi gravado no servidor (POST acima teve sucesso) — só a
       // releitura da sugestão falhou, nunca reusar a mensagem de "falha ao
@@ -469,38 +514,47 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
     }
   }
 
+  // .lt-panel (coluna) por fora — a frase fica em linha própria, de largura
+  // cheia; .lt-panel-row (linha) só pro grupo pequeno de controles
+  // (dropdown de contato + botão) — achado da auditoria de UI: misturar
+  // texto de largura variável com controles pequenos numa única linha
+  // flex-wrap produzia sobreposição/ordem imprevisível.
   return (
-    <div className="lt-severity">
+    <div className="lt-panel">
       {silenceBanner}
       {threadingBanner}
-      <p>{phrase}</p>
-      <label>
-        Contato (opcional)
-        <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
-          <option value="">Não atribuído</option>
-          {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </label>
-      {copyState === 'idle' && (
-        <button type="button" className="lt-btn" onClick={copy} disabled={copying}>
-          {copying ? 'Copiando…' : channel === 'email' ? 'Copiar rascunho' : 'Copiar'}
-        </button>
-      )}
-      {copyState === 'copied' && <span className="lt-hint">Copiado ✓</span>}
-      {copyState === 'ready' && (
-        <button type="button" className="lt-btn" onClick={markSent} disabled={marking}>
-          {marking ? 'Registrando…' : 'Marcar como enviado'}
-        </button>
-      )}
+      <p className="lt-panel-text">{phrase}</p>
+      <div className="lt-panel-row">
+        <label>
+          Contato (opcional)
+          <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
+            <option value="">Não atribuído</option>
+            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        {copyState === 'idle' && (
+          <button type="button" className="lt-btn" onClick={copy} disabled={copying}>
+            {copying ? 'Copiando…' : channel === 'email' ? 'Copiar rascunho' : 'Copiar sugestão'}
+          </button>
+        )}
+        {copyState === 'copied' && <span className="lt-hint">Copiado ✓</span>}
+        {copyState === 'ready' && (
+          <button type="button" className="lt-btn" onClick={markSent} disabled={marking}>
+            {marking ? 'Registrando…' : 'Marcar como enviado'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
 
-function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated }: {
+function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionCache, contactsCache }: {
   row: OpportunityRow
   repId: string
   onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
+  suggestionCache: RefObject<SuggestionCache>
+  contactsCache: RefObject<ContactsCache>
 }) {
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [draftError, setDraftError] = useState<string | null>(null)
@@ -563,17 +617,17 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated }: {
         <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
         <SeverityQualification row={row} onUpdated={onRowUpdated} />
-        <div className="lt-severity">
+        <div className="lt-panel">
           <strong>Próxima ação sugerida</strong>
-          <NextActionSuggestion row={row} repId={repId} />
+          <NextActionSuggestion row={row} repId={repId} suggestionCache={suggestionCache} contactsCache={contactsCache} />
         </div>
         <div className="lt-detail-actions">
-          <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
+          <button type="button" className="lt-btn" onClick={copySummary}>Copiar resumo</button>
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
             {draftState === 'loading' ? 'Gerando…' : 'Gerar rascunho'}
           </button>
         </div>
-        {draftState === 'error' && <p className="lt-hint" role="alert">{draftError}</p>}
+        {draftState === 'error' && <p className="lt-alert" role="alert">{draftError}</p>}
         {draft && (
           <div className="lt-draft" role="status">
             <p><strong>Assunto:</strong> {draft.subject}</p>
@@ -598,6 +652,11 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Vive aqui (não em NextActionSuggestion) porque OpportunityTable nunca
+  // desmonta ao expandir/recolher linha — sobrevive ao ciclo que causava o
+  // refetch desnecessário (achado da auditoria de performance).
+  const suggestionCache = useRef<SuggestionCache>(new Map())
+  const contactsCache = useRef<ContactsCache>(new Map())
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -608,11 +667,13 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
     }
   }
 
+  // Achado da auditoria de performance: sortRows rodava a cada render (ex.
+  // ao expandir/recolher linha), não só quando dado/ordenação mudavam.
+  const sorted = useMemo(() => sortRows(rows, sortKey, direction), [rows, sortKey, direction])
+
   if (rows.length === 0) {
     return <p className="lt-empty" role="status">Nenhuma oportunidade encontrada com os filtros atuais.</p>
   }
-
-  const sorted = sortRows(rows, sortKey, direction)
 
   return (
     <table className="lt-table">
@@ -656,7 +717,10 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
               <td>{row.sources.map(s => s.type).join(', ')}</td>
             </tr>
             {expandedId === row.id && (
-              <RowDetail row={row} repId={repId} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
+              <RowDetail
+                row={row} repId={repId} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated}
+                suggestionCache={suggestionCache} contactsCache={contactsCache}
+              />
             )}
           </Fragment>
         ))}

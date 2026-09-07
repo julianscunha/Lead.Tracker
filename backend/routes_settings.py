@@ -127,6 +127,58 @@ async def update_geo_promotion_config(body: GeoPromotionConfig) -> GeoPromotionC
     return GeoPromotionConfig(min_score=body.min_score, daily_cap=body.daily_cap)
 
 
+_AI_PROVIDER_LABELS = {
+    "openrouter": "OpenRouter (padrão)",
+    "openai": "OpenAI",
+    "gemini": "Google Gemini",
+    "claude": "Anthropic Claude",
+}
+
+
+class AiProviderOption(BaseModel):
+    value: str
+    label: str
+
+
+class AiConfig(BaseModel):
+    """Achado da auditoria de UX (não-técnico): `AI_API_KEY`/`AI_PROVIDER`
+    só eram lidos direto do `.env` (`routes_exports.py`), sem campo nenhum
+    na tela — impossível pra um vendedor leigo ativar rascunho de e-mail
+    por IA sem editar arquivo na mão. Seção própria, nunca misturada em
+    `SOURCES` — IA não sincroniza empresa nenhuma, não é uma fonte de dado."""
+    provider: str  # "" = nenhum configurado ainda (usa o default do backend)
+    has_key: bool
+    options: list[AiProviderOption]
+
+
+def _ai_config(env: dict[str, str]) -> AiConfig:
+    return AiConfig(
+        provider=env.get("AI_PROVIDER", ""), has_key=bool(env.get("AI_API_KEY")),
+        options=[AiProviderOption(value=k, label=v) for k, v in _AI_PROVIDER_LABELS.items()],
+    )
+
+
+class AiConfigUpdate(BaseModel):
+    provider: str
+    api_key: str = ""  # vazio = mantém a chave já salva (mesmo padrão de SourceCard/campo secreto)
+
+
+@router.get("/ai")
+async def get_ai_config() -> AiConfig:
+    return _ai_config(load_env(_ENV_PATH))
+
+
+@router.put("/ai")
+async def update_ai_config(body: AiConfigUpdate) -> AiConfig:
+    if body.provider and body.provider not in _AI_PROVIDER_LABELS:
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, "Provedor de IA inválido."))
+    values = {"AI_PROVIDER": body.provider}
+    if body.api_key:
+        values["AI_API_KEY"] = body.api_key
+    set_env_values(_ENV_PATH, values)
+    return _ai_config(load_env(_ENV_PATH))
+
+
 @router.get("")
 async def list_settings() -> list[SourceStatus]:
     env = load_env(_ENV_PATH)

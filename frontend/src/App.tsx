@@ -60,7 +60,7 @@ function OpportunitiesView() {
     }
   }
 
-  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!rows) return <p className="lt-hint">Carregando oportunidades…</p>
 
   return (
@@ -81,7 +81,7 @@ function OpportunitiesView() {
           {exporting === 'excel' ? 'Gerando Excel…' : 'Excel'}
         </button>
       </div>
-      {exportError && <p className="lt-hint" role="alert">{exportError}</p>}
+      {exportError && <p className="lt-alert" role="alert">{exportError}</p>}
       <Filters rows={rows} value={filters} onChange={setFilters} />
       {rows.length === 0 ? (
         <p className="lt-empty" role="status">

@@ -46,6 +46,20 @@ export const styles = `
 }
 .lt-severity textarea { min-width: 220px; min-height: 32px; resize: vertical; font-family: inherit; }
 
+/* Achado da auditoria de UI: bloco de conteúdo empilhado (título/texto +,
+   opcionalmente, uma linha curta de controles) — nunca uma linha de campos
+   de formulário como .lt-severity acima, que tem flex-direction:row e
+   quebrava alinhamento quando misturado com texto de largura variável. */
+.lt-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.lt-panel > strong { font-size: 11px; font-weight: 600; color: hsl(var(--text)); }
+.lt-panel-text { margin: 0; font-size: 11px; }
+.lt-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: hsl(var(--text-muted)); }
+.lt-panel select, .lt-panel input {
+  font-size: 12px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
+}
+.lt-panel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
 .lt-expand-btn { all: unset; cursor: pointer; padding: 4px; border-radius: 4px; }
 .lt-expand-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 
@@ -62,6 +76,8 @@ export const styles = `
 .lt-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .lt-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .lt-hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 6px; }
+.lt-alert { font-size: 11px; font-weight: 600; color: hsl(var(--danger)); margin-top: 6px; }
+.lt-advisory { font-size: 11px; font-weight: 600; color: hsl(var(--warning)); margin: 0; }
 
 .lt-draft { margin-top: 12px; padding: 12px; border-radius: 6px; background: hsl(var(--bg)); border: 1px solid hsl(var(--border)); font-size: 11px; }
 .lt-draft p { margin: 0 0 8px; }

@@ -30,7 +30,7 @@ export function Dashboard() {
     return () => { cancelled = true }
   }, [periodType])
 
-  if (error) return <p className="lt-hint" role="alert">{error}</p>
+  if (error) return <p className="lt-alert" role="alert">{error}</p>
   if (!metrics) return <p className="lt-hint">Carregando…</p>
 
   const { kpis } = metrics

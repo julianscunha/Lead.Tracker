@@ -234,6 +234,53 @@ def test_put_geo_promotion_config_rejects_non_positive_cap():
         assert "limite" in resp.json()["detail"]
 
 
+def test_get_ai_config_defaults_to_empty_and_no_key_when_not_configured():
+    with _TempEnv():
+        resp = client.get("/modules/lead_tracker/settings/ai")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["provider"] == ""
+        assert body["has_key"] is False
+        assert {"value": "openrouter", "label": "OpenRouter (padrão)"} in body["options"]
+
+
+def test_put_ai_config_persists_provider_and_key():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/ai", json={"provider": "openai", "api_key": "sk-teste"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["provider"] == "openai"
+        assert body["has_key"] is True
+
+        resp = client.get("/modules/lead_tracker/settings/ai")
+        assert resp.json()["provider"] == "openai"
+        assert resp.json()["has_key"] is True
+
+
+def test_put_ai_config_never_returns_key_in_clear():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/ai", json={"provider": "openai", "api_key": "sk-secreta-123"})
+        assert "sk-secreta-123" not in resp.text
+
+
+def test_put_ai_config_blank_key_keeps_existing_key():
+    """Mesmo padrão de SourceCard: campo de senha em branco nunca apaga a
+    chave já salva."""
+    with _TempEnv():
+        client.put("/modules/lead_tracker/settings/ai", json={"provider": "openai", "api_key": "sk-original"})
+        resp = client.put("/modules/lead_tracker/settings/ai", json={"provider": "gemini", "api_key": ""})
+        assert resp.status_code == 200
+        assert resp.json()["provider"] == "gemini"
+        assert resp.json()["has_key"] is True
+
+
+def test_put_ai_config_rejects_unknown_provider():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/ai", json={"provider": "bing-chat", "api_key": ""})
+        assert resp.status_code == 422
+        assert "inválido" in resp.json()["detail"].lower()
+
+
 def test_get_field_catalog_returns_fields_with_no_mapping_by_default():
     with _TempEnvAndDb(), _FieldCatalogStub():
         _StubSalesforceProvider.fields = [
@@ -361,6 +408,11 @@ if __name__ == "__main__":
     test_put_geo_promotion_config_accepts_range_boundaries()
     test_put_geo_promotion_config_rejects_score_out_of_range()
     test_put_geo_promotion_config_rejects_non_positive_cap()
+    test_get_ai_config_defaults_to_empty_and_no_key_when_not_configured()
+    test_put_ai_config_persists_provider_and_key()
+    test_put_ai_config_never_returns_key_in_clear()
+    test_put_ai_config_blank_key_keeps_existing_key()
+    test_put_ai_config_rejects_unknown_provider()
     test_get_field_catalog_returns_fields_with_no_mapping_by_default()
     test_get_field_catalog_reflects_existing_mapping()
     test_put_field_mapping_reassigns_role_from_previous_field()

@@ -86,7 +86,7 @@ export function RepTargetsSection() {
             <span>Meta financeira (R$) pro período selecionado acima</span>
             <input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} />
           </label>
-          {saveError && <p className="lt-hint" role="alert">{saveError}</p>}
+          {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
           <div className="lt-detail-actions">
             <button type="button" className="lt-btn" onClick={handleCreate} disabled={saving || !canSave}>
               {saving ? 'Salvando…' : 'Salvar meta'}
@@ -95,7 +95,7 @@ export function RepTargetsSection() {
         </div>
       )}
 
-      {loadError && <p className="lt-hint" role="alert">{loadError}</p>}
+      {loadError && <p className="lt-alert" role="alert">{loadError}</p>}
       {!loadError && !targets && <p className="lt-hint">Carregando metas…</p>}
       {!loadError && targets && targets.length === 0 && (
         <p className="lt-empty" role="status">Nenhuma meta cadastrada pra {periodKey} ainda.</p>
