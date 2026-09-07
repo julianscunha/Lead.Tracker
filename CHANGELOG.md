@@ -38,7 +38,7 @@
   existente) ou com a cadência sugerida esgotada e sem retorno do lead
   por um buffer adicional. Puramente informativo: nunca muda status
   sozinho. Copy em consulta ao agente Sales Coach. Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Próxima ação sugerida + marcar como enviado** (Fase G, módulo 7
   `next-action-line-and-mark-sent-ui`): tela de Oportunidades ganha,
@@ -48,7 +48,7 @@
   (o botão só habilita depois de copiar o rascunho/frase). Duas rotas
   novas: `GET .../next-suggested-touch` e
   `POST .../outreach-touches`. Copy/UX em consulta ao agente Sales
-  Engineer. Ver `docs/specs/fase-g-outreach-assistido.md`.
+  Engineer. Ver `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Motor de cadência sugerida** (Fase G, módulo 6
   `suggested-cadence-engine`): função pura que sugere o próximo toque
@@ -58,7 +58,7 @@
   com cap único de 25 toques/dia por representante somando as duas
   cadências. Nunca dispara nada — sempre depende do rep marcar como
   enviado. Decisões de cadência em consulta ao agente Outbound
-  Strategist. Ver `docs/specs/fase-g-outreach-assistido.md`.
+  Strategist. Ver `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Histórico de toques de outreach** (Fase G, módulo 5
   `outreach-touch-model`): novo `OutreachTouch`, registro insert-only
@@ -66,7 +66,7 @@
   padrão de `OpportunityStatusChange`. Base de dados pro motor de
   cadência sugerida dos próximos módulos — nunca persiste "próximo
   passo planejado", sempre derivado na leitura. Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Proibições determinísticas de urgência falsa e generalização vazia**
   (Fase G, módulo 4 `prompt-prohibition-guards`): subject/body/cta
@@ -75,7 +75,7 @@
   caso concreto (número real) nos dados — nunca bloqueia palavra
   isolada, só a combinação gatilho+ausência do dado que legitimaria.
   Decisões de gatilhos e regras em consulta ao agente Sales Coach. Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Tom por status de cliente no rascunho de e-mail** (Fase G,
   módulo 3 `tone-by-customer-status`): o prompt de geração usa uma de
@@ -85,7 +85,7 @@
   externo (proibido "percebemos que...") com CTA exploratório de
   baixo compromisso (proibido pedir demo/orçamento/apresentação).
   Decisões de texto em consulta ao agente Outbound Strategist. Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Diferencial persuasivo com guard-rails determinísticos** (Fase G,
   módulo 2 `differentiator-and-ps-fields`): `EmailDraft` ganha
@@ -95,7 +95,7 @@
   exige número âncora, sem menção a fonte externa não citada) — campo
   que reprova é descartado, nunca derruba o resto do rascunho.
   Decisões de guard-rail em consulta ao agente Sales Engineer. Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Motivo principal no rascunho de e-mail** (Fase G, módulo 1
   `primary-reason-field`, inicia a Fase G): `EmailDraft` ganha
@@ -103,7 +103,7 @@
   (`justification`) — a IA nunca decide ou reescreve esse valor, só é
   instruída a reforçá-lo em subject/body/cta. Blindagem provada por
   teste (não só instrução de prompt). Ver
-  `docs/specs/fase-g-outreach-assistido.md`.
+  `engineering/specs/fase-g-outreach-assistido.md`.
 
 - **Detecção de mapeamento quebrado** (Fase F, módulo 6
   `mapping-health-check`, fecha a Fase F): quando um campo mapeado é
@@ -114,7 +114,7 @@
   nunca marcar o módulo como não-saudável (o sync continua
   funcionando pros demais campos). Decisões de linguagem/severidade
   em consulta ao agente Sales Engineer. Ver
-  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+  `engineering/specs/fase-f-mapeamento-campo-personalizado.md`.
 
 - **Tela de mapeamento de campo personalizado** (Fase F, módulo 5
   `mapping-config-ui`, única tela desta fase): nova seção em
@@ -127,7 +127,7 @@
   banco (`provider_id`+`role`) impede dois campos mapeados pro mesmo
   papel sob concorrência; reconciliação de estado no frontend usa
   identificador estável (API name), nunca o rótulo exibido. Ver
-  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+  `engineering/specs/fase-f-mapeamento-campo-personalizado.md`.
 
 - **Divisão de contexto guiada por mapeamento** (Fase F, módulo 4
   `mapping-driven-context-split`): `/sync` agora aplica os
@@ -140,7 +140,7 @@
   agora fica disponível pro motor de regras na mesma rodada de sync
   em que foi promovido, não só na próxima. Decisões técnicas em
   consulta ao agente Salesforce Architect. Ver
-  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+  `engineering/specs/fase-f-mapeamento-campo-personalizado.md`.
 
 - **Papel semântico e armazenamento de mapeamento de campo** (Fase F,
   módulos 2 `semantic-field-role` e 3 `field-mapping-store`): novo
@@ -149,7 +149,7 @@
   é o comportamento padrão) e config `FieldMapping` por instalação
   (id determinístico, upsert por `provider_id`+`source_field_api_name`,
   mesmo padrão de `ICPProfile`/`RepTarget`). Ver
-  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+  `engineering/specs/fase-f-mapeamento-campo-personalizado.md`.
 
 - **Catálogo de campos personalizados do Salesforce** (Fase F, módulo 1
   `sobject-field-catalog`, inicia a Fase F): novo método
@@ -161,14 +161,14 @@
   1h (describe é uma chamada pesada, conta pro limite diário da org),
   com bypass explícito via `force_refresh`. Decisões técnicas em
   consulta ao agente Salesforce Architect. Ver
-  `docs/specs/fase-f-mapeamento-campo-personalizado.md`.
+  `engineering/specs/fase-f-mapeamento-campo-personalizado.md`.
 
 - **Exportação da prospecção geográfica** (Fase E, módulo 8
   `geo-export`, fecha a Fase E): botões "PDF"/"Excel" na tela de
   resultado do wizard, reaproveitando 100% o exportador já existente
   de Oportunidades — nenhum código de exportação novo, só um
   mapeamento de `GeoDiscoveryItem` pro formato de linha já suportado.
-  Ver `docs/specs/fase-e-prospeccao-geografica.md`.
+  Ver `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Cards de resultado da prospecção geográfica** (Fase E, módulo 7
   `geo-results-view`): `POST /geo-discovery/run` agora devolve as 3
@@ -181,7 +181,7 @@
   explícita do agente Sales Engineer contra mapa embutido nesta fatia.
   Nenhuma lógica de scoring/promoção/cota alterada. Revisão de código
   aprovada sem achados Críticos/Importantes. Ver
-  `docs/specs/fase-e-prospeccao-geografica.md`.
+  `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Wizard de prospecção geográfica** (Fase E, módulo 6 `icp-wizard-ui`
   — fecha a esteira geográfica ponta a ponta): novo assistente de 4
@@ -194,7 +194,7 @@
   nunca termos técnicos. Revisão de código corrigiu um bug real (cota
   diária comparando data local do servidor contra `created_at` em UTC) e
   documentou um TOCTOU de baixo risco aceito conscientemente. Ver
-  `docs/specs/fase-e-prospeccao-geografica.md`.
+  `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Trava anti-spam de prospecção geográfica** (Fase E, módulo 5
   `anti-spam-promotion-gate`): `select_promotions` decide quais sinais
@@ -205,7 +205,7 @@
   bloqueada pela cota — excedente elegível vira `deferred` (evidência
   suficiente, só sem cota agora), distinto de `rejected` (evidência
   insuficiente, nunca vira registro). Ver
-  `docs/specs/fase-e-prospeccao-geografica.md`.
+  `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Pontuação determinística de sinal geográfico** (Fase E, módulo 4
   `geo-scoring-rules`): `score_place_signal` pontua `PlaceSignal` (módulo
@@ -215,7 +215,7 @@
   hierarquia. Hierarquia e pesos decididos em consulta ao agente Outbound
   Strategist. `BUSINESS_STATUS_UNSPECIFIED` (achado da revisão de código)
   tratado como "não sabemos", nunca como fechado. Ver
-  `docs/specs/fase-e-prospeccao-geografica.md`.
+  `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Derivação automática de critério de ICP** (Fase E, módulo 3
   `icp-auto-derivation`): `GET /icp-suggestion` deriva `industry_hint`
@@ -226,7 +226,7 @@
   Hacker. `None` (nada pra derivar) é distinto de `confidence="low"`
   (sugestão real com poucos dados, nunca escondida). Nunca auto-aplica
   no `ICPProfile` — só o usuário confirma no wizard futuro. Ver
-  `docs/specs/fase-e-prospeccao-geografica.md`.
+  `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Coleta de sinal do Google Places** (Fase E, módulo 2
   `places-signal-collector`): `GoogleMapsProvider` implementado e ligado
@@ -240,7 +240,7 @@
   geográfica vem de `ICPProfile.search_origin_address` (endereço
   cadastrado manualmente, decisão confirmada com o usuário). Endpoints
   confirmados via fonte oficial do Google (Geocoding API + Places API
-  New). Ver `docs/specs/fase-e-prospeccao-geografica.md`.
+  New). Ver `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Armazenamento de critério de ICP** (Fase E, módulo 1
   `icp-profile-store`): `GET`/`PUT /icp-profile` guardam produto de
@@ -248,13 +248,13 @@
   configuração singleton por instalação, sem taxonomia fechada (núcleo
   genérico). `GET` antes do primeiro `PUT` nunca retorna 404. Primeiro de
   8 módulos do capability map da Fase E (Plan consultado, confirmado pelo
-  usuário) — ver `docs/specs/fase-e-prospeccao-geografica.md`.
+  usuário) — ver `engineering/specs/fase-e-prospeccao-geografica.md`.
 
 - **Campos padrão adicionais de Account do Salesforce** (Fase A): `Company`
   ganha `industry`, `annual_revenue`, `employee_count`, `address`
   (objeto aninhado city/state/postal_code/country). Consultei o agente
   Salesforce Architect antes de desenhar o modelo (decisão registrada em
-  `docs/specs/salesforce-account-standard-fields.md`): `industry` fica
+  `engineering/specs/salesforce-account-standard-fields.md`): `industry` fica
   distinto de `segment` (vertical de mercado vs. categorização comercial
   própria); `Type`/`CreatedDate` do Salesforce ficam conscientemente fora
   de escopo (redundante com `is_customer`/sem consumidor ainda). Revisão
@@ -269,7 +269,7 @@
   oportunidade nem passa por IA nesta fase, só deixa o dado pronto pra
   quando o pipeline de IA real existir. Org sem nenhum campo personalizado
   (`MALFORMED_QUERY`) nunca gera erro. Ver
-  `docs/specs/salesforce-custom-fields-context.md`.
+  `engineering/specs/salesforce-custom-fields-context.md`.
 
 - **Dashboard consome todo o dado da Fase D** (Fase D, módulo 8 — fecha a
   fase): cards de KPI ganham linha de explicação (potencial ponderado
@@ -282,7 +282,7 @@
   podendo sobrescrever a mais recente ao trocar de período rápido, e
   o dashboard inteiro sumindo a cada troca de período) — todos
   corrigidos antes deste commit. Ver
-  `docs/specs/fase-d-dashboard-acionavel.md`.
+  `engineering/specs/fase-d-dashboard-acionavel.md`.
 
 - **Meta e cobertura por representante/período** (Fase D, módulo 7):
   cadastro manual de meta comercial por rep + período (mensal/trimestral,
@@ -295,7 +295,7 @@
   período (achado da revisão de código: texto livre permitia typo que
   criava meta "órfã" silenciosa); UI usa `<input type="month">`/`<select>`
   de trimestre em vez de texto livre. Ver
-  `docs/specs/fase-d-dashboard-acionavel.md`.
+  `engineering/specs/fase-d-dashboard-acionavel.md`.
 
 - **Motivo categorizado de descarte** (Fase D, módulo 6): mudar uma
   oportunidade pra "Descartada" agora exige um `dismissal_reason` de um
@@ -306,7 +306,7 @@
   motivo (achado da revisão de código: guardar só no registro "atual"
   perdia motivos anteriores a cada ciclo reabrir→descartar). UI mostra o
   dropdown de motivo só ao selecionar "Descartada" e exibe o motivo já
-  salvo. Ver `docs/specs/fase-d-dashboard-acionavel.md`.
+  salvo. Ver `engineering/specs/fase-d-dashboard-acionavel.md`.
 
 - **Alerta de SLA de triagem / aging** (Fase D, módulo 5): oportunidade
   parada em "Detectada" além de um prazo configurável (`AGING_SLA_DAYS`,
@@ -330,7 +330,7 @@
   "conversão"/`conversion`, em qualquer variável, docstring ou campo de
   API. Zumbi nunca entra no potencial ponderado nem nos cortes (blindagem
   do roadmap), mas é contado e exposto à parte. Ver
-  `docs/specs/fase-d-dashboard-acionavel.md`.
+  `engineering/specs/fase-d-dashboard-acionavel.md`.
 
 - **Snapshot diário de oportunidades e detecção de zumbi** (Fase D,
   segundo módulo): nova tabela `opportunity_snapshots`, recalculada por
@@ -343,7 +343,7 @@
   a mesma oportunidade — isso neutralizaria o zumbi pra exatamente as
   oportunidades nunca revisadas por ninguém. Novo campo
   `Opportunity.first_detected_at`, gravado só na criação, nunca mais
-  tocado, resolve isso. Ver `docs/specs/fase-d-dashboard-acionavel.md`.
+  tocado, resolve isso. Ver `engineering/specs/fase-d-dashboard-acionavel.md`.
 
 - **Transição manual de status da oportunidade** (Fase D, primeiro módulo):
   dropdown de status na linha expansível, sem máquina de estados no
@@ -356,7 +356,7 @@
   bug nunca tinha disparado. `OpportunityStatusChange` (histórico de
   transição, já existia no modelo desde a Fase B) passa a ser gravado de
   verdade, na mesma transação da mudança de status. Ver
-  `docs/specs/fase-d-dashboard-acionavel.md` para o detalhamento.
+  `engineering/specs/fase-d-dashboard-acionavel.md` para o detalhamento.
 
 - **Cadência de revisão de conta (QBR)**: última capacidade planejada da
   Fase C. A linha expansível de cada oportunidade ganha a saúde da conta

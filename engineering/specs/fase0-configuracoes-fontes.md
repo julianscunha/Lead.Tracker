@@ -1,6 +1,6 @@
 # Spec: Fase 0 — Configurações de Fontes
 
-Ver `docs/roadmap.md` (Fase 0) pro contexto de por que essa fase é
+Ver `engineering/roadmap.md` (Fase 0) pro contexto de por que essa fase é
 pré-requisito de tudo. Esta spec detalha o que a fase anterior deixou em
 alto nível.
 
@@ -83,7 +83,7 @@ função assume a chave já existe (veio do template) e só troca o valor.
   (🟢/🔴/⚪ + rótulo curto), campos de credencial (só visíveis/expandidos
   quando a fonte está com o formulário aberto — não precisa mostrar campo
   de senha permanentemente na tela principal).
-- Fluxo do toggle, conforme `docs/roadmap.md` Fase 0:
+- Fluxo do toggle, conforme `engineering/roadmap.md` Fase 0:
   1. Usuário liga o toggle → se a fonte tem campos obrigatórios sem valor
      salvo, abre o formulário em vez de tentar conectar direto.
   2. Usuário preenche e confirma → `PUT` salva → `POST .../test` roda

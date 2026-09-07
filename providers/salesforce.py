@@ -72,7 +72,7 @@ def _parse_salesforce_date(value: str | None) -> datetime | None:
 def _billing_address(record: dict) -> Address | None:
     """`None` inteiro quando a conta não tem nenhum campo Billing
     preenchido — nunca um `Address` com os 4 campos `None` (spec:
-    docs/specs/salesforce-account-standard-fields.md)."""
+    engineering/specs/salesforce-account-standard-fields.md)."""
     city, state, postal_code, country = (
         record.get("BillingCity"), record.get("BillingState"),
         record.get("BillingPostalCode"), record.get("BillingCountry"),
@@ -284,7 +284,7 @@ class SalesforceProvider(DataProvider):
         """Campos personalizados (`__c`) da conta, como contexto bruto pra
         uso futuro de IA — nunca interpretado aqui, nunca vira regra de
         oportunidade (isso é trabalho do opportunity_engine). `FIELDS(CUSTOM)`
-        (spec: docs/specs/salesforce-custom-fields-context.md) evita precisar
+        (spec: engineering/specs/salesforce-custom-fields-context.md) evita precisar
         conhecer os nomes dos campos de antemão — cada org Salesforce tem um
         conjunto diferente. Sem contexto rico ainda (raw_text/pages) —
         Salesforce não tem "texto de site"."""

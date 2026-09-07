@@ -173,7 +173,7 @@ def field_mapping_id(provider_id: str, source_field_api_name: str) -> str:
 
 
 # ── Fase G, módulo 6 (`suggested-cadence-engine`) — Outbound Strategist
-# consultado (docs/specs/fase-g-outreach-assistido.md, módulo 6). Função pura:
+# consultado (engineering/specs/fase-g-outreach-assistido.md, módulo 6). Função pura:
 # nunca dispara nada, nunca decide status sozinha (CLAUDE.md "IA/regra nunca
 # decide sozinha" aplicado aqui também, mesmo sem IA envolvida) — só sugere,
 # sempre depende do rep marcar como enviado (`OutreachTouch`, módulo 5).

@@ -4,7 +4,7 @@ habilitados, normaliza, persiste companies/contacts de verdade, e roda o
 motor de regras (Fase C) contra o portfólio já conhecido de cada empresa.
 Empresa sem portfólio (Portfolio) cadastrado não gera oportunidade nenhuma
 — não é bug, é honesto: não existe ainda fonte que popule "o que o cliente
-tem" a partir de Salesforce/Manual (ver docs/specs/fase-b1-ligacao-real.md).
+tem" a partir de Salesforce/Manual (ver engineering/specs/fase-b1-ligacao-real.md).
 """
 from __future__ import annotations
 

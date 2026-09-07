@@ -1,6 +1,6 @@
 # Spec: Fase B — Fundação do modelo de dados
 
-Ver `docs/roadmap.md` (Fase B) pro contexto: retrofitar histórico depois que
+Ver `engineering/roadmap.md` (Fase B) pro contexto: retrofitar histórico depois que
 dado real começar a fluir é caro, então os campos abaixo entram agora, antes
 da Fase B.1 (ligação real) e da Fase C (motor de regras ampliado) existirem
 de verdade.

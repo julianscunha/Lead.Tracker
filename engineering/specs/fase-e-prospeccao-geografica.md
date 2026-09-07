@@ -1,7 +1,7 @@
 # Fase E — Prospecção geográfica (Google Maps)
 
 Spec viva desta fase (`spec-driven-development`) — atualizada a cada
-módulo entregue, não escrita de uma vez no início. Ver `docs/roadmap.md`
+módulo entregue, não escrita de uma vez no início. Ver `engineering/roadmap.md`
 pro texto original dos requisitos; este documento registra as decisões
 de como implementar cada um, o porquê, e o que cada módulo entrega.
 

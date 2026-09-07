@@ -95,5 +95,5 @@ gap). Ver `docs/TROUBLESHOOTING.md` para problemas comuns de instalação/
 configuração.
 
 Histórico de decisões técnicas e planejamento de evolução (uso interno de
-desenvolvimento, não é guia de uso do produto) vive em `docs/roadmap.md` e
-`docs/specs/`.
+desenvolvimento, não é guia de uso do produto) vive em `engineering/roadmap.md` e
+`engineering/specs/`.

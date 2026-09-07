@@ -166,7 +166,7 @@ export function Dashboard() {
       <p className="lt-hint">
         Segmentação por região ainda fica de fora — exige dado real de região vindo de uma fonte configurada
         (ex.: Google Maps). Tendência temporal (série histórica) também não está aqui: o snapshot diário guarda o
-        estado de hoje, não a evolução dia a dia — ver docs/specs/fase-d-dashboard-acionavel.md.
+        estado de hoje, não a evolução dia a dia — ver engineering/specs/fase-d-dashboard-acionavel.md.
       </p>
     </div>
   )

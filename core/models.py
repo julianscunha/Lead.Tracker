@@ -85,7 +85,7 @@ class Company(BaseModel):
     # automático de sempre.
     renewal_date: datetime | None = None
     # Fase A — campos padrão adicionais de Account (Salesforce Architect
-    # consultado, decisão registrada em docs/specs/salesforce-account-standard-fields.md):
+    # consultado, decisão registrada em engineering/specs/salesforce-account-standard-fields.md):
     # industry é vertical de mercado, distinto de segment (categorização
     # comercial própria). Nenhum dos 4 alimenta o motor de regras ainda —
     # dado estrutural novo, decisão de usá-los em regra é escopo futuro.

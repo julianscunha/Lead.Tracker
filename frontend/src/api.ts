@@ -214,7 +214,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     justification: r.justification,
     confidenceScore: r.confidence_score,
     // Sem fonte real ainda de "o que a empresa já tem" (Fase B.1 não popula
-    // portfólio por empresa — ver docs/specs/fase-b1-ligacao-real.md).
+    // portfólio por empresa — ver engineering/specs/fase-b1-ligacao-real.md).
     currentProducts: [],
     recommendedProducts: r.product_name ? [r.product_name] : [],
     recommendedServices: r.service_name ? [r.service_name] : [],

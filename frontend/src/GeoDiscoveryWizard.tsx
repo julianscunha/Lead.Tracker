@@ -47,7 +47,7 @@ function DiscoveryCard({ item, group }: { item: GeoDiscoveryItem; group: Discove
 }
 
 // Fluxo de 4 passos desenhado com o agente Sales Engineer (consulta registrada
-// em docs/specs/fase-e-prospeccao-geografica.md, módulo 6) — nunca uma tela de
+// em engineering/specs/fase-e-prospeccao-geografica.md, módulo 6) — nunca uma tela de
 // filtros técnicos. Cada passo só avança com o dado anterior válido; erro de
 // endereço interrompe aqui (não deixa chegar ao passo de confirmação com
 // origem inválida).

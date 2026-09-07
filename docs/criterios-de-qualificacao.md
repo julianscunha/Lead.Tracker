@@ -4,7 +4,7 @@ Este documento explica **o que cada critério significa, de onde vem o
 dado e por que o número/corte é esse** — pra quem usa o Lead.Tracker
 entender como o sistema chegou naquele score, naquela banda ou naquele
 selo, sem precisar abrir código. Não é uma spec técnica de
-implementação (essas ficam em `docs/specs/`, uso interno de
+implementação (essas ficam em `engineering/specs/`, uso interno de
 desenvolvimento).
 
 Todo critério listado aqui é uma **regra determinística**, nunca uma

@@ -117,8 +117,8 @@ virar item formal — corrigindo aqui.
   nunca aparece em log/erro/export" aplicada aqui).
 
 ### Fase A — Ingestão ampliada do Salesforce
-**Status:** concluída (specs: `docs/specs/salesforce-custom-fields-context.md`,
-`docs/specs/salesforce-account-standard-fields.md`).
+**Status:** concluída (specs: `engineering/specs/salesforce-custom-fields-context.md`,
+`engineering/specs/salesforce-account-standard-fields.md`).
 **Depende da Fase 0** pra ter como configurar credenciais sem editar `.env`
 na mão — mas o provider em si já foi implementado e testado antes dessa
 lacuna ser percebida; a spec/código de ingestão não muda, só a forma como o
@@ -128,7 +128,7 @@ usuário final liga isso.
   — sem `BillingStreet` por ora, custo de PII sem ganho de precisão de geocoding),
   `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `LastActivityDate`. `Type`/`CreatedDate`
   conscientemente fora de escopo (redundante com `is_customer`/sem consumidor ainda —
-  ver `docs/specs/salesforce-account-standard-fields.md`).
+  ver `engineering/specs/salesforce-account-standard-fields.md`).
 - [x] Campos personalizados (`__c`) como contexto bruto via `FIELDS(CUSTOM)` —
   guardado, não interpretado.
 - **Adiado para depois da Fase B, não desta fase:** dados de `Opportunity`/
@@ -182,7 +182,7 @@ mudou de status" se não foi guardado desde o início.
 - **Sem tela nova nesta fase** — é só schema/modelo, preparação silenciosa.
 
 ### Fase B.1 — Ligação real (ingestão → banco → API → frontend)
-**Status:** concluída (spec: `docs/specs/fase-b1-ligacao-real.md`). Rodou
+**Status:** concluída (spec: `engineering/specs/fase-b1-ligacao-real.md`). Rodou
 sem gerar oportunidade por regra de propósito — não existe ainda
 persistência de regra (isso é a Fase C, próxima). Achado real ao validar
 em ambiente com banco de instalação anterior à Fase B: `create_all` não
@@ -216,7 +216,7 @@ final sem esta — é o fio que liga tudo que já existe isolado e testado.
   de prontas — por isso vem antes de qualquer uma delas, não depois.
 
 ### Fase C — Motor de regras ampliado
-**Status:** concluída (spec: `docs/specs/fase-c-motor-de-regras.md`).
+**Status:** concluída (spec: `engineering/specs/fase-c-motor-de-regras.md`).
 Depende da Fase B e da Fase B.1 (precisa de dado real fluindo pelo pipeline
 pra uma regra nova ter o que avaliar).
 
@@ -265,7 +265,7 @@ pra uma regra nova ter o que avaliar).
   descoberta de verdade, não só uma lista de pistas técnicas.
 
 ### Fase D — Dashboard acionável
-**Status:** concluída (spec: `docs/specs/fase-d-dashboard-acionavel.md`).
+**Status:** concluída (spec: `engineering/specs/fase-d-dashboard-acionavel.md`).
 Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
 
 - Funil com taxa de conversão por etapa (não só contagem).
@@ -301,7 +301,7 @@ Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
   dados.
 
 ### Fase E — Prospecção geográfica (Google Maps)
-**Status:** concluída (spec: `docs/specs/fase-e-prospeccao-geografica.md`).
+**Status:** concluída (spec: `engineering/specs/fase-e-prospeccao-geografica.md`).
 Depende do endereço já vindo na Fase A.
 
 - Tela de ICP: critérios guardados como dado de configuração por instalação
@@ -326,7 +326,7 @@ Depende do endereço já vindo na Fase A.
   pra uma reunião sem precisar pedir print pra alguém técnico.
 
 ### Fase F — Mapeamento configurável de campo personalizado
-**Status:** concluída (spec: `docs/specs/fase-f-mapeamento-campo-personalizado.md`).
+**Status:** concluída (spec: `engineering/specs/fase-f-mapeamento-campo-personalizado.md`).
 Depende da Fase A (contexto bruto já chegando) e reaproveita a mesma tela de
 configuração de fontes já cogitada antes desta sessão de planejamento.
 
@@ -345,7 +345,7 @@ configuração de fontes já cogitada antes desta sessão de planejamento.
   API name.
 
 ### Fase G — Outreach assistido (e-mail mais persuasivo + cadência sugerida)
-**Status:** concluída (spec: `docs/specs/fase-g-outreach-assistido.md`).
+**Status:** concluída (spec: `engineering/specs/fase-g-outreach-assistido.md`).
 Depende só da Fase C (qualidade de evidência/`primary_reason`) — pode rodar
 em paralelo às Fases D/E/F, não depende delas.
 
@@ -493,7 +493,7 @@ migração; renomear/remover/mudar tipo pede `alembic revision` com
 ## Como usar este documento
 
 Cada fase, quando for a vez de implementá-la, ganha sua própria spec em
-`docs/specs/` (como já existe para parte da Fase A) antes de qualquer código
+`engineering/specs/` (como já existe para parte da Fase A) antes de qualquer código
 — seguindo `spec-driven-development`. Este roadmap não substitui a spec por
 fase, só garante que a ordem e as decisões de fundo não se percam entre
 sessões.

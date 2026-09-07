@@ -1,6 +1,6 @@
 # Spec: Fase B.1 — Ligação real (ingestão → banco → API → frontend)
 
-Ver `docs/roadmap.md` (Fase B.1) — é a lacuna mais antiga identificada nesta
+Ver `engineering/roadmap.md` (Fase B.1) — é a lacuna mais antiga identificada nesta
 sessão: hoje `backend/main.py` só tem `/ping` e rotas de export; o frontend
 roda inteiro sobre `sampleData.ts`/`sampleMetrics.ts`.
 

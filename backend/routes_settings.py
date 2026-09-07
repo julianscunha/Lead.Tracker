@@ -1,5 +1,5 @@
 """
-Rotas de Configurações de Fontes (docs/specs/fase0-configuracoes-fontes.md).
+Rotas de Configurações de Fontes (engineering/specs/fase0-configuracoes-fontes.md).
 
 Contrato: nenhum segredo (`SourceField.secret=True`) volta em claro no
 GET — só `has_value`. Todo DomainError vira HTTPException pela mesma tabela
@@ -190,7 +190,7 @@ class FieldCatalogItem(BaseModel):
 
 @router.get("/salesforce/field-catalog")
 async def get_salesforce_field_catalog(force_refresh: bool = False) -> list[FieldCatalogItem]:
-    """Sales Engineer consultado (docs/specs/fase-f-mapeamento-campo-personalizado.md,
+    """Sales Engineer consultado (engineering/specs/fase-f-mapeamento-campo-personalizado.md,
     módulo 5): a tela nunca mostra o campo cru sem contexto — cada linha já
     chega com o papel atualmente mapeado (ou nenhum), pra tabela renderizar
     direto sem uma segunda chamada.

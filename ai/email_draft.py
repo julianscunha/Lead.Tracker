@@ -33,7 +33,7 @@ _BASE_INSTRUCTION = (
 )
 
 # Fase G, módulo 3 (`tone-by-customer-status`) — Outbound Strategist
-# consultado (docs/specs/fase-g-outreach-assistido.md, módulo 3). Duas
+# consultado (engineering/specs/fase-g-outreach-assistido.md, módulo 3). Duas
 # variações fixas de tom, nunca uma terceira genérica: a linha entre
 # "cliente" e "prospecção fria" é binária (Company.is_customer já existe),
 # sem meio-termo especulativo.

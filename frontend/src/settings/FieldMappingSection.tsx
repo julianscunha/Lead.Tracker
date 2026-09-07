@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { getFieldCatalog, unmapField, upsertFieldMapping, type FieldCatalogItem, type SemanticFieldRole } from '../api'
 
 // Fase F, módulo 5 (`mapping-config-ui`) — decisões de linguagem/UX em
-// consulta ao agente Sales Engineer (docs/specs/
+// consulta ao agente Sales Engineer (engineering/specs/
 // fase-f-mapeamento-campo-personalizado.md, módulo 5): nunca "hint"/termo
 // técnico visível, coluna "status" colapsada no próprio dropdown de papel,
 // campo não mapeado não precisa de nenhuma explicação por linha (silêncio

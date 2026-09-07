@@ -5,7 +5,7 @@ Cada fonte é um dado (`SourceDescriptor`), não código — a UI e as rotas
 nunca fazem `if source_id == "salesforce"`; tudo vem daqui. Adicionar uma
 fonte nova (Website, Google Maps, quando os providers existirem) é só
 acrescentar um descritor, nunca lógica nova de tela/rota
-(docs/specs/fase0-configuracoes-fontes.md).
+(engineering/specs/fase0-configuracoes-fontes.md).
 """
 from __future__ import annotations
 

@@ -6,7 +6,7 @@ sabe nada de SQL/sessão nem de Salesforce especificamente — `providers/
 salesforce.py::fetch_context()` já entrega o dict genérico, quem decide como
 persistir é `core/repository.py`.
 
-Precedência (Salesforce Architect consultado, docs/specs/
+Precedência (Salesforce Architect consultado, engineering/specs/
 fase-f-mapeamento-campo-personalizado.md): campo mapeado sempre sobrescreve
 o campo estrutural correspondente, nunca "só se vazio" — é o usuário
 escolhendo explicitamente aquele campo customizado como fonte de verdade
@@ -86,7 +86,7 @@ def split_custom_fields(
 
 
 # Fase F, módulo 6 (`mapping-health-check`) — Sales Engineer consultado
-# (docs/specs/fase-f-mapeamento-campo-personalizado.md): só detecta campo
+# (engineering/specs/fase-f-mapeamento-campo-personalizado.md): só detecta campo
 # REMOVIDO do catálogo (nunca importa `providers/salesforce.py` aqui — o
 # chamador, que já tem permissão de importar provider, passa só os nomes de
 # campo do catálogo atual, um `set[str]` puro). Mudança de TIPO do campo
