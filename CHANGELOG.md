@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Escolha de modelo de IA por nível de custo** (achado do usuário: cada
+  provider tinha um único modelo padrão fixo no código, sem opção de
+  escolha nem critério documentado — Claude usava camada intermediária
+  enquanto os outros três usavam a camada barata). Pra OpenAI/Gemini/
+  Claude, a seção Inteligência Artificial ganha um dropdown Barato/
+  Equilibrado/Caro; OpenRouter mantém campo de texto livre por já dar
+  acesso a qualquer modelo por string exata.
+
 - **Cadastro manual de fabricante/produto/serviço** (achado de auditoria
   de dados: sem Salesforce não havia nenhuma forma de popular o
   portfólio, travando o motor de regras pra quem não sincroniza CRM
