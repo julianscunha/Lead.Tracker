@@ -44,6 +44,16 @@
 
 ### Corrigido
 
+- **Empresa sem site cadastrado duplicava entre fontes por variação de
+  sufixo jurídico ou acento** (achado de auditoria de dados): o dedup
+  por nome (fallback quando a empresa não tem `website`) só normalizava
+  espaço e caixa — "Acme Ltda" vinda do Salesforce e "ACME S.A." vinda
+  de outra fonte geravam duas `Company` diferentes pra mesma empresa
+  real, o mesmo valendo pra acentuação ("Distribuidora São Paulo" vs
+  "distribuidora sao paulo"). Corrigido dobrando acento e cortando
+  sufixo jurídico comum (Ltda/S.A./EIRELI/ME/EPP/MEI) só na chave de
+  comparação interna, nunca no nome exibido.
+
 - **Contraste da paleta dos gráficos do dashboard no tema escuro**
   (achado de auditoria de dados/visualização): os 3 gráficos
   (distribuição por fabricante, clientes×prospects, funil de
