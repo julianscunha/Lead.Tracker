@@ -833,7 +833,10 @@ def test_get_next_suggested_touch_returns_first_step_for_new_opportunity():
             params={"rep_id": "rep-1"},
         )
         assert resp.status_code == 200
-        assert resp.json() == {"state": "sugestao", "channel": "email", "reason_category": "continuidade_uso_atual"}
+        assert resp.json() == {
+            "state": "sugestao", "channel": "email", "reason_category": "continuidade_uso_atual",
+            "silence_reason": None, "silence_days": None,
+        }
 
 
 def test_get_next_suggested_touch_returns_friendly_404_for_unknown_opportunity():
@@ -869,7 +872,10 @@ def test_post_outreach_touch_then_next_suggestion_awaits_interval():
             f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
             params={"rep_id": "rep-1"},
         )
-        assert resp.json() == {"state": "aguardando_intervalo", "channel": None, "reason_category": None}
+        assert resp.json() == {
+            "state": "aguardando_intervalo", "channel": None, "reason_category": None,
+            "silence_reason": None, "silence_days": None,
+        }
 
 
 def test_post_outreach_touch_returns_friendly_404_for_unknown_opportunity():
@@ -950,7 +956,15 @@ def test_get_next_suggested_touch_reflects_cadence_exhausted():
             f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
             params={"rep_id": "rep-1"},
         )
-        assert resp.json() == {"state": "cadencia_esgotada", "channel": None, "reason_category": None}
+        body = resp.json()
+        assert body["state"] == "cadencia_esgotada"
+        assert body["channel"] is None
+        assert body["reason_category"] is None
+        # Achado do módulo 8: 2 toques de prospecção fria (cadência esgotada)
+        # e o último foi há 6 dias — passa do buffer de 2 dias, então o
+        # sinal de silêncio também dispara na mesma resposta.
+        assert body["silence_reason"] == "cadencia_esgotada_silencio"
+        assert body["silence_days"] == 6
 
 
 def test_get_next_suggested_touch_reflects_daily_cap_reached():
@@ -975,7 +989,116 @@ def test_get_next_suggested_touch_reflects_daily_cap_reached():
             f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
             params={"rep_id": "rep-1"},
         )
-        assert resp.json() == {"state": "cap_diario_atingido", "channel": None, "reason_category": None}
+        assert resp.json() == {
+            "state": "cap_diario_atingido", "channel": None, "reason_category": None,
+            "silence_reason": None, "silence_days": None,
+        }
+
+
+def test_get_next_suggested_touch_suppresses_silence_when_daily_cap_reached():
+    """Achado da revisão de código: cap batido + silêncio na mesma resposta
+    puxa o rep em direções opostas ("espera até amanhã" vs. "decida agora")
+    — cap sempre mascara o silêncio, mesma precedência que já mascara
+    CADENCE_EXHAUSTED dentro de compute_next_suggested_touch."""
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+        from core.repository import save_outreach_touch
+
+        company = Company(name="Aurora Sistemas", is_customer=False)
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=10),
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                # Cadência de prospecção fria (2 toques) esgotada há 6 dias —
+                # por si só dispararia silence_reason, exatamente como no
+                # teste de cadência esgotada acima.
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", channel="email",
+                    reason_label="abertura", sent_at=now - timedelta(days=10),
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", channel="ligação",
+                    reason_label="reforço", sent_at=now - timedelta(days=6),
+                ))
+                # Cota diária do rep batida com toques em OUTRA oportunidade.
+                for _ in range(25):
+                    await save_outreach_touch(session, OutreachTouch(
+                        opportunity_id="outra-oportunidade", rep_id="rep-1", channel="email", reason_label="x",
+                    ))
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.json() == {
+            "state": "cap_diario_atingido", "channel": None, "reason_category": None,
+            "silence_reason": None, "silence_days": None,
+        }
+
+
+def test_get_next_suggested_touch_flags_silence_for_never_contacted_opportunity():
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=9),
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        body = resp.json()
+        assert body["silence_reason"] == "nunca_contatado"
+        assert body["silence_days"] == 9
+
+
+def test_get_next_suggested_touch_no_silence_signal_for_opportunity_past_status():
+    """detected/qualified são os únicos status cobertos pelo sinal de
+    silêncio (módulo 8) — 'opportunity' já avançou o suficiente pra não
+    contar como "ficou quieta sem ninguém decidir"."""
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=30), status=OpportunityStatus.OPPORTUNITY,
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        body = resp.json()
+        assert body["silence_reason"] is None
+        assert body["silence_days"] is None
 
 
 if __name__ == "__main__":
@@ -1028,4 +1151,7 @@ if __name__ == "__main__":
     test_get_next_suggested_touch_returns_friendly_404_when_company_is_missing()
     test_get_next_suggested_touch_reflects_cadence_exhausted()
     test_get_next_suggested_touch_reflects_daily_cap_reached()
+    test_get_next_suggested_touch_suppresses_silence_when_daily_cap_reached()
+    test_get_next_suggested_touch_flags_silence_for_never_contacted_opportunity()
+    test_get_next_suggested_touch_no_silence_signal_for_opportunity_past_status()
     print("OK — todos os testes HTTP de dado real passaram")

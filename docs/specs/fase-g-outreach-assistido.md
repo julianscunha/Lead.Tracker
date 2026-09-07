@@ -601,3 +601,118 @@ canal real da categoria.
       (decisão confirmada, sem regressão).
 - [x] Sincronizado pra cópia instalada e verificado ao vivo.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 8 — `silence-to-qualified-notification`
+
+Último módulo da fase. Reaproveita a mesma rota GET do módulo 7
+(`next-suggested-touch`) em vez de criar uma rota nova — o sinal de
+silêncio não tem ação própria (é só leitura/alerta), e a rota já
+carrega tudo que ele precisa (oportunidade, empresa, toques).
+
+**Consulta ao Sales Coach** (limiar e enquadramento, antes de
+implementar):
+- **Duas causas distintas, nunca colapsadas numa**: "nunca contatado"
+  (zero toques) vs. "cadência esgotada e ficou quieto" (toques
+  existem, cadência rodou inteira, e passou um tempo extra sem nada).
+  UI precisa dizer qual das duas é, senão esconde o diagnóstico.
+- **Limiar do "nunca contatado"**: reusar o mesmo SLA de triagem que
+  `is_aging_opportunity` já usa (`AGING_SLA_DAYS`, default 7) — não
+  inventar um segundo threshold pro mesmo fato de "sentou sem ninguém
+  mexer". Só que aqui vale tanto pra `detected` quanto pra `qualified`
+  (`is_aging_opportunity` só cobre `detected`).
+- **Limiar do "cadência esgotada e ficou quieto"**: contar a partir do
+  ÚLTIMO toque (não do zero) e a partir do momento em que a cadência
+  esgota — não do dia da detecção. Buffer proporcional ao espaçamento
+  de cada cadência: 3 dias pra cliente (toques de 7 em 7), 2 dias pra
+  prospecção fria (toques de 4 em 4). Isso é uma ESCALADA do sinal que
+  o módulo 6 já mostra (`CADENCE_EXHAUSTED`) no dia em que a cadência
+  termina — nunca um segundo sinal independente disparando no mesmo
+  dia.
+- **Copy**: sempre fecha em pergunta/decisão, nunca veredito —
+  "Ainda faz sentido priorizá-la agora?" / "Bom momento pra decidir:
+  tentar outro ângulo, escalar, ou dispensar." — nunca "você falhou"
+  ou alarme genérico.
+
+### Implementação
+
+- `core/opportunity_engine.py` — `SilenceSignal(reason, days_silent)`,
+  `SILENCE_NEVER_CONTACTED`/`SILENCE_CADENCE_EXHAUSTED`,
+  `_SILENCE_BUFFER_CUSTOMER_DAYS=3`/`_SILENCE_BUFFER_PROSPECT_DAYS=2`,
+  `compute_silence_signal(status, touches, first_detected_at,
+  is_customer, now, sla_days) -> SilenceSignal | None` — função pura,
+  nunca chama `update_opportunity_status` (mesmo princípio de
+  `is_zombie_opportunity`/`is_aging_opportunity`). Só considera
+  `detected`/`qualified`; qualquer outro status devolve `None` (a
+  oportunidade já avançou o suficiente pra não contar como "ficou
+  quieta sem ninguém decidir").
+- `backend/routes_sync.py` — `GET .../next-suggested-touch` passa a
+  calcular `compute_silence_signal` na mesma sessão/consulta e devolve
+  `silence_reason`/`silence_days` (ambos opcionais) junto com o `state`
+  já existente. Cap diário batido SUPRIME o sinal de silêncio na
+  resposta (ver achado da revisão de código abaixo) — nunca as duas
+  mensagens juntas puxando o rep em direções opostas.
+- `frontend/src/api.ts` — `NextSuggestedTouch` ganha
+  `silenceReason`/`silenceDays`.
+- `frontend/src/OpportunityTable.tsx` — `NextActionSuggestion` ganha
+  um parágrafo `silenceBanner` (role="alert") que aparece ADITIVAMENTE
+  em cima de qualquer um dos 4 estados de cadência já existentes,
+  nunca substitui o conteúdo normal — é um alerta a mais, não um
+  estado novo do fluxo copiar→marcar-como-enviado.
+
+### Achado da revisão de código (2 Importantes, corrigidos)
+
+1. `compute_silence_signal` não tinha noção de cap diário — a rota
+   podia devolver `state="cap_diario_atingido"` ("essa sugestão volta
+   amanhã") JUNTO com `silence_reason="cadencia_esgotada_silencio"`
+   ("bom momento pra decidir: outro ângulo, escalar, ou dispensar") na
+   mesma resposta, uma dizendo "espera" e outra "decida agora".
+   Corrigido: cap batido suprime o sinal de silêncio na rota (mesma
+   precedência que já mascara `CADENCE_EXHAUSTED` dentro de
+   `compute_next_suggested_touch`).
+2. Nenhum teste provava o limite EXATO dos dois thresholds (`days ==
+   sla_days`/`days == buffer_days`) — só "abaixo" e "acima". Adicionados
+   2 testes de fronteira confirmando a semântica estrita (`>`, nunca
+   `>=`, mesmo padrão de `is_aging_opportunity`).
+
+Sugestão aplicada (não-bloqueante): normalização de `sent_at` de CADA
+toque antes do `max()`, não só do resultado — evita `TypeError` se
+algum dia um chamador semear um toque com datetime naive no meio da
+lista (hoje nunca acontece, `OutreachTouch.sent_at` sempre nasce aware
+via `_now()`, mas o custo da defesa é uma linha).
+
+### Não objetivo deste módulo
+
+- Notificação push/e-mail pro rep — o sinal só aparece quando o rep
+  abre a oportunidade (mesmo padrão de aging/zumbi, que também são só
+  "quando alguém olhar").
+- Qualquer forma de reabrir/mudar status automaticamente — mesmo
+  princípio de `is_zombie_opportunity`: puramente consultivo.
+- Um terceiro threshold configurável — reusa `AGING_SLA_DAYS` de
+  propósito, pra não multiplicar telas de configuração pro mesmo tipo
+  de decisão.
+
+### Teste
+
+- `tests/test_silence_signal.py` (10 testes): as duas causas
+  distintas, para cliente e prospecção fria; status fora de escopo
+  (`reviewed`/`contacted`/`opportunity`/`dismissed`) nunca sinaliza;
+  fronteira exata dos dois thresholds (não sinaliza ainda); ordem dos
+  toques nunca importa (`max()` em vez de indexar depois de ordenar).
+- `tests/test_routes_sync.py` (+3, e 4 asserts existentes atualizados
+  pros novos campos): nunca contatado sinalizado pela rota; status
+  `opportunity` nunca sinaliza; cap diário batido suprime o sinal de
+  silêncio mesmo quando a cadência está esgotada e silenciosa (achado
+  1 da revisão, ponta a ponta).
+
+### Critério de sucesso
+
+- [x] Nenhuma transição de `Opportunity.status` acontece a partir
+      deste módulo — só leitura/sugestão, mesmo padrão de módulos 6-7.
+- [x] As duas causas de silêncio nunca se confundem — `reason`
+      explícito, nunca um booleano opaco.
+- [x] Nunca duplica o alerta que o módulo 6 já mostra no dia em que a
+      cadência esgota — buffer conta do último toque, não do zero.
+- [x] Cap diário e silêncio nunca aparecem juntos puxando o rep em
+      direções opostas na mesma resposta.
+- [x] Sincronizado pra cópia instalada e verificado ao vivo.
+- [x] Revisão de código sem achados Importantes pendentes.

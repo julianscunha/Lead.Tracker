@@ -41,8 +41,9 @@ from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_sc
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
-    CadenceSuggestion, compute_account_health, compute_next_suggested_touch, compute_qbr_suggested_days,
-    compute_severity_band, current_period_key, is_aging_opportunity, parse_aging_sla_days, rep_target_id,
+    CADENCE_DAILY_CAP_REACHED, CadenceSuggestion, compute_account_health, compute_next_suggested_touch,
+    compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, current_period_key,
+    is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, get_company, get_icp_profile, get_opportunity,
@@ -348,10 +349,15 @@ async def update_company_renewal_date_route(company_id: str, body: CompanyRenewa
 class NextSuggestedTouchOut(BaseModel):
     """Fase G, módulo 7 — espelha os 4 estados de `compute_next_suggested_touch`
     sem colapsar em `None` (mesmo motivo do módulo 6: a UI precisa distinguir
-    os 3 estados especiais de uma sugestão real)."""
+    os 3 estados especiais de uma sugestão real). `silence_reason`/
+    `silence_days` (módulo 8) são independentes do `state` acima — sinal de
+    "essa oportunidade foi ficando quieta", nunca substitui a sugestão de
+    toque, só soma um alerta pro rep decidir."""
     state: Literal["sugestao", "aguardando_intervalo", "cadencia_esgotada", "cap_diario_atingido"]
     channel: str | None = None
     reason_category: str | None = None
+    silence_reason: Literal["nunca_contatado", "cadencia_esgotada_silencio"] | None = None
+    silence_days: int | None = None
 
 
 class OutreachTouchIn(BaseModel):
@@ -364,6 +370,7 @@ class OutreachTouchIn(BaseModel):
 async def get_next_suggested_touch_route(
     opportunity_id: str, rep_id: str = Query(min_length=1),
 ) -> NextSuggestedTouchOut:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         opportunity = await get_opportunity(session, opportunity_id)
         if opportunity is None:
@@ -380,9 +387,22 @@ async def get_next_suggested_touch_route(
             is_customer=company.is_customer, touches=touches,
             first_detected_at=opportunity.first_detected_at, now=now, touches_today_for_rep=touches_today,
         )
+        silence = compute_silence_signal(
+            status=opportunity.status.value, touches=touches, first_detected_at=opportunity.first_detected_at,
+            is_customer=company.is_customer, now=now, sla_days=aging_sla_days,
+        )
+    # Cap batido some com o sinal de silêncio (achado da revisão de código):
+    # "você bateu a cota, essa sugestão volta amanhã" e "decida agora: outro
+    # ângulo, escalar ou dispensar" puxam o rep em direções opostas na mesma
+    # resposta — mesma precedência já aplicada dentro de
+    # compute_next_suggested_touch (cap sempre mascara CADENCE_EXHAUSTED).
+    show_silence = silence is not None and suggestion != CADENCE_DAILY_CAP_REACHED
+    silence_kwargs = {"silence_reason": silence.reason, "silence_days": silence.days_silent} if show_silence else {}
     if isinstance(suggestion, CadenceSuggestion):
-        return NextSuggestedTouchOut(state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category)
-    return NextSuggestedTouchOut(state=suggestion)
+        return NextSuggestedTouchOut(
+            state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category, **silence_kwargs,
+        )
+    return NextSuggestedTouchOut(state=suggestion, **silence_kwargs)
 
 
 @router.post("/opportunities/{opportunity_id}/outreach-touches")

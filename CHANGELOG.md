@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **Sinal de oportunidade silenciosa** (Fase G, módulo 8
+  `silence-to-qualified-notification`, fecha a Fase G): alerta consultivo
+  na tela de Oportunidades quando uma oportunidade em `detected`/`qualified`
+  fica quieta demais — nunca contatada (reusa o SLA de triagem já
+  existente) ou com a cadência sugerida esgotada e sem retorno do lead
+  por um buffer adicional. Puramente informativo: nunca muda status
+  sozinho. Copy em consulta ao agente Sales Coach. Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Próxima ação sugerida + marcar como enviado** (Fase G, módulo 7
   `next-action-line-and-mark-sent-ui`): tela de Oportunidades ganha,
   no painel de detalhe de cada linha, a sugestão de próximo toque

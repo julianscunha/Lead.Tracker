@@ -260,10 +260,75 @@ def compute_next_suggested_touch(
     return CadenceSuggestion(channel=channel, reason_category=category)
 
 
+# Fase G, módulo 8 — Sales Coach consultado sobre o limiar. Duas causas
+# distintas de silêncio, nunca colapsadas numa (motivo carregado no
+# resultado, mesmo padrão de CadenceSuggestion.reason_category):
+# - `SILENCE_NEVER_CONTACTED`: zero toques — reusa o mesmo SLA de triagem
+#   de `is_aging_opportunity` (nunca um segundo threshold pro mesmo fato de
+#   "sentou sem ninguém mexer"), só que também vale pra `qualified`, não só
+#   `detected`.
+# - `SILENCE_CADENCE_EXHAUSTED`: cadência já rodou inteira (mesma condição
+#   que faz módulo 6 devolver CADENCE_EXHAUSTED) e ainda assim ficou quieta
+#   por um buffer ADICIONAL — conta a partir do último toque, nunca do zero,
+#   pra não duplicar o alerta que o módulo 6 já mostra no dia em que a
+#   cadência esgota (é uma escalada do mesmo sinal, não um segundo sinal
+#   independente). Buffer proporcional ao espaçamento de cada cadência (7d
+#   entre toques de cliente, 4d entre toques de prospecção fria).
+SILENCE_NEVER_CONTACTED = "nunca_contatado"
+SILENCE_CADENCE_EXHAUSTED = "cadencia_esgotada_silencio"
+_SILENCE_BUFFER_CUSTOMER_DAYS = 3
+_SILENCE_BUFFER_PROSPECT_DAYS = 2
+
+
+@dataclass(frozen=True)
+class SilenceSignal:
+    reason: str
+    days_silent: int
+
+
+def compute_silence_signal(
+    status: str,
+    touches: list[OutreachTouch],
+    first_detected_at: datetime,
+    is_customer: bool,
+    now: datetime,
+    sla_days: int,
+) -> SilenceSignal | None:
+    """Sinal PURO de "foi ficando quieta" numa oportunidade ainda em fase
+    inicial (`detected`/`qualified`) — nunca dispara nada sozinho, só
+    alimenta uma sugestão pro rep decidir manualmente (mesmo princípio de
+    `is_zombie_opportunity`/`is_aging_opportunity`: NUNCA chama
+    `update_opportunity_status`). `None` quando não há sinal — nunca um
+    booleano opaco, o motivo (`reason`) e há quanto tempo (`days_silent`)
+    são o que a UI usa pra escrever a frase certa."""
+    if status not in ("detected", "qualified"):
+        return None
+
+    if not touches:
+        anchor = first_detected_at if first_detected_at.tzinfo else first_detected_at.replace(tzinfo=timezone.utc)
+        days = (now - anchor).days
+        return SilenceSignal(SILENCE_NEVER_CONTACTED, days) if days > sla_days else None
+
+    cadence = _CUSTOMER_CADENCE if is_customer else _PROSPECT_CADENCE
+    if len(touches) < len(cadence):
+        return None
+
+    # Normaliza cada `sent_at` ANTES do max() — comparar um naive com um
+    # aware no meio da lista estoura TypeError (achado da revisão de
+    # código); `OutreachTouch.sent_at` sempre nasce aware via `_now()`
+    # (core/models.py), mas essa defesa custa uma linha e evita virar
+    # bomba-relógio se algum dia um chamador semear um naive.
+    last_touch_at = max(t.sent_at if t.sent_at.tzinfo else t.sent_at.replace(tzinfo=timezone.utc) for t in touches)
+    days = (now - last_touch_at).days
+    buffer_days = _SILENCE_BUFFER_CUSTOMER_DAYS if is_customer else _SILENCE_BUFFER_PROSPECT_DAYS
+    return SilenceSignal(SILENCE_CADENCE_EXHAUSTED, days) if days > buffer_days else None
+
+
 __all__ = [
     "AGING_SLA_ENV_KEY", "CADENCE_AWAITING_INTERVAL", "CADENCE_DAILY_CAP_REACHED", "CADENCE_EXHAUSTED",
-    "CadenceSuggestion", "CorrelationRule", "OUTREACH_DAILY_CAP", "RuleError", "compute_account_health",
-    "compute_next_suggested_touch", "compute_qbr_suggested_days", "compute_severity_band", "current_period_key",
+    "CadenceSuggestion", "CorrelationRule", "OUTREACH_DAILY_CAP", "RuleError", "SILENCE_CADENCE_EXHAUSTED",
+    "SILENCE_NEVER_CONTACTED", "SilenceSignal", "compute_account_health", "compute_next_suggested_touch",
+    "compute_qbr_suggested_days", "compute_severity_band", "compute_silence_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
     "rep_target_id", "requires_status_change_justification",
 ]

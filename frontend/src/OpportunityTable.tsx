@@ -345,17 +345,43 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
   if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
   if (!suggestion) return <p className="lt-hint">Calculando próxima ação…</p>
 
+  // Fase G, módulo 8 (Sales Coach consultado) — sinal independente do
+  // `state` da cadência: soma um alerta, nunca substitui a sugestão de
+  // toque. Framing de decisão, nunca de fracasso.
+  const silenceBanner = suggestion.silenceReason && (
+    <p className="lt-hint" role="alert">
+      {suggestion.silenceReason === 'nunca_contatado'
+        ? `Esta oportunidade está em qualificação há ${suggestion.silenceDays} dias sem nenhum contato registrado. Ainda faz sentido priorizá-la agora?`
+        : `A cadência sugerida terminou há ${suggestion.silenceDays} dias sem retorno do lead. Bom momento pra decidir: tentar outro ângulo, escalar, ou dispensar.`}
+    </p>
+  )
+
   if (suggestion.state === 'aguardando_intervalo') {
-    return <p className="lt-hint">Sem ação sugerida agora — dentro do intervalo da cadência.</p>
+    return (
+      <>
+        {silenceBanner}
+        <p className="lt-hint">Sem ação sugerida agora — dentro do intervalo da cadência.</p>
+      </>
+    )
   }
   if (suggestion.state === 'cadencia_esgotada') {
-    return <p className="lt-hint">Sem retorno até agora — decida o próximo passo no status acima (encerrar ou continuar manualmente).</p>
+    return (
+      <>
+        {silenceBanner}
+        <p className="lt-hint">Sem retorno até agora — decida o próximo passo no status acima (encerrar ou continuar manualmente).</p>
+      </>
+    )
   }
   if (suggestion.state === 'cap_diario_atingido') {
     // ponytail: mensagem por linha, não o banner único agregado que o Sales
     // Engineer recomendou — ainda não existe uma lista agregada de ações do
     // dia por rep; upgrade quando essa superfície existir.
-    return <p className="lt-hint">Você atingiu o limite de contatos de hoje. Essa sugestão volta amanhã.</p>
+    return (
+      <>
+        {silenceBanner}
+        <p className="lt-hint">Você atingiu o limite de contatos de hoje. Essa sugestão volta amanhã.</p>
+      </>
+    )
   }
 
   const phrase = CADENCE_REASON_PHRASE[suggestion.reasonCategory ?? '']?.(row) ?? 'Próxima ação sugerida.'
@@ -404,6 +430,7 @@ function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: stri
 
   return (
     <div className="lt-severity">
+      {silenceBanner}
       <p>{phrase}</p>
       {copyState === 'idle' && (
         <button type="button" className="lt-btn" onClick={copy} disabled={copying}>

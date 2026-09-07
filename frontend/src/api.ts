@@ -77,11 +77,14 @@ export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraf
 }
 
 export type CadenceState = 'sugestao' | 'aguardando_intervalo' | 'cadencia_esgotada' | 'cap_diario_atingido'
+export type SilenceReason = 'nunca_contatado' | 'cadencia_esgotada_silencio'
 
 export interface NextSuggestedTouch {
   state: CadenceState
   channel: string | null
   reasonCategory: string | null
+  silenceReason: SilenceReason | null
+  silenceDays: number | null
 }
 
 export async function getNextSuggestedTouch(opportunityId: string, repId: string): Promise<NextSuggestedTouch> {
@@ -90,7 +93,10 @@ export async function getNextSuggestedTouch(opportunityId: string, repId: string
   )
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const d = await resp.json()
-  return { state: d.state, channel: d.channel, reasonCategory: d.reason_category }
+  return {
+    state: d.state, channel: d.channel, reasonCategory: d.reason_category,
+    silenceReason: d.silence_reason, silenceDays: d.silence_days,
+  }
 }
 
 export async function markOutreachTouchSent(
