@@ -1393,6 +1393,50 @@ def test_count_outreach_touches_today_compares_against_utc_date_not_local():
     asyncio.run(run())
 
 
+def test_init_db_adds_missing_column_to_a_table_that_already_existed():
+    """Achado ao verificar a Fase G ao vivo: `Company.deal_size_hint` (Fase F)
+    nunca aparecia numa instalação cuja tabela `companies` já existia de
+    antes — `create_all` só cria tabela NOVA, nunca adiciona coluna numa já
+    existente. `init_db` agora faz essa migração leve; este teste simula o
+    cenário real recriando `companies` sem a coluna antes de chamar `init_db`,
+    e prova que o dado já existente sobrevive intacto."""
+    from sqlalchemy import text
+
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            engine = create_engine(Path(tmp) / "test.db")
+            async with engine.begin() as conn:
+                await conn.execute(text(
+                    "CREATE TABLE companies (id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL)"
+                ))
+                await conn.execute(text(
+                    "INSERT INTO companies (id, name) VALUES ('c1', 'Aurora Sistemas')"
+                ))
+            await init_db(engine)
+
+            async with engine.connect() as conn:
+                columns_result = await conn.execute(text("PRAGMA table_info(companies)"))
+                columns = {row[1] for row in columns_result.fetchall()}
+                assert "deal_size_hint" in columns  # nullable — adiciona direto
+                assert "is_customer" in columns  # NOT NULL, mas default=False é derivável
+                assert "sources" in columns  # NOT NULL, mas default=list é derivável
+                # created_at é NOT NULL sem NENHUM default Python-side — não tem
+                # valor seguro pra preencher a linha 'c1' já existente, então
+                # continua pulada com aviso (nunca inventa uma data).
+                assert "created_at" not in columns
+
+                row_result = await conn.execute(
+                    text("SELECT id, name, is_customer, sources FROM companies WHERE id = 'c1'")
+                )
+                row = row_result.fetchone()
+                assert row[0] == "c1"
+                assert row[1] == "Aurora Sistemas"
+                assert row[2] == 0  # False, do default derivado
+                assert row[3] == "[]"  # backfill do default=list
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_company_round_trip_preserves_account_standard_fields()
@@ -1454,4 +1498,5 @@ if __name__ == "__main__":
     test_list_outreach_touches_filters_by_opportunity()
     test_count_outreach_touches_today_counts_only_that_rep_today()
     test_count_outreach_touches_today_compares_against_utc_date_not_local()
+    test_init_db_adds_missing_column_to_a_table_that_already_existed()
     print("OK — todos os testes de persistência passaram")

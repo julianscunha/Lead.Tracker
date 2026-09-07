@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Migração leve de schema em `init_db`**: `create_all` só criava tabela
+  inteira nova, nunca adicionava coluna a uma tabela que já existia — uma
+  instalação que já tinha `companies` antes de `Company.deal_size_hint`
+  (Fase F) quebrava com "no such column" no primeiro `GET /companies`
+  (achado real ao verificar a Fase G ao vivo). Agora `init_db` também
+  adiciona colunas novas a tabelas existentes, preenchendo linhas já
+  gravadas com o default real da coluna (ex. `False`/`[]`) quando ele é
+  Python-side; quando não há default nenhum derivável (coluna obrigatória
+  sem valor seguro), pula com aviso em vez de travar a inicialização.
+  Mesmo espírito do diff `.env`/`.env-model`: nunca sobrescreve ou remove
+  dado existente, só completa o que falta.
+
 ### Adicionado
 
 - **Sinal de oportunidade silenciosa** (Fase G, módulo 8
