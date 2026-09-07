@@ -13,7 +13,7 @@ from pathlib import Path
 
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field, field_validator
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -33,7 +33,7 @@ from core.dashboard_metrics import (
 from core.errors import DomainError, ErrorCategory
 from core.models import (
     Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
-    OpportunityStatus, PeriodType, Product, RepTarget, RuleError, Service,
+    OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
     StatusChangeRequiresJustificationError,
 )
 from core.geo_discovery import build_discovery_records
@@ -41,14 +41,15 @@ from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_sc
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
-    compute_account_health, compute_qbr_suggested_days, compute_severity_band, current_period_key,
-    is_aging_opportunity, parse_aging_sla_days, rep_target_id,
+    CadenceSuggestion, compute_account_health, compute_next_suggested_touch, compute_qbr_suggested_days,
+    compute_severity_band, current_period_key, is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
-    count_geo_discoveries_today, get_icp_profile, list_companies, list_company_signals,
-    list_latest_snapshot, list_opportunities, list_products, list_rep_targets, list_rules, list_services,
-    list_vendors, save_company, save_icp_profile, save_opportunity, save_rep_target, save_rule,
-    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
+    count_geo_discoveries_today, count_outreach_touches_today, get_company, get_icp_profile, get_opportunity,
+    list_companies, list_company_signals, list_latest_snapshot, list_opportunities, list_outreach_touches,
+    list_products, list_rep_targets, list_rules, list_services, list_vendors, save_company, save_icp_profile,
+    save_opportunity, save_outreach_touch, save_rep_target, save_rule, update_company_renewal_date,
+    update_opportunity_qualification, update_opportunity_status,
 )
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
@@ -342,6 +343,59 @@ async def update_company_renewal_date_route(company_id: str, body: CompanyRenewa
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa não encontrada."))
     return updated
+
+
+class NextSuggestedTouchOut(BaseModel):
+    """Fase G, módulo 7 — espelha os 4 estados de `compute_next_suggested_touch`
+    sem colapsar em `None` (mesmo motivo do módulo 6: a UI precisa distinguir
+    os 3 estados especiais de uma sugestão real)."""
+    state: Literal["sugestao", "aguardando_intervalo", "cadencia_esgotada", "cap_diario_atingido"]
+    channel: str | None = None
+    reason_category: str | None = None
+
+
+class OutreachTouchIn(BaseModel):
+    rep_id: str = Field(min_length=1)
+    channel: str = Field(min_length=1)
+    reason_label: str = Field(min_length=1)
+
+
+@router.get("/opportunities/{opportunity_id}/next-suggested-touch")
+async def get_next_suggested_touch_route(
+    opportunity_id: str, rep_id: str = Query(min_length=1),
+) -> NextSuggestedTouchOut:
+    async with session_factory() as session:
+        opportunity = await get_opportunity(session, opportunity_id)
+        if opportunity is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        company = await get_company(session, opportunity.company_id)
+        if company is None:
+            # company_id é FK obrigatória — chegar aqui é dado corrompido, não
+            # "é prospect": nunca escolher silenciosamente uma cadência errada.
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa da oportunidade não encontrada."))
+        touches = await list_outreach_touches(session, opportunity_id)
+        now = datetime.now(timezone.utc)
+        touches_today = await count_outreach_touches_today(session, rep_id, now.date())
+        suggestion = compute_next_suggested_touch(
+            is_customer=company.is_customer, touches=touches,
+            first_detected_at=opportunity.first_detected_at, now=now, touches_today_for_rep=touches_today,
+        )
+    if isinstance(suggestion, CadenceSuggestion):
+        return NextSuggestedTouchOut(state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category)
+    return NextSuggestedTouchOut(state=suggestion)
+
+
+@router.post("/opportunities/{opportunity_id}/outreach-touches")
+async def create_outreach_touch_route(opportunity_id: str, body: OutreachTouchIn) -> OutreachTouch:
+    async with session_factory() as session:
+        opportunity = await get_opportunity(session, opportunity_id)
+        if opportunity is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        touch = OutreachTouch(
+            opportunity_id=opportunity_id, rep_id=body.rep_id, channel=body.channel, reason_label=body.reason_label,
+        )
+        await save_outreach_touch(session, touch)
+    return touch
 
 
 @router.get("/products")

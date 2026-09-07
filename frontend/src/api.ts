@@ -76,6 +76,34 @@ export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraf
   return resp.json()
 }
 
+export type CadenceState = 'sugestao' | 'aguardando_intervalo' | 'cadencia_esgotada' | 'cap_diario_atingido'
+
+export interface NextSuggestedTouch {
+  state: CadenceState
+  channel: string | null
+  reasonCategory: string | null
+}
+
+export async function getNextSuggestedTouch(opportunityId: string, repId: string): Promise<NextSuggestedTouch> {
+  const resp = await fetch(
+    `${BASE}/opportunities/${opportunityId}/next-suggested-touch?rep_id=${encodeURIComponent(repId)}`,
+  )
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const d = await resp.json()
+  return { state: d.state, channel: d.channel, reasonCategory: d.reason_category }
+}
+
+export async function markOutreachTouchSent(
+  opportunityId: string, repId: string, channel: string, reasonLabel: string,
+): Promise<void> {
+  const resp = await fetch(`${BASE}/opportunities/${opportunityId}/outreach-touches`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rep_id: repId, channel, reason_label: reasonLabel }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
 export interface SourceField {
   key: string
   label: string

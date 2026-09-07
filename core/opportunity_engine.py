@@ -238,6 +238,10 @@ def compute_next_suggested_touch(
     código: `list_outreach_touches` não garante ordem; sem essa defesa,
     uma lista fora de ordem escolheria silenciosamente o toque errado
     como mais recente, sem levantar exceção nenhuma)."""
+    # Cota diária checada antes de qualquer coisa por oportunidade —
+    # intencional: uma oportunidade com cadência esgotada E cap batido
+    # sempre mostra "cap batido" (é o estado mais urgente/acionável do rep
+    # como um todo), nunca "esgotada" (achado de revisão de código).
     if touches_today_for_rep >= daily_cap:
         return CADENCE_DAILY_CAP_REACHED
 

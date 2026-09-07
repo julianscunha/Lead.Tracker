@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 import main as backend_main
 from backend import routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
-from core.models import Company, Opportunity, OpportunityStatus, Product, Service, SourceRef
+from core.models import Company, Opportunity, OpportunityStatus, OutreachTouch, Product, Service, SourceRef
 from core.repository import (
     recompute_daily_snapshot, save_company, save_opportunity, save_product, save_service,
     update_company_renewal_date,
@@ -816,6 +816,168 @@ def test_run_geo_discovery_rejects_missing_rep_id_and_non_positive_radius():
         assert resp.status_code == 422
 
 
+def test_get_next_suggested_touch_returns_first_step_for_new_opportunity():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"state": "sugestao", "channel": "email", "reason_category": "continuidade_uso_atual"}
+
+
+def test_get_next_suggested_touch_returns_friendly_404_for_unknown_opportunity():
+    with _TempDb():
+        resp = client.get(
+            "/modules/lead_tracker/opportunities/unknown-id/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.status_code == 404
+
+
+def test_post_outreach_touch_then_next_suggestion_awaits_interval():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.post(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/outreach-touches",
+            json={"rep_id": "rep-1", "channel": "email", "reason_label": "continuidade de uso"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["opportunity_id"] == opportunity.id
+        assert resp.json()["channel"] == "email"
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.json() == {"state": "aguardando_intervalo", "channel": None, "reason_category": None}
+
+
+def test_post_outreach_touch_returns_friendly_404_for_unknown_opportunity():
+    with _TempDb():
+        resp = client.post(
+            "/modules/lead_tracker/opportunities/unknown-id/outreach-touches",
+            json={"rep_id": "rep-1", "channel": "email", "reason_label": "x"},
+        )
+        assert resp.status_code == 404
+
+
+def test_get_next_suggested_touch_rejects_blank_rep_id():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": ""},
+        )
+        assert resp.status_code == 422
+
+
+def test_get_next_suggested_touch_returns_friendly_404_when_company_is_missing():
+    """company_id de Opportunity é FK obrigatória — empresa ausente é dado
+    corrompido, nunca deve ser tratado como "é prospect" silenciosamente."""
+    with _TempDb() as db:
+        import asyncio
+        opportunity = Opportunity(company_id="empresa-inexistente", type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_opportunity(session, opportunity)
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.status_code == 404
+
+
+def test_get_next_suggested_touch_reflects_cadence_exhausted():
+    with _TempDb() as db:
+        import asyncio
+        from datetime import datetime, timedelta, timezone as tz
+        from core.repository import save_outreach_touch
+
+        company = Company(name="Aurora Sistemas", is_customer=False)
+        now = datetime.now(tz.utc)
+        opportunity = Opportunity(
+            company_id=company.id, type="cross-sell", evidence=["veeam_vbr"],
+            first_detected_at=now - timedelta(days=10),
+        )
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", channel="email",
+                    reason_label="abertura", sent_at=now - timedelta(days=10),
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id=opportunity.id, rep_id="rep-1", channel="ligação",
+                    reason_label="reforço", sent_at=now - timedelta(days=6),
+                ))
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.json() == {"state": "cadencia_esgotada", "channel": None, "reason_category": None}
+
+
+def test_get_next_suggested_touch_reflects_daily_cap_reached():
+    with _TempDb() as db:
+        import asyncio
+        from core.repository import save_outreach_touch
+
+        company = Company(name="Aurora Sistemas", is_customer=True)
+        opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_opportunity(session, opportunity)
+                for _ in range(25):
+                    await save_outreach_touch(session, OutreachTouch(
+                        opportunity_id="outra-oportunidade", rep_id="rep-1", channel="email", reason_label="x",
+                    ))
+        asyncio.run(seed())
+
+        resp = client.get(
+            f"/modules/lead_tracker/opportunities/{opportunity.id}/next-suggested-touch",
+            params={"rep_id": "rep-1"},
+        )
+        assert resp.json() == {"state": "cap_diario_atingido", "channel": None, "reason_category": None}
+
+
 if __name__ == "__main__":
     test_get_companies_returns_empty_list_on_fresh_install()
     test_get_companies_returns_persisted_company()
@@ -858,4 +1020,12 @@ if __name__ == "__main__":
     test_run_geo_discovery_sorts_each_group_by_score_descending()
     test_run_geo_discovery_provider_error_returns_friendly_status_never_500()
     test_run_geo_discovery_rejects_missing_rep_id_and_non_positive_radius()
+    test_get_next_suggested_touch_returns_first_step_for_new_opportunity()
+    test_get_next_suggested_touch_returns_friendly_404_for_unknown_opportunity()
+    test_post_outreach_touch_then_next_suggestion_awaits_interval()
+    test_post_outreach_touch_returns_friendly_404_for_unknown_opportunity()
+    test_get_next_suggested_touch_rejects_blank_rep_id()
+    test_get_next_suggested_touch_returns_friendly_404_when_company_is_missing()
+    test_get_next_suggested_touch_reflects_cadence_exhausted()
+    test_get_next_suggested_touch_reflects_daily_cap_reached()
     print("OK — todos os testes HTTP de dado real passaram")

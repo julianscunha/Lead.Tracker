@@ -1,7 +1,7 @@
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  generateEmailDraft, updateCompanyRenewalDate, updateOpportunityQualification, updateOpportunityStatus,
-  type EmailDraft,
+  generateEmailDraft, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
+  updateOpportunityQualification, updateOpportunityStatus, type EmailDraft, type NextSuggestedTouch,
 } from './api'
 import type { AccountHealth, Criticality, DismissalReason, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
@@ -301,8 +301,122 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
   )
 }
 
-function RowDetail({ row, onRowUpdated, onRenewalDateUpdated }: {
+// Fase G, módulo 7 — frase por categoria (Sales Engineer consultado): canal +
+// motivo em uma cláusula concreta, nunca o nome técnico da categoria. O canal
+// já está embutido no verbo da frase (Ligar/Enviar e-mail/Mandar mensagem).
+const CADENCE_REASON_PHRASE: Record<string, (row: OpportunityRow) => string> = {
+  continuidade_uso_atual: row =>
+    `Ligar para saber como está o uso de ${row.product ?? row.service ?? 'seus produtos atuais'} — é hora de reforçar o relacionamento.`,
+  gap_portfolio: row =>
+    `Enviar e-mail apresentando ${row.product ?? row.service ?? 'a solução recomendada'} — cliente já usa produtos relacionados mas não tem isso.`,
+  prova_social_urgencia: () =>
+    'Mandar mensagem no LinkedIn com um caso parecido — bom momento pra criar urgência.',
+  abertura_sinal: () =>
+    'Primeiro contato por e-mail — sinal identificado aponta interesse.',
+  reforco_angulo_novo: () =>
+    'Ligar com um ângulo diferente — a primeira abordagem não avançou, vale tentar outro gancho.',
+}
+
+function NextActionSuggestion({ row, repId }: { row: OpportunityRow; repId: string }) {
+  const [suggestion, setSuggestion] = useState<NextSuggestedTouch | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // idle -> botão "Copiar"; copied -> feedback "Copiado ✓" por 1,2s; ready -> botão "Marcar como enviado"
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'ready'>('idle')
+  const [copying, setCopying] = useState(false)
+  const [marking, setMarking] = useState(false)
+
+  const load = () => getNextSuggestedTouch(row.id, repId).then(s => { setSuggestion(s); setCopyState('idle') })
+
+  useEffect(() => {
+    setLoadError(null)
+    load().catch(err => setLoadError(err instanceof Error ? err.message : 'Falha ao calcular a próxima ação.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id, repId])
+
+  if (!repId.trim()) {
+    return <p className="lt-hint">Informe seu id de representante acima para ver a próxima ação sugerida.</p>
+  }
+  if (loadError) return <p className="lt-hint" role="alert">{loadError}</p>
+  if (!suggestion) return <p className="lt-hint">Calculando próxima ação…</p>
+
+  if (suggestion.state === 'aguardando_intervalo') {
+    return <p className="lt-hint">Sem ação sugerida agora — dentro do intervalo da cadência.</p>
+  }
+  if (suggestion.state === 'cadencia_esgotada') {
+    return <p className="lt-hint">Sem retorno até agora — decida o próximo passo no status acima (encerrar ou continuar manualmente).</p>
+  }
+  if (suggestion.state === 'cap_diario_atingido') {
+    // ponytail: mensagem por linha, não o banner único agregado que o Sales
+    // Engineer recomendou — ainda não existe uma lista agregada de ações do
+    // dia por rep; upgrade quando essa superfície existir.
+    return <p className="lt-hint">Você atingiu o limite de contatos de hoje. Essa sugestão volta amanhã.</p>
+  }
+
+  const phrase = CADENCE_REASON_PHRASE[suggestion.reasonCategory ?? '']?.(row) ?? 'Próxima ação sugerida.'
+  const channel = suggestion.channel ?? 'email'
+
+  const copy = async () => {
+    setLoadError(null)
+    setCopying(true)
+    try {
+      if (channel === 'email') {
+        const draft = await generateEmailDraft(row)
+        await navigator.clipboard.writeText(`${draft.subject}\n\n${draft.greeting}\n\n${draft.body}\n\n${draft.cta}`)
+      } else {
+        await navigator.clipboard.writeText(phrase)
+      }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Falha ao copiar o conteúdo do contato.')
+      setCopying(false)
+      return
+    }
+    setCopying(false)
+    setCopyState('copied')
+    setTimeout(() => setCopyState('ready'), 1200)
+  }
+
+  const markSent = async () => {
+    setMarking(true)
+    try {
+      await markOutreachTouchSent(row.id, repId, channel, phrase)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Falha ao registrar o contato.')
+      setMarking(false)
+      return
+    }
+    try {
+      await load()
+    } catch {
+      // Contato já foi gravado no servidor (POST acima teve sucesso) — só a
+      // releitura da sugestão falhou, nunca reusar a mensagem de "falha ao
+      // registrar" aqui, senão o rep acha que precisa registrar de novo.
+      setLoadError('Contato registrado, mas não consegui atualizar a sugestão — recarregue a página.')
+    } finally {
+      setMarking(false)
+    }
+  }
+
+  return (
+    <div className="lt-severity">
+      <p>{phrase}</p>
+      {copyState === 'idle' && (
+        <button type="button" className="lt-btn" onClick={copy} disabled={copying}>
+          {copying ? 'Copiando…' : channel === 'email' ? 'Copiar rascunho' : 'Copiar'}
+        </button>
+      )}
+      {copyState === 'copied' && <span className="lt-hint">Copiado ✓</span>}
+      {copyState === 'ready' && (
+        <button type="button" className="lt-btn" onClick={markSent} disabled={marking}>
+          {marking ? 'Registrando…' : 'Marcar como enviado'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated }: {
   row: OpportunityRow
+  repId: string
   onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
 }) {
@@ -367,6 +481,10 @@ function RowDetail({ row, onRowUpdated, onRenewalDateUpdated }: {
         <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
         <SeverityQualification row={row} onUpdated={onRowUpdated} />
+        <div className="lt-severity">
+          <strong>Próxima ação sugerida</strong>
+          <NextActionSuggestion row={row} repId={repId} />
+        </div>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar</button>
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
@@ -389,8 +507,9 @@ function RowDetail({ row, onRowUpdated, onRenewalDateUpdated }: {
   )
 }
 
-export function OpportunityTable({ rows, onRowUpdated, onRenewalDateUpdated }: {
+export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdated }: {
   rows: OpportunityRow[]
+  repId: string
   onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
 }) {
@@ -455,7 +574,7 @@ export function OpportunityTable({ rows, onRowUpdated, onRenewalDateUpdated }: {
               <td>{row.sources.map(s => s.type).join(', ')}</td>
             </tr>
             {expandedId === row.id && (
-              <RowDetail row={row} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
+              <RowDetail row={row} repId={repId} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated} />
             )}
           </Fragment>
         ))}

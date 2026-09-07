@@ -471,3 +471,119 @@ aplicadas):
 - [x] Lista de toques fora de ordem nunca produz resultado errado
       silenciosamente — provado por teste.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 7 — `next-action-line-and-mark-sent-ui`
+
+Primeiro módulo desta fase com rota exposta/UI — sync pra cópia
+instalada + verificação ao vivo (curl/Playwright) exigidas, ao
+contrário dos módulos 1-6 (puros, sem rota).
+
+**Consulta ao Sales Engineer** (antes de implementar, cobrindo tradução
+das 5 categorias técnicas + os 3 estados especiais + fluxo do botão +
+onde a tela vive):
+- **Frase por categoria** = canal + motivo em uma cláusula concreta,
+  nunca o nome técnico da categoria (`gap_portfolio` nunca aparece
+  como texto pro rep). Tabela de 5 frases (`CADENCE_REASON_PHRASE` no
+  frontend), canal já embutido no verbo ("Ligar…", "Enviar e-mail…",
+  "Mandar mensagem…").
+- **`aguardando_intervalo`**: mensagem neutra, sem cor de alerta —
+  "Sem ação sugerida agora — dentro do intervalo da cadência."
+- **`cadencia_esgotada`**: linguagem de decisão, não de fracasso —
+  aponta pro dropdown de Status já existente (`StatusTransition`) em
+  vez de duplicar botões de "encerrar"/"reabrir" que já existem ali.
+- **`cap_diario_atingido`**: mensagem por linha em vez do banner
+  agregado único que o Sales Engineer recomendou (não existe ainda uma
+  lista agregada de ações do dia por rep nesta fase — `ponytail:`
+  registrado no código, upgrade quando essa superfície existir).
+- **Botão copiar → enviar**: só "Copiar" (ou "Copiar rascunho" pra
+  canal e-mail) visível primeiro; depois de copiar, feedback "Copiado
+  ✓" por ~1,2s, então o mesmo lugar vira "Marcar como enviado" — nunca
+  um botão desabilitado visível antes de copiar (decisão confirmada:
+  copiar é pré-requisito pra habilitar o marcar-como-enviado).
+- **Onde vive**: dentro da tela de Oportunidades já existente (painel
+  de detalhe da linha), não uma aba nova — evita recriar a "fila de
+  disparo" que o roadmap proíbe.
+
+### Implementação
+
+- `core/opportunity_engine.py` — comentário adicionado à checagem de
+  cap diário explicando a ordem de precedência (cap antes de
+  esgotamento é intencional, achado da revisão de código).
+- `backend/routes_sync.py` — duas rotas novas:
+  - `GET /opportunities/{id}/next-suggested-touch?rep_id=` — busca
+    `Opportunity`/`Company`/`OutreachTouch`s/contagem-do-dia e chama
+    `compute_next_suggested_touch` (nenhuma lógica de cadência na
+    rota, só orquestração). 404 se a oportunidade não existe OU se a
+    empresa referenciada não existe (FK obrigatória — nunca tratar
+    empresa ausente como "é prospect" silenciosamente). `rep_id`
+    validado como não-vazio (`Query(min_length=1)`), mesma garantia
+    que o POST já tinha via `Field(min_length=1)`.
+  - `POST /opportunities/{id}/outreach-touches` — grava o fato
+    consumado via `save_outreach_touch` (insert-only, nunca edita/
+    desfaz um toque já registrado); devolve o `OutreachTouch` salvo.
+- `frontend/src/api.ts` — `getNextSuggestedTouch`, `markOutreachTouchSent`.
+- `frontend/src/OpportunityTable.tsx` — `NextActionSuggestion`
+  (embutido no painel de detalhe, ao lado de `StatusTransition`/
+  `SeverityQualification`): busca a sugestão ao expandir a linha,
+  trata os 4 estados, implementa o fluxo copiar→marcar-como-enviado.
+  Um erro ao recarregar a sugestão DEPOIS de marcar como enviado com
+  sucesso nunca reusa a mensagem de "falha ao registrar" (o toque já
+  foi gravado no servidor nesse caso — mensagem distinta evita o rep
+  achar que precisa repetir a ação).
+- `frontend/src/App.tsx` — campo "Seu id de representante" no toolbar
+  de Oportunidades, persistido em `localStorage` (`lt_rep_id`) — único
+  lugar do módulo que rastreia "rep atual", já que não há conceito de
+  usuário logado ainda.
+
+### Achado da revisão de código (3 Importantes, corrigidos)
+
+1. `rep_id` no GET não era validado (só o POST tinha
+   `min_length=1`) — um `rep_id=""` computaria cadência/cota pro rep
+   vazio silenciosamente. Corrigido com `Query(min_length=1)`.
+2. Empresa ausente (`company is None`) fazia fallback silencioso pra
+   `is_customer=False`, trocando a tabela de cadência sem avisar.
+   Corrigido: vira 404 (mesmo tratamento de oportunidade não
+   encontrada), já que `company_id` é FK obrigatória.
+3. No frontend, uma falha ao recarregar a sugestão logo após marcar
+   como enviado com sucesso reusava a mensagem genérica de "falha ao
+   calcular a próxima ação", enganando o rep sobre se o registro
+   aconteceu. Corrigido com mensagem distinta.
+
+### Não objetivo deste módulo
+
+- Banner agregado único de "cap do dia batido" cobrindo todas as
+  oportunidades de um rep — precisa de uma lista agregada de ações do
+  dia que ainda não existe (`ponytail:` no componente).
+- Botões dedicados "encerrar"/"reabrir cadência" pro estado
+  `cadencia_esgotada` — o dropdown de Status já cobre isso, duplicar
+  seria uma segunda superfície pra mesma decisão.
+- Autenticação/identidade de usuário — `rep_id` continua sendo texto
+  livre digitado pelo usuário (mesmo padrão de `GeoDiscoveryWizard`/
+  `RepTargetsSection`), só ganhou persistência em `localStorage` pra
+  não precisar redigitar a cada sessão.
+
+### Teste
+
+- `tests/test_routes_sync.py` (+8): sugestão do primeiro passo pra
+  oportunidade nova; 404 pra oportunidade inexistente (GET e POST);
+  registrar toque e ver a sugestão seguinte virar "aguardando
+  intervalo"; `rep_id` vazio rejeitado com 422; 404 quando a empresa
+  referenciada não existe; estado `cadencia_esgotada` refletido de
+  ponta a ponta pela rota; estado `cap_diario_atingido` refletido de
+  ponta a ponta pela rota (achados da revisão de código — os módulos
+  1-6 só testavam a função pura, não a rota, pra esses dois estados).
+
+### Critério de sucesso
+
+- [x] Rota GET nunca decide cadência com empresa ausente ou `rep_id`
+      vazio silenciosamente — ambos viram erro explícito.
+- [x] `OutreachTouch` gravado só via insert (`save_outreach_touch`) —
+      nenhuma rota de edição/exclusão criada.
+- [x] Nenhuma transição de `Opportunity.status` acontece a partir
+      deste módulo — cadência é só leitura/sugestão.
+- [x] UI nunca mostra a categoria técnica (`gap_portfolio` etc.) —
+      sempre a frase traduzida.
+- [x] Botão "marcar como enviado" só habilita depois de copiar
+      (decisão confirmada, sem regressão).
+- [x] Sincronizado pra cópia instalada e verificado ao vivo.
+- [x] Revisão de código sem achados Importantes pendentes.

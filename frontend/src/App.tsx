@@ -16,6 +16,15 @@ function OpportunitiesView() {
   const [filters, setFilters] = useState<FilterState>(defaultFilters)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null)
+  // Fase G, módulo 7 — id do representante usado nas sugestões de próxima
+  // ação (cota diária/cadência são por rep). Persistido em localStorage
+  // porque o módulo não tem conceito de usuário logado ainda.
+  const [repId, setRepId] = useState(() => localStorage.getItem('lt_rep_id') ?? '')
+
+  const handleRepIdChange = (value: string) => {
+    setRepId(value)
+    localStorage.setItem('lt_rep_id', value)
+  }
 
   const reload = () => {
     listOpportunities()
@@ -61,6 +70,10 @@ function OpportunitiesView() {
         <p>Lead.Tracker · {filtered.length} de {rows.length} oportunidades</p>
       </div>
       <div className="lt-toolbar">
+        <label>
+          Seu id de representante
+          <input value={repId} onChange={e => handleRepIdChange(e.target.value)} placeholder="Id ou nome do representante" />
+        </label>
         <button type="button" className="lt-btn" onClick={() => handleExport('pdf')} disabled={exporting !== null} aria-busy={exporting === 'pdf'}>
           {exporting === 'pdf' ? 'Gerando PDF…' : 'PDF'}
         </button>
@@ -77,6 +90,7 @@ function OpportunitiesView() {
       ) : (
         <OpportunityTable
           rows={filtered}
+          repId={repId}
           onRowUpdated={handleRowUpdated}
           onRenewalDateUpdated={handleRenewalDateUpdated}
         />

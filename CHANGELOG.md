@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Próxima ação sugerida + marcar como enviado** (Fase G, módulo 7
+  `next-action-line-and-mark-sent-ui`): tela de Oportunidades ganha,
+  no painel de detalhe de cada linha, a sugestão de próximo toque
+  traduzida em frase (nunca a categoria técnica), tratamento dos 3
+  estados especiais da cadência, e o fluxo copiar→marcar-como-enviado
+  (o botão só habilita depois de copiar o rascunho/frase). Duas rotas
+  novas: `GET .../next-suggested-touch` e
+  `POST .../outreach-touches`. Copy/UX em consulta ao agente Sales
+  Engineer. Ver `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Motor de cadência sugerida** (Fase G, módulo 6
   `suggested-cadence-engine`): função pura que sugere o próximo toque
   (canal + categoria de motivo) — cliente ativo (3 toques: uso atual
