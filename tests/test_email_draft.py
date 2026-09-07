@@ -260,6 +260,45 @@ def test_generate_email_draft_passes_is_customer_through_end_to_end():
     asyncio.run(run())
 
 
+def test_parse_email_draft_rejects_body_with_urgency_and_no_real_date():
+    poisoned = {**VALID_DRAFT, "body": "Essa condição é válida por tempo limitado."}
+    try:
+        parse_email_draft(poisoned, evidence=[], portfolio={})
+        assert False, "deveria ter levantado AIProviderError"
+    except AIProviderError as exc:
+        assert "pressão de vendas" in str(exc)
+
+
+def test_parse_email_draft_accepts_body_with_urgency_backed_by_real_date():
+    valid = {**VALID_DRAFT, "body": "Sua renovação vence em 15/03/2026, vamos conversar antes que acabe o prazo?"}
+    draft = parse_email_draft(valid, evidence=["contrato com vencimento em 15/03/2026"], portfolio={})
+    assert draft.body == valid["body"]
+
+
+def test_parse_email_draft_never_splices_trigger_phrase_across_field_boundary():
+    """Achado da revisão de código: subject terminando em "por tempo" +
+    body começando com "limitado" nunca podem se juntar numa frase proibida
+    que não existe de fato em nenhum campo isolado — junção usa quebra de
+    linha, nunca espaço, entre os campos."""
+    draft = parse_email_draft({
+        **VALID_DRAFT, "subject": "Uma proposta por tempo", "body": "limitado para sua empresa este mês.",
+    }, evidence=[], portfolio={})
+    assert draft.subject == "Uma proposta por tempo"
+
+
+def test_generate_email_draft_rejects_generalization_without_concrete_case_end_to_end():
+    async def run():
+        client = _client_returning_content({**VALID_DRAFT, "body": "Clientes como você já perceberam os benefícios."})
+        provider = OpenAIProvider(api_key="k", client=client)
+        try:
+            await generate_email_draft(provider, "Aurora", "cross-sell", [], "just.", {})
+            assert False, "deveria ter levantado AIProviderError"
+        except AIProviderError:
+            pass
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_build_email_request_never_lets_ai_send_never_invents_outside_evidence()
     test_parse_email_draft_extracts_all_four_fields()
@@ -283,6 +322,10 @@ if __name__ == "__main__":
     test_prospect_tone_instruction_forbids_surveillance_opening_and_demo_cta()
     test_tone_instructions_are_mutually_exclusive()
     test_generate_email_draft_passes_is_customer_through_end_to_end()
+    test_parse_email_draft_rejects_body_with_urgency_and_no_real_date()
+    test_parse_email_draft_accepts_body_with_urgency_backed_by_real_date()
+    test_parse_email_draft_never_splices_trigger_phrase_across_field_boundary()
+    test_generate_email_draft_rejects_generalization_without_concrete_case_end_to_end()
     test_parse_email_draft_without_differentiator_or_ps_leaves_them_none()
     test_generate_email_draft_validates_differentiator_against_real_evidence_end_to_end()
     test_generate_email_draft_discards_differentiator_not_backed_by_real_evidence_end_to_end()

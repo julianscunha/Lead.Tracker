@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **Proibições determinísticas de urgência falsa e generalização vazia**
+  (Fase G, módulo 4 `prompt-prohibition-guards`): subject/body/cta
+  são rejeitados (pedindo nova geração) se mencionarem prazo/urgência
+  sem data real nos dados, ou generalizarem "clientes como você" sem
+  caso concreto (número real) nos dados — nunca bloqueia palavra
+  isolada, só a combinação gatilho+ausência do dado que legitimaria.
+  Decisões de gatilhos e regras em consulta ao agente Sales Coach. Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Tom por status de cliente no rascunho de e-mail** (Fase G,
   módulo 3 `tone-by-customer-status`): o prompt de geração usa uma de
   duas instruções fixas conforme `is_customer` — cliente ativo abre

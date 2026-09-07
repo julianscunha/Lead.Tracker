@@ -245,3 +245,81 @@ lacunas de teste, não bugs de produção):
 - [x] Texto das proibições específicas travado por teste, não só por
       inspeção.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 4 — `prompt-prohibition-guards`
+
+Consulta ao agente Sales Coach antes de implementar (listas de
+gatilhos e regras de "dado real"/"caso concreto" confirmadas, não
+reabrir). Duas proibições que valem pro corpo INTEIRO do e-mail
+(subject/greeting/body/cta — campos obrigatórios, diferente do
+módulo 2 que só validava `differentiator`/`ps` opcionais):
+
+1. Nunca mencionar prazo/urgência sem dado temporal real (data no
+   formato DD/MM/AAAA ou AAAA-MM-DD) em evidence/portfolio.
+2. Nunca generalizar "clientes como você"/"empresas do seu porte"
+   sem caso concreto (número real, proxy de resultado mensurável) em
+   evidence/portfolio.
+
+Nunca bloqueia a palavra isolada ("prazo", "cliente") — só a
+combinação gatilho+ausência do dado que legitimaria.
+
+**Comportamento na reprovação — DIFERENTE do módulo 2**: como
+subject/body/cta são obrigatórios (não dá pra "descartar" um corpo de
+e-mail), reprovação vira `AIProviderError` (mesmo tratamento já usado
+pra campo obrigatório ausente), pedindo pra tentar de novo — nunca
+retorna e-mail malformado nem derruba silenciosamente.
+
+**Decisão de escopo consciente** (Sales Coach concordou): "caso
+concreto" é aproximado por número real, nunca detecção de nome de
+empresa citado — exigiria NLP, fora do nível de regex/string que
+todos os guard-rails desta fase usam.
+
+**Achados da revisão de código** (3 Importantes, todos corrigidos):
+1. `_has_concrete_reference` contava fragmentos de DATA (dia/mês/ano)
+   como "número real" — qualquer evidência com data de renovação
+   (comum) legitimava uma generalização vazia sem nenhum resultado
+   mensurável de verdade associado. Corrigido: remove trechos de data
+   antes de contar números.
+2. Gatilho `"corra e"` colidia com verbos comuns em português
+   ("recorra e", "socorra e", "discorra e", "percorra e") — uma frase
+   legítima e inofensiva seria rejeitada. Corrigido: removido da
+   lista (outros gatilhos já cobrem a intenção "aja agora").
+3. Concatenação de subject+greeting+body+cta com espaço (`" ".join`)
+   permitia uma frase proibida se "formar" na fronteira entre dois
+   campos (ex.: subject terminando em "por tempo" + body começando
+   com "limitado") sem aparecer de fato em nenhum campo isolado.
+   Corrigido: junção com quebra de linha (`"\n".join`) — nenhum
+   gatilho contém quebra de linha, então a fronteira nunca mais
+   "cola" acidentalmente.
+
+### Não objetivo deste módulo
+
+- Detecção de nome de empresa citado como "caso concreto" — decisão
+  consciente de escopo (Sales Coach), exigiria NLP.
+- Normalização de separador de milhar em datas — mesma limitação já
+  aceita no módulo 2 pra números em geral.
+
+### Teste
+
+- `validate_email_body` (`tests/test_email_guardrails.py`, 9 testes
+  novos): texto limpo passa; urgência sem data real rejeitada;
+  urgência COM data real em evidence aceita; generalização sem caso
+  concreto rejeitada; generalização COM número real aceita; texto
+  vazio sempre passa; palavra isolada nunca dispara sozinha; data em
+  evidence nunca legitima generalização (regressão do achado 1);
+  verbo comum com "corra e" nunca é flagado (regressão do achado 2).
+- `parse_email_draft`/`generate_email_draft` (`tests/test_email_draft.py`,
+  4 testes novos): rejeita urgência sem data real via `AIProviderError`;
+  aceita urgência com data real; nunca junta frase proibida na
+  fronteira entre campos (regressão do achado 3); rejeita
+  generalização ponta a ponta com provider mockado.
+
+### Critério de sucesso
+
+- [x] Reprovação em subject/body/cta sempre vira `AIProviderError`,
+      nunca e-mail malformado nem descarte silencioso.
+- [x] Data real nunca é confundida com "caso concreto" (números
+      distintos, sem overlap).
+- [x] Nenhum gatilho colide com palavra/verbo comum do português —
+      provado por teste, não só por inspeção.
+- [x] Revisão de código sem achados Importantes pendentes.

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ai.base import AIProvider, AIProviderError, AIRequest
-from ai.email_guardrails import validate_persuasive_field
+from ai.email_guardrails import validate_email_body, validate_persuasive_field
 
 _BASE_INSTRUCTION = (
     "Gere um rascunho de e-mail comercial para a oportunidade descrita no contexto. "
@@ -23,7 +23,13 @@ _BASE_INSTRUCTION = (
     'contendo as chaves "subject", "greeting", "body" e "cta" (call-to-action), todas string, '
     'e opcionalmente "differentiator" (uma frase só, releitura persuasiva de um fato JÁ presente '
     "em evidências/portfólio — nunca número, produto ou alegação que não esteja lá) e \"ps\" "
-    "(um P.S. opcional reforçando o ponto mais forte já citado no corpo, mesma regra: nunca fato novo)."
+    "(um P.S. opcional reforçando o ponto mais forte já citado no corpo, mesma regra: nunca fato novo). "
+    "Proibições explícitas (subject/greeting/body/cta): nunca mencione prazo, urgência ou escassez "
+    "artificial ('por tempo limitado', 'últimas vagas', 'aproveite antes que acabe' e afins) a menos "
+    "que exista uma data real nas evidências — se não houver data real, não mencione prazo nenhum. "
+    "Nunca generalize com 'clientes como você'/'empresas do seu porte'/'nossos clientes satisfeitos' "
+    "sem um caso concreto (nome, número, resultado real) nas evidências — sem caso concreto, "
+    "omita a generalização em vez de inventar uma."
 )
 
 # Fase G, módulo 3 (`tone-by-customer-status`) — Outbound Strategist
@@ -110,7 +116,11 @@ def parse_email_draft(
 
     `differentiator`/`ps` passam por `validate_persuasive_field` — campo que reprova o
     guard-rail determinístico é descartado (fica `None`), nunca derruba o resto do
-    rascunho (Sales Engineer consultado: são opcionais, o e-mail já é funcional sem eles)."""
+    rascunho (Sales Engineer consultado: são opcionais, o e-mail já é funcional sem eles).
+
+    subject/greeting/body/cta (obrigatórios) passam por `validate_email_body` (módulo 4,
+    Sales Coach consultado) — reprova aqui vira `AIProviderError` (mesmo tratamento de campo
+    obrigatório ausente), porque não dá pra "descartar" um corpo de e-mail obrigatório."""
     missing = [k for k in ("subject", "greeting", "body", "cta") if not structured.get(k)]
     if missing:
         raise AIProviderError(
@@ -119,6 +129,19 @@ def parse_email_draft(
 
     evidence = evidence or []
     portfolio = portfolio or {}
+
+    # "\n" (não " ") entre os campos — achado da revisão de código: um
+    # gatilho proibido nunca contém quebra de linha, então juntar com espaço
+    # deixaria uma frase se "formar" na fronteira entre dois campos (ex.:
+    # subject terminando em "por tempo" + body começando com "limitado")
+    # mesmo sem aparecer de fato em nenhum campo isolado.
+    full_body_text = "\n".join(str(structured[k]) for k in ("subject", "greeting", "body", "cta"))
+    body_violation = validate_email_body(full_body_text, evidence, portfolio)
+    if body_violation is not None:
+        raise AIProviderError(
+            "O rascunho gerado usou linguagem de pressão de vendas não sustentada pelos dados "
+            f"({body_violation}). Tente novamente."
+        )
 
     def _validated(key: str) -> str | None:
         value = structured.get(key)

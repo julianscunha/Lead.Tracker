@@ -1214,7 +1214,11 @@ def test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
             session_factory = await _fresh_session_factory(tmp)
-            today = date.today()
+            # UTC, nunca date.today() (local) -- Company.created_at é sempre
+            # UTC-aware; comparar contra data local é flaky perto da meia-noite
+            # em qualquer fuso não-UTC (bug real encontrado rodando a suíte
+            # à noite no fuso do Brasil, onde UTC já vira o dia seguinte).
+            today = datetime.now(timezone.utc).date()
             geo_company = Company(name="Descoberta", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
             manual_company = Company(name="Manual", rep_id="rep-1", sources=[SourceRef(type="manual")])
             other_rep_company = Company(name="Outro rep", rep_id="rep-2", sources=[SourceRef(type="google_maps")])

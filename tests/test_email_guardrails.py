@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai.email_guardrails import validate_persuasive_field
+from ai.email_guardrails import validate_email_body, validate_persuasive_field
 
 
 def test_empty_text_always_passes():
@@ -98,6 +98,65 @@ def test_normalizes_decimal_separator_between_text_and_evidence():
     assert validate_persuasive_field("O ganho medido foi de 4,5% no último trimestre.", ["ganho de 4.5% medido"], {}) is None
 
 
+def test_validate_email_body_passes_plain_text():
+    assert validate_email_body("Notamos que vocês usam Veeam VBR sem VDC365.", [], {}) is None
+
+
+def test_validate_email_body_rejects_urgency_without_real_date():
+    reason = validate_email_body("Essa condição é válida por tempo limitado.", [], {})
+    assert reason is not None
+    assert "urgência" in reason
+
+
+def test_validate_email_body_accepts_urgency_when_real_date_exists_in_evidence():
+    assert validate_email_body(
+        "Sua renovação vence em 15/03/2026 — aproveite antes que acabe o prazo atual.",
+        ["contrato com vencimento em 15/03/2026"], {},
+    ) is None
+
+
+def test_validate_email_body_rejects_generalization_without_concrete_case():
+    reason = validate_email_body("Clientes como você já perceberam os benefícios.", [], {})
+    assert reason is not None
+    assert "generalização" in reason
+
+
+def test_validate_email_body_accepts_generalization_when_real_number_exists():
+    assert validate_email_body(
+        "Empresas do seu porte já reduziram custos em 30% com essa mudança.",
+        ["redução de 30% documentada em caso real"], {},
+    ) is None
+
+
+def test_validate_email_body_empty_text_always_passes():
+    assert validate_email_body("", [], {}) is None
+
+
+def test_validate_email_body_date_in_evidence_never_legitimizes_generalization():
+    """Achado da revisão de código: uma data (ex. "15/03/2026") também
+    "parece" número — sem excluí-la, qualquer evidência com data de
+    renovação (comum) legitimaria uma generalização vazia sem nenhum
+    resultado real associado."""
+    reason = validate_email_body(
+        "Clientes como você já perceberam grandes resultados.",
+        ["contrato com vencimento em 15/03/2026"], {},
+    )
+    assert reason is not None
+    assert "generalização" in reason
+
+
+def test_validate_email_body_never_flags_common_verbs_containing_urgency_substring():
+    """Achado da revisão de código: "corra e" era substring de verbos comuns
+    ("recorra e", "socorra e") -- removido da lista de gatilhos."""
+    assert validate_email_body("Se precisar, recorra e conte conosco.", [], {}) is None
+
+
+def test_validate_email_body_never_flags_isolated_words_without_trigger_phrase():
+    """Nunca bloqueia palavra isolada (\"prazo\", \"cliente\") -- só a
+    combinação gatilho+ausência do dado real (Sales Coach consultado)."""
+    assert validate_email_body("O prazo do projeto e o cliente foram definidos.", [], {}) is None
+
+
 if __name__ == "__main__":
     test_empty_text_always_passes()
     test_plain_reformulation_of_evidence_passes()
@@ -114,4 +173,13 @@ if __name__ == "__main__":
     test_comparative_with_anchor_number_from_evidence_passes()
     test_rejects_uncited_external_source_mention()
     test_normalizes_decimal_separator_between_text_and_evidence()
+    test_validate_email_body_passes_plain_text()
+    test_validate_email_body_rejects_urgency_without_real_date()
+    test_validate_email_body_accepts_urgency_when_real_date_exists_in_evidence()
+    test_validate_email_body_rejects_generalization_without_concrete_case()
+    test_validate_email_body_accepts_generalization_when_real_number_exists()
+    test_validate_email_body_empty_text_always_passes()
+    test_validate_email_body_date_in_evidence_never_legitimizes_generalization()
+    test_validate_email_body_never_flags_common_verbs_containing_urgency_substring()
+    test_validate_email_body_never_flags_isolated_words_without_trigger_phrase()
     print("OK — todos os testes de guard-rails de e-mail passaram")
