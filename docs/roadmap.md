@@ -381,26 +381,32 @@ em paralelo às Fases D/E/F, não depende delas.
 
 ## Débito técnico que bloqueia release de produção (não bloqueia dev)
 
-**Migração de schema (Alembic).** Hoje `core/db.py::init_db()` usa
-`Base.metadata.create_all()` — cria tabela ausente, mas **nunca adiciona
-coluna nova a uma tabela que já existe**. Isso já se provou um problema
-real durante o desenvolvimento (Fases B e C adicionaram colunas várias
-vezes; cada vez foi preciso apagar e recriar o banco de dev manualmente).
+**Migração de schema (Alembic) — mitigado, não fechado.** `core/db.py::init_db()`
+usava só `Base.metadata.create_all()` — cria tabela ausente, mas nunca
+adicionava coluna nova a uma tabela que já existe. Isso já tinha se
+provado um problema real durante o desenvolvimento (Fases B e C
+adicionaram colunas várias vezes; cada vez foi preciso apagar e recriar o
+banco de dev manualmente), e voltou a se provar real ao verificar a Fase G
+ao vivo: uma instalação com `companies` já criada antes de
+`Company.deal_size_hint` (Fase F) quebrava com "no such column" no
+primeiro `GET /companies`.
 
-**Por que é aceitável agora e deixa de ser:** aceitável enquanto só existem
-bancos de desenvolvimento/teste, sem instalação real com dado de cliente.
-Deixa de ser aceitável no momento em que existir a primeira instalação em
-produção — a primeira atualização de versão com schema novo depois disso
-quebraria com "no such column" sem aviso, sem forma de recuperar o dado já
-gravado.
+**Mitigação já implementada** (ver `core/db.py::_add_missing_columns`,
+CHANGELOG): `init_db` agora inspeciona cada tabela existente e adiciona a
+coluna que falta, preenchendo linhas já gravadas com o default real da
+coluna quando ele é derivável (`False`/`[]`/etc.), e pulando com aviso só
+quando não há default nenhum pra uma coluna obrigatória. Resolve o caso
+que já aconteceu 3x neste projeto (coluna nova em tabela existente) sem
+precisar de Alembic.
 
-**O que fazer, quando chegar a hora:** o Tech.Forge Core já usa Alembic
-(é dependência dele, não uma ferramenta nova pro projeto) — adotar o mesmo
-aqui: gerar migração por mudança de schema, `alembic upgrade head` no
-`install()`/`enable()` do módulo em vez de `create_all()` puro. Não é uma
-fase do produto (não entrega nada pro usuário final), é item de checklist
-de `shipping-and-launch` — fazer antes do primeiro release real, não antes
-de continuar as fases de feature.
+**O que continua fora desta mitigação, e ainda pede Alembic quando
+chegar a hora de release real:** renomear/remover coluna, mudar tipo de
+coluna existente, ou qualquer mudança que ALTER TABLE ADD COLUMN não
+resolva. O Tech.Forge Core já usa Alembic (é dependência dele, não uma
+ferramenta nova pro projeto) — adotar o mesmo aqui pras mudanças que a
+migração leve não cobre. Não é uma fase do produto (não entrega nada pro
+usuário final), é item de checklist de `shipping-and-launch` — fazer antes
+do primeiro release real, não antes de continuar as fases de feature.
 
 ## Fora de escopo (mencionado pelas personas, descartado por ora)
 
