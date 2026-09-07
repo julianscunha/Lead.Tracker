@@ -22,15 +22,47 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 ## O que ele faz
 
 - **Encontra oportunidades de verdade** — cross-sell, up-sell, serviços,
-  otimização de custo e modernização, cada uma com motivo e evidência.
-- **Prioriza por impacto** — score de aderência, potencial financeiro e
-  confiança são números separados, nunca misturados num só.
+  otimização de custo e modernização, cada uma com motivo e evidência
+  (fato + implicação de negócio + fonte + data, nunca um log técnico cru).
+- **Prioriza por impacto** — score de aderência, potencial financeiro,
+  score estratégico e confiança são números separados, nunca misturados
+  num só.
+- **Quantifica o tamanho do problema** — alcance (isolado/parcial/
+  generalizado) × criticidade viram uma severidade clara, qualificada pelo
+  vendedor em segundos.
+- **Acompanha o funil de ponta a ponta** — status auditável (detectada →
+  qualificada → revisada → contatada → oportunidade, ou descartada com
+  motivo categorizado), com histórico completo de quando e por quê.
+- **Cuida da carteira, não só de leads novos** — saúde de conta e sugestão
+  de quando revisar cada cliente (baseado em renovação + saúde, nunca
+  aleatório), alerta de oportunidade parada há tempo demais.
+- **Prospecta geograficamente** — a partir do seu Google Maps, encontra
+  empresas parecidas com seus melhores clientes (ICP configurável ou
+  derivado automaticamente), com filtro anti-spam por representante/dia.
+- **Se adapta ao seu CRM** — mapeia qualquer campo personalizado do
+  Salesforce pra um papel de negócio (sem precisar saber o que é API name),
+  e avisa em português quando um mapeamento quebra.
+- **Ajuda a escrever o contato** — rascunho de e-mail persuasivo com
+  guardas contra alucinação (nunca inventa urgência, nunca cita "cliente
+  parecido" sem caso real), sugestão de próximo passo por cliente/prospect
+  (canal, motivo, cadência) — sempre uma sugestão pra você confirmar,
+  nunca um disparo automático.
 - **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
   vindo de dado real.
-- **Poupa seu tempo** — exporta PDF/Excel com um clique e gera rascunho de
-  e-mail comercial pronto pra revisar e enviar.
+- **Poupa seu tempo** — exporta PDF/Excel com um clique em toda tela de
+  resultado.
 - **Funciona com ou sem IA** — o motor de oportunidades roda inteiro sem
-  nenhuma chave de API configurada.
+  nenhuma chave de API configurada; IA é só um complemento opcional que
+  nunca decide sozinha nem envia nada automaticamente.
+
+## Telas
+
+| Aba | O que você faz ali |
+|---|---|
+| **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante. |
+| **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, gera rascunho de e-mail e vê a próxima ação sugerida por oportunidade. |
+| **Prospecção** | Assistente guiado de descoberta geográfica (Google Maps) — define raio/produto de referência e recebe uma lista de prospects pontuados. |
+| **Configurações** | Fontes de dado (Salesforce/website/manual), portfólio, mapeamento de campo personalizado, IA, metas por representante. |
 
 ## Arquitetura
 
@@ -72,25 +104,10 @@ produto ou serviço fora do portfólio configurado.
 ### Comandos
 
 ```bash
-# Backend — testes (scripts standalone, sem pytest instalado no projeto)
-python tests/test_models.py
-python tests/test_config.py
-python tests/test_providers.py
-python tests/test_salesforce_provider.py
-python tests/test_settings.py
-python tests/test_portfolio.py
-python tests/test_normalization.py
-python tests/test_opportunity_engine.py
-python tests/test_ai.py
-python tests/test_dashboard_metrics.py
-python tests/test_exports.py
-python tests/test_email_draft.py
-python tests/test_routes_exports.py
-python tests/test_errors.py
-python tests/test_export_errors.py
-python tests/test_persistence.py
-python tests/test_db_table_registration.py
-pip install -r backend/requirements.txt   # antes de rodar os testes
+# Backend
+pip install -r backend/requirements.txt
+python -m pytest -q          # suíte completa
+python -m pytest tests/test_opportunity_engine.py -q   # um arquivo específico
 
 # Frontend
 cd frontend

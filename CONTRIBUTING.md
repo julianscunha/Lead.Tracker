@@ -30,7 +30,7 @@ elas é motivo de mudança pedida na review:
 ```bash
 # Backend
 pip install -r backend/requirements.txt
-python tests/test_models.py   # ... e os demais tests/test_*.py (scripts standalone)
+python -m pytest -q
 
 # Frontend
 cd frontend && npm install && npm run build && npm run test

@@ -379,6 +379,57 @@ em paralelo às Fases D/E/F, não depende delas.
   mesmo princípio de "IA nunca decide sozinha" aplicado ao pipeline, não só
   ao envio de e-mail.
 
+### Fase H — Cobertura de stakeholder e risco de single-thread
+**Status:** em andamento.
+Depende só da Fase A (`Contact` já existe, com `seniority_tier` inferido de
+`role` desde a Fase C — decisor/influenciador_tecnico/operacional). Pode
+rodar em paralelo às demais fases, não depende delas.
+
+**Origem:** sessão de planejamento com 6 personas (Pipeline Analyst, Deal
+Strategist, Account Strategist, Sales Coach, Proposal Strategist, Discovery
+Coach), cada uma perguntada de forma independente "qual a única capacidade
+de maior valor que ainda falta". Deal Strategist e Account Strategist
+convergiram, sem se ver, na mesma lacuna: nenhuma fase até aqui modela
+*quem* numa conta é decisor/campeão nem detecta quando um deal depende de
+um único contato. Escolhida como Fase H por essa convergência.
+
+**O que já existe e não precisa ser refeito:** `Contact.seniority_tier`
+(Fase C) já classifica autoridade (decisor/influenciador_tecnico/
+operacional) a partir de `role` — a lacuna real não é "quem decide", é
+"sabemos se ainda estamos falando com essa pessoa" e "quantos threads
+ativos existem por conta". `OutreachTouch` (Fase G) não referencia contato
+nenhum hoje — só oportunidade/rep — por isso não dá pra saber HOJE com quem
+da conta o rep realmente falou.
+
+**Mapa de capacidades (proposto, não confirmado módulo a módulo ainda)**
+
+| Ordem | Módulo | Responsabilidade | Consulta a especialista |
+|---|---|---|---|
+| 1 | `outreach-touch-contact-link` | `OutreachTouch.contact_id` opcional — permite (nunca exige) atribuir um toque a um contato específico da conta. | Não (mecânico) |
+| 2 | `contact-stance-field` | `Contact.stance` (enum aberto: `champion`/`neutro`/`detrator`/desconhecido) — eixo de DISPOSIÇÃO, distinto de `seniority_tier` (eixo de AUTORIDADE); nunca colapsam num só campo (mesmo princípio dos 4 números da oportunidade). | Deal Strategist |
+| 3 | `single-threaded-risk-signal` | Função pura (mesmo padrão de `is_zombie_opportunity`/`compute_silence_signal`): oportunidade qualificada+ OU conta com renovação próxima, com só 1 contato tocado nos últimos N dias, ou nenhum decisor (`seniority_tier=decisor`) tocado recentemente → sinaliza `single_threaded_risk`/`no_economic_buyer_contact`. Nunca muda status/dispara ação sozinha. | Deal Strategist + Account Strategist |
+| 4 | `stakeholder-coverage-ui` | Sinal exposto na tela de Oportunidades/Contas — linguagem de decisão ("vale abrir um segundo contato antes de avançar"), nunca alarme genérico. | Sales Engineer |
+
+**Backlog priorizado (não escolhido para a Fase H, registrado pra quando
+houver espaço/prioridade):**
+- **Forecast calibrado por conversão histórica** (Pipeline Analyst): taxa de
+  conversão real por estágio/segmento em vez de probabilidade estática,
+  cruzada com velocidade no estágio, pra Commit/Best Case/Upside baseado em
+  dado, não em achismo de estágio do CRM.
+- **Funil de conversão por rep×categoria pra coaching** (Sales Coach):
+  isola se um rep converte mal numa categoria específica (cross-sell vs.
+  modernização, etc.) vs. na média geral — diferencia skill gap de will gap
+  com dado, não anedota de call review.
+- **Gerador de business case por oportunidade** (Proposal Strategist):
+  documento de 1 página (situação → gap → custo de não agir → estado
+  futuro) compondo os campos que o motor já calcula — sem lógica de score
+  nova, IA só preenche prosa numa estrutura fixa.
+- **Gate de "discovery completa"** (Discovery Coach): três campos de texto
+  livre (`root_cause_stated`, `trigger_event`, `champion_stake`)
+  preenchidos só por humano; bloqueia a transição `detected`→`qualified`
+  até os três estarem preenchidos — distingue "motor inferiu um gap" de
+  "comprador confirmou o gap e disse por que importa pra ele".
+
 ## Débito técnico que bloqueia release de produção (não bloqueia dev)
 
 **Migração de schema — fechado.** `core/db.py::init_db()` usava só
