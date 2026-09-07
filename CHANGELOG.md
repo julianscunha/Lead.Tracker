@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Cadastro manual de fabricante/produto/serviço** (achado de auditoria
+  de dados: sem Salesforce não havia nenhuma forma de popular o
+  portfólio, travando o motor de regras pra quem não sincroniza CRM
+  nenhum): nova seção "Portfólio" em Configurações, antes de "Regras" —
+  cadastra fabricante (inline, sem sair do form de produto), produto e
+  serviço. Novas rotas `GET`/`POST /vendors`, `POST /products`,
+  `POST /services`.
+
 - **Cobertura de stakeholder na tela de Oportunidades** (Fase H, módulo 4
   `stakeholder-coverage-ui`, fecha a Fase H): dropdown opcional "Contato"
   no fluxo de marcar-como-enviado (pré-seleciona o último contato tocado
