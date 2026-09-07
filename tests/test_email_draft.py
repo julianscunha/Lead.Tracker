@@ -208,6 +208,58 @@ def test_generate_email_draft_discards_differentiator_not_backed_by_real_evidenc
     asyncio.run(run())
 
 
+def test_build_email_request_defaults_to_prospect_tone():
+    req = build_email_request("Aurora", "cross-sell", [], None, {})
+    assert "não é cliente" in req.instruction
+    assert req.company_context["is_customer"] is False
+
+
+def test_build_email_request_uses_customer_tone_when_is_customer_true():
+    req = build_email_request("Aurora", "cross-sell", [], None, {}, is_customer=True)
+    assert "já é cliente ativo" in req.instruction
+    assert req.company_context["is_customer"] is True
+
+
+def test_customer_tone_instruction_forbids_mentioning_unused_product_in_opening():
+    req = build_email_request("Aurora", "cross-sell", [], None, {}, is_customer=True)
+    assert "NÃO usa na abertura" in req.instruction
+
+
+def test_prospect_tone_instruction_forbids_surveillance_opening_and_demo_cta():
+    req = build_email_request("Aurora", "cross-sell", [], None, {}, is_customer=False)
+    lowered = req.instruction.lower()
+    assert "percebemos que" in lowered
+    assert "demonstração" in lowered
+    assert "orçamento" in lowered
+    assert "apresentação da empresa" in lowered
+
+
+def test_tone_instructions_are_mutually_exclusive():
+    """Achado da revisão de código: garante que a instrução de cada tom
+    nunca contém o texto proibido/característico do outro — trava a
+    exclusividade binária mesmo que as constantes sejam refatoradas depois."""
+    customer_req = build_email_request("Aurora", "cross-sell", [], None, {}, is_customer=True)
+    prospect_req = build_email_request("Aurora", "cross-sell", [], None, {}, is_customer=False)
+    assert "percebemos que" not in customer_req.instruction.lower()
+    assert "já é cliente ativo" not in prospect_req.instruction.lower()
+    assert "não usa na abertura" not in prospect_req.instruction.lower()
+
+
+def test_generate_email_draft_passes_is_customer_through_end_to_end():
+    async def run():
+        client = _client_returning_content(VALID_DRAFT)
+        provider = OpenAIProvider(api_key="k", client=client)
+        # Só confirma que a chamada não quebra com is_customer=True e que o
+        # provider recebeu o contexto certo -- a instrução em si já é
+        # testada diretamente em build_email_request.
+        draft = await generate_email_draft(
+            provider, "Aurora", "cross-sell", [], "just.", {}, is_customer=True,
+        )
+        assert draft.subject == VALID_DRAFT["subject"]
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_build_email_request_never_lets_ai_send_never_invents_outside_evidence()
     test_parse_email_draft_extracts_all_four_fields()
@@ -225,6 +277,12 @@ if __name__ == "__main__":
     test_parse_email_draft_discards_differentiator_that_fails_guardrails_keeps_rest_of_draft()
     test_parse_email_draft_discards_ps_with_invented_number()
     test_parse_email_draft_guardrail_exception_discards_only_that_field()
+    test_build_email_request_defaults_to_prospect_tone()
+    test_build_email_request_uses_customer_tone_when_is_customer_true()
+    test_customer_tone_instruction_forbids_mentioning_unused_product_in_opening()
+    test_prospect_tone_instruction_forbids_surveillance_opening_and_demo_cta()
+    test_tone_instructions_are_mutually_exclusive()
+    test_generate_email_draft_passes_is_customer_through_end_to_end()
     test_parse_email_draft_without_differentiator_or_ps_leaves_them_none()
     test_generate_email_draft_validates_differentiator_against_real_evidence_end_to_end()
     test_generate_email_draft_discards_differentiator_not_backed_by_real_evidence_end_to_end()

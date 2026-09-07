@@ -13,7 +13,7 @@ from typing import Any
 from ai.base import AIProvider, AIProviderError, AIRequest
 from ai.email_guardrails import validate_persuasive_field
 
-_INSTRUCTION = (
+_BASE_INSTRUCTION = (
     "Gere um rascunho de e-mail comercial para a oportunidade descrita no contexto. "
     "Tom: empresarial, consultivo, contextual, nunca agressivo. Baseie-se somente nas "
     "evidências fornecidas — nunca invente fato, dado ou benefício não sustentado pelo "
@@ -25,6 +25,37 @@ _INSTRUCTION = (
     "em evidências/portfólio — nunca número, produto ou alegação que não esteja lá) e \"ps\" "
     "(um P.S. opcional reforçando o ponto mais forte já citado no corpo, mesma regra: nunca fato novo)."
 )
+
+# Fase G, módulo 3 (`tone-by-customer-status`) — Outbound Strategist
+# consultado (docs/specs/fase-g-outreach-assistido.md, módulo 3). Duas
+# variações fixas de tom, nunca uma terceira genérica: a linha entre
+# "cliente" e "prospecção fria" é binária (Company.is_customer já existe),
+# sem meio-termo especulativo.
+_TONE_INSTRUCTION_CUSTOMER = (
+    "Este destinatário já é cliente ativo e usa o produto/serviço já configurado no portfólio "
+    "fornecido. Abra o e-mail citando esse uso já existente como ponto de partida natural da "
+    'conversa (ex.: "vocês já usam [produto] há [tempo/contexto]") — nunca como elogio genérico, '
+    "sempre ancorado num fato concreto do portfólio. Nunca mencione produto/serviço que o cliente "
+    "NÃO usa na abertura — isso só pode entrar no CTA. O CTA deve ser de continuidade ou expansão "
+    "de baixo atrito (evoluir o uso atual, revisar configuração, antecipar renovação, avaliar módulo "
+    "complementar ao que já existe) — nunca oferta de produto novo desconectado do que ele já usa. "
+    "Tom de parceiro que acompanha a conta, nunca de vendedor prospectando quem já é cliente."
+)
+
+_TONE_INSTRUCTION_PROSPECT = (
+    "Este destinatário não é cliente. Abra o e-mail pelo achado externo (motivo principal) "
+    "apresentado como observação factual e específica, nunca como vigilância — proibido usar "
+    '"percebemos que..." ou qualquer variação que descreva o ato de observar; descreva o fato '
+    "direto. O CTA deve ser exploratório e de baixíssimo compromisso: uma conversa curta (10–15 "
+    "min) pra entender se o achado é relevante — proibido pedir reunião de demonstração, orçamento "
+    "ou apresentação da empresa; formule como pergunta aberta de baixo risco. Tom de quem oferece "
+    "troca de informação, nunca de quem tem pressa de fechar."
+)
+
+
+def _build_instruction(is_customer: bool) -> str:
+    tone = _TONE_INSTRUCTION_CUSTOMER if is_customer else _TONE_INSTRUCTION_PROSPECT
+    return f"{_BASE_INSTRUCTION}\n\n{tone}"
 
 
 @dataclass
@@ -55,11 +86,12 @@ def build_email_request(
     justification: str | None,
     portfolio: dict[str, Any],
     primary_reason: str | None = None,
+    is_customer: bool = False,
 ) -> AIRequest:
     reason = primary_reason or justification or ""
     return AIRequest(
-        instruction=_INSTRUCTION,
-        company_context={"nome": company_name, "tipo_oportunidade": opportunity_type},
+        instruction=_build_instruction(is_customer),
+        company_context={"nome": company_name, "tipo_oportunidade": opportunity_type, "is_customer": is_customer},
         portfolio=portfolio,
         provider_data={"evidencias": evidence, "justificativa": justification or "", "motivo_principal": reason},
     )
@@ -121,8 +153,12 @@ async def generate_email_draft(
     justification: str | None,
     portfolio: dict[str, Any],
     primary_reason: str | None = None,
+    is_customer: bool = False,
 ) -> EmailDraft:
     reason = primary_reason or justification
-    request = build_email_request(company_name, opportunity_type, evidence, justification, portfolio, primary_reason=reason)
+    request = build_email_request(
+        company_name, opportunity_type, evidence, justification, portfolio,
+        primary_reason=reason, is_customer=is_customer,
+    )
     response = await provider.generate(request)
     return parse_email_draft(response.structured, primary_reason=reason, evidence=evidence, portfolio=portfolio)

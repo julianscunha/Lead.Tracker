@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Tom por status de cliente no rascunho de e-mail** (Fase G,
+  módulo 3 `tone-by-customer-status`): o prompt de geração usa uma de
+  duas instruções fixas conforme `is_customer` — cliente ativo abre
+  citando produto já em uso (proibido mencionar produto não usado na
+  abertura) com CTA de continuidade; prospecção fria abre pelo achado
+  externo (proibido "percebemos que...") com CTA exploratório de
+  baixo compromisso (proibido pedir demo/orçamento/apresentação).
+  Decisões de texto em consulta ao agente Outbound Strategist. Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Diferencial persuasivo com guard-rails determinísticos** (Fase G,
   módulo 2 `differentiator-and-ps-fields`): `EmailDraft` ganha
   `differentiator`/`ps` opcionais, validados por 5 checagens

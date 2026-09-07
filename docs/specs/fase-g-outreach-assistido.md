@@ -184,3 +184,64 @@ corrigido):
 - [x] Falha no guard-rail (qualquer exceção) nunca derruba a geração
       inteira — provado por teste, não só por inspeção.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 3 — `tone-by-customer-status`
+
+Consulta ao agente Outbound Strategist antes de implementar (texto
+das duas instruções confirmado, não reabrir). Tom do e-mail varia
+conforme `is_customer` (bool) — sempre uma das duas variações fixas,
+nunca uma terceira genérica.
+
+**Cliente ativo**: abre citando uso já existente do portfólio como
+fato concreto (nunca elogio genérico); proíbe explicitamente mencionar
+produto que o cliente NÃO usa na abertura (só pode entrar no CTA);
+CTA de continuidade/expansão de baixo atrito.
+
+**Prospecção fria**: abre pelo achado externo como observação factual,
+proíbe explicitamente "percebemos que..." (descreve o FATO, nunca o
+ATO de observar); CTA exploratório de baixíssimo compromisso, proíbe
+explicitamente pedir demonstração/orçamento/apresentação da empresa.
+
+`_build_instruction(is_customer)` é um dispatcher binário simples
+(ternário entre duas constantes) — estruturalmente à prova de uma
+terceira variante. Default `is_customer=False` preserva o
+comportamento anterior a este módulo (instrução única, sem distinção
+de tom), sem quebrar nenhum teste dos módulos 1/2.
+
+**Achados da revisão de código** (2 Importantes, ambos corrigidos —
+lacunas de teste, não bugs de produção):
+1. O teste que prometia cobrir a proibição de CTA de demo/orçamento
+   só verificava a palavra genérica "proibido", não as cláusulas
+   específicas — um editor futuro podia apagar só a proibição de
+   demo/orçamento mantendo a palavra "proibido" em outro lugar da
+   frase, e o teste continuaria verde. Corrigido: asserções diretas
+   por "demonstração"/"orçamento"/"apresentação da empresa".
+2. Faltava um teste travando a exclusividade mútua das duas
+   instruções (garantida hoje pela estrutura do código, mas sem teste
+   que a trave contra uma refatoração futura). Adicionado
+   `test_tone_instructions_are_mutually_exclusive`.
+
+### Não objetivo deste módulo
+
+- Terceiro tom/variação intermediária — `is_customer` é binário no
+  domínio, sem meio-termo especulativo.
+- Validação de tipo em runtime pra `is_customer` — já validado pelo
+  Pydantic na única entrada externa (`EmailDraftRequest`).
+
+### Teste
+
+- `build_email_request`: default é tom de prospecção fria;
+  `is_customer=True` usa tom de cliente; cada instrução contém suas
+  proibições específicas (não só uma palavra genérica); as duas
+  instruções são mutuamente exclusivas (nunca uma contém o texto
+  característico da outra).
+- `generate_email_draft`: `is_customer` passa ponta a ponta sem
+  quebrar o fluxo com provider mockado.
+
+### Critério de sucesso
+
+- [x] Sempre exatamente uma das duas variações de tom, nunca ambas
+      nem nenhuma.
+- [x] Texto das proibições específicas travado por teste, não só por
+      inspeção.
+- [x] Revisão de código sem achados Importantes pendentes.

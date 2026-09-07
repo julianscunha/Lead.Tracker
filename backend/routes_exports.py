@@ -81,6 +81,9 @@ class EmailDraftRequest(BaseModel):
     # Fase G, módulo 1 — opcional: quando ausente, usa `justification` como
     # motivo principal (mesmo default de generate_email_draft).
     primary_reason: str | None = None
+    # Fase G, módulo 3 — Company.is_customer, decide qual das duas variações
+    # de tom o prompt usa (default False = tom de prospecção fria).
+    is_customer: bool = False
 
 
 @router.post("/exports/pdf")
@@ -136,7 +139,7 @@ async def email_draft(body: EmailDraftRequest) -> dict:
         draft = await generate_email_draft(
             provider, body.company_name, body.opportunity_type,
             body.evidence, body.justification, body.portfolio,
-            primary_reason=body.primary_reason,
+            primary_reason=body.primary_reason, is_customer=body.is_customer,
         )
     except DomainError as exc:
         _raise_http(exc)
