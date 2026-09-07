@@ -44,6 +44,17 @@
 
 ### Corrigido
 
+- **Tamanho de fonte inconsistente em vários textos** (achado de
+  auditoria de UX): `.lt-root` nunca definia um `font-size` base, então
+  qualquer texto sem classe própria — a frase de explicação de cada
+  card do dashboard, o nome nos cards de descoberta geográfica, os
+  rótulos em `Status de cliente`/`Fontes`/etc. no detalhe da
+  oportunidade — caía no padrão do navegador (~16px), maior que o resto
+  da interface (10 a 13px). Mais visível nos cards do dashboard, onde a
+  frase de explicação ficava maior que o próprio número e o rótulo do
+  card. Corrigido na raiz da cascata (`.lt-root`), não classe por
+  classe.
+
 - **Configuração de IA sai do `.env` e ganha painel na interface** (achado
   de auditoria de UX/acessibilidade): ativar o rascunho de e-mail por IA
   exigia editar o `.env` na mão, inviável pro público leigo do produto.
