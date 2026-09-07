@@ -20,8 +20,8 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, OutreachTouch, PeriodType, Portfolio,
-    Product, RuleError, Service, SourceRef,
+    Company, CompanySignal, Contact, CorrelationRule, Opportunity, OpportunityStatus, OutreachTouch, PeriodType,
+    Portfolio, Product, RuleError, Service, SourceRef,
 )
 
 _WARM_WINDOW_DAYS = 120
@@ -324,11 +324,101 @@ def compute_silence_signal(
     return SilenceSignal(SILENCE_CADENCE_EXHAUSTED, days) if days > buffer_days else None
 
 
+# Fase H, módulo 3 — Deal Strategist e Account Strategist consultados
+# (divergiram em detalhe, reconciliados aqui):
+# - Deal Strategist: nunca inventar risco quando o dado é insuficiente
+#   (maioria dos toques pode não ter `contact_id`, já que é opcional desde o
+#   módulo 1) — mantido como a regra central desta função.
+# - Account Strategist: gate amplo (qualquer status ativo, não só
+#   qualified+) e independente da cadência de QBR (eixo ortogonal, mesmo
+#   princípio de `compute_severity_band` vs. `compute_account_health` nunca
+#   colapsarem). Mantido — a guarda de dado insuficiente já filtra o ruído
+#   de início de funil que motivaria um corte por estágio.
+# - Os dois convergiram: nunca mascarar `compute_silence_signal` (são fatos
+#   ortogonais — "ninguém respondeu" vs. "poucas pessoas cobrem a conta"),
+#   nunca misturar as duas causas num motivo só, `stance=detrator` fica de
+#   fora (é sobre qualidade da relação, não cobertura — sinal futuro
+#   separado).
+_ACTIVE_CONTACT_WINDOW_DAYS = 90
+_DECISOR_SENIORITY_TIER = "decisor"
+
+SINGLE_THREADED_RISK = "single_threaded_risk"
+NO_ECONOMIC_BUYER_CONTACT = "no_economic_buyer_contact"
+
+
+@dataclass(frozen=True)
+class ThreadingRiskSignal:
+    reasons: tuple[str, ...]
+    active_contact_count: int
+    has_active_decisor: bool
+
+
+def compute_threading_risk_signal(
+    status: str,
+    contacts: list[Contact],
+    touches: list[OutreachTouch],
+    now: datetime,
+    window_days: int = _ACTIVE_CONTACT_WINDOW_DAYS,
+) -> ThreadingRiskSignal | None:
+    """Sinal PURO de cobertura de stakeholder fraca — nunca dispara nada
+    sozinho (mesmo princípio de `is_zombie_opportunity`/`compute_silence_signal`:
+    NUNCA chama `update_opportunity_status`). `contacts` é sempre da CONTA
+    inteira (quem existe não muda por oportunidade); `touches` é sempre da
+    OPORTUNIDADE específica (quem foi tocado nesse negócio) — a mesma conta
+    com múltiplas oportunidades ativas pode dar resultados diferentes por
+    chamada, de propósito.
+
+    `None` quando `dismissed` (já saiu do funil) OU quando não há nenhum
+    toque com `contact_id` na janela — dado insuficiente nunca vira risco
+    inventado (achado do Deal Strategist: `contact_id` é opcional desde o
+    módulo 1, a maioria dos toques históricos não vai ter, "0 contato
+    ativo" por ausência de dado não é o mesmo fato que "0 contato ativo"
+    porque ninguém foi tocado de verdade).
+
+    `reasons` pode ter 0 (função devolve `None`), 1 ou 2 entradas — nunca
+    colapsa as duas causas num motivo só, mesmo princípio de `SilenceSignal`:
+    - `SINGLE_THREADED_RISK`: exatamente 1 contato distinto ativo na janela.
+    - `NO_ECONOMIC_BUYER_CONTACT`: nenhum contato com
+      `seniority_tier == "decisor"` entre os ativos."""
+    if status == "dismissed":
+        return None
+
+    cutoff = now - timedelta(days=window_days)
+
+    def _sent_at_utc(touch: OutreachTouch) -> datetime:
+        return touch.sent_at if touch.sent_at.tzinfo else touch.sent_at.replace(tzinfo=timezone.utc)
+
+    active_touches = [t for t in touches if t.contact_id and _sent_at_utc(t) >= cutoff]
+    if not active_touches:
+        return None
+
+    active_contact_ids = {t.contact_id for t in active_touches}
+    contacts_by_id = {c.id: c for c in contacts}
+    has_active_decisor = any(
+        contacts_by_id[cid].seniority_tier == _DECISOR_SENIORITY_TIER
+        for cid in active_contact_ids if cid in contacts_by_id
+    )
+
+    reasons: list[str] = []
+    if len(active_contact_ids) == 1:
+        reasons.append(SINGLE_THREADED_RISK)
+    if not has_active_decisor:
+        reasons.append(NO_ECONOMIC_BUYER_CONTACT)
+
+    if not reasons:
+        return None
+
+    return ThreadingRiskSignal(
+        reasons=tuple(reasons), active_contact_count=len(active_contact_ids), has_active_decisor=has_active_decisor,
+    )
+
+
 __all__ = [
     "AGING_SLA_ENV_KEY", "CADENCE_AWAITING_INTERVAL", "CADENCE_DAILY_CAP_REACHED", "CADENCE_EXHAUSTED",
-    "CadenceSuggestion", "CorrelationRule", "OUTREACH_DAILY_CAP", "RuleError", "SILENCE_CADENCE_EXHAUSTED",
-    "SILENCE_NEVER_CONTACTED", "SilenceSignal", "compute_account_health", "compute_next_suggested_touch",
-    "compute_qbr_suggested_days", "compute_severity_band", "compute_silence_signal", "current_period_key",
+    "CadenceSuggestion", "CorrelationRule", "NO_ECONOMIC_BUYER_CONTACT", "OUTREACH_DAILY_CAP", "RuleError",
+    "SILENCE_CADENCE_EXHAUSTED", "SILENCE_NEVER_CONTACTED", "SINGLE_THREADED_RISK", "SilenceSignal",
+    "ThreadingRiskSignal", "compute_account_health", "compute_next_suggested_touch", "compute_qbr_suggested_days",
+    "compute_severity_band", "compute_silence_signal", "compute_threading_risk_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
     "rep_target_id", "requires_status_change_justification",
 ]

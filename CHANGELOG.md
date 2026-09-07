@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Sinal de risco de single-thread** (Fase H, módulo 3
+  `single-threaded-risk-signal`): `compute_threading_risk_signal` sinaliza
+  `single_threaded_risk` (só 1 contato ativo nos últimos 90 dias) e/ou
+  `no_economic_buyer_contact` (nenhum decisor tocado) — motivos
+  independentes, nunca colapsados. Ausência de toque com `contact_id` na
+  janela é dado insuficiente, nunca risco fabricado. Puramente
+  consultivo. Decisões em consulta ao Deal Strategist e Account
+  Strategist (divergiram, reconciliado). Ver
+  `engineering/specs/fase-h-cobertura-stakeholder.md`.
+
 - **`Contact.stance` (eixo de disposição)** (Fase H, módulo 2
   `contact-stance-field`): `champion`/`neutro`/`detrator`, distinto de
   `seniority_tier` (autoridade) — sempre preenchimento manual, nunca

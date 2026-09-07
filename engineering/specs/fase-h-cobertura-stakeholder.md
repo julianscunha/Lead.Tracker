@@ -128,3 +128,79 @@ docstring do model (aplicado acima) e confirmar que a ausência de rota
       sempre.
 - [x] Coluna nova adicionada sem migração manual.
 - [x] Revisão de código sem achados Importantes/Críticos.
+
+## Módulo 3 — `single-threaded-risk-signal`
+
+**Consulta ao Deal Strategist + Account Strategist** (em paralelo,
+divergiram em parte — reconciliado pelo engenheiro antes de implementar,
+não pelos agentes):
+
+- Deal Strategist: nunca inventar risco quando o dado é insuficiente —
+  `contact_id` (módulo 1) é opcional, a maioria dos toques históricos não
+  vai ter. "Zero toque com `contact_id` na janela" tem que devolver
+  `None` (dado insuficiente), nunca virar "0 contato ativo" como se fosse
+  fato observado.
+- Account Strategist: gate amplo (qualquer status ativo, não só
+  `qualified+`) e independente da cadência de QBR — são eixos ortogonais,
+  mesmo princípio de `compute_severity_band` vs. `compute_account_health`
+  nunca colapsarem. Propôs também reusar o vocabulário
+  "vermelha"/"amarela" de `compute_account_health` pro retorno.
+- **Reconciliação**: mantida a guarda de dado insuficiente do Deal
+  Strategist (mais alinhada ao princípio já repetido no código —
+  `is_aging_opportunity`, `compute_silence_signal` — de nunca fabricar
+  sinal a partir de ausência de dado); mantido o gate amplo do Account
+  Strategist (a própria guarda de dado insuficiente já filtra o ruído de
+  início de funil que motivaria um corte por estágio); REJEITADO o reuso
+  do vocabulário de severidade — misturaria este sinal (cobertura) com
+  saúde de conta (outro eixo, os dois concordam que nunca deve colapsar),
+  substituído por `reasons: tuple[str, ...]` com dois motivos
+  independentes, mesmo princípio de `SilenceSignal` (nunca colapsar duas
+  causas num motivo só).
+- Ambos convergiram: nunca mascarar `compute_silence_signal` (fatos
+  ortogonais — "ninguém respondeu" vs. "poucas pessoas cobrem a conta"),
+  `stance=detrator` fica fora de escopo (é sobre qualidade da relação,
+  não cobertura — sinal futuro separado).
+
+### Implementação
+
+- `core/opportunity_engine.py` — `ThreadingRiskSignal(reasons, active_contact_count,
+  has_active_decisor)`, `SINGLE_THREADED_RISK`/`NO_ECONOMIC_BUYER_CONTACT`,
+  `_ACTIVE_CONTACT_WINDOW_DAYS = 90`,
+  `compute_threading_risk_signal(status, contacts, touches, now, window_days)`
+  — função pura, nunca chama `update_opportunity_status`. `contacts` é
+  sempre da CONTA inteira; `touches` é sempre da OPORTUNIDADE específica
+  — a mesma conta com múltiplas oportunidades ativas pode dar resultados
+  diferentes por chamada, de propósito (rollup "risco da conta" fica pro
+  chamador, se algum dia precisar).
+
+### Achado da revisão de código
+
+Nenhum Importante/Crítico — revisão re-derivou a guarda de dado
+insuficiente, o tratamento de `contact_id` desconhecido (nunca quebra,
+conta pra `SINGLE_THREADED_RISK` mas nunca pra decisor) e a semântica de
+fronteira da janela (`>=`, inclusiva, provada por teste) diretamente do
+código, não dos nomes dos testes. Uma sugestão não-bloqueante aplicada:
+normalização de timezone extraída pra uma função local, pra ficar mais
+fácil de ler que nos `is_zombie_opportunity`/`is_aging_opportunity`.
+
+### Teste
+
+- `tests/test_threading_risk_signal.py` (12 testes): `dismissed` nunca
+  sinaliza; toques sem `contact_id` (ou nenhum toque) é dado
+  insuficiente, não risco; 1 contato ativo com/sem decisor; 2 contatos
+  ativos com/sem decisor; `contact_id` desconhecido nunca quebra (conta
+  como não-decisor); fronteira exata da janela (dentro e fora); todos os
+  status ativos são elegíveis exceto `dismissed`; `window_days`
+  customizado é realmente usado.
+
+### Critério de sucesso
+
+- [x] Nenhuma transição de `Opportunity.status` acontece a partir deste
+      módulo — só leitura/sugestão, mesmo padrão dos módulos 6-8 da
+      Fase G.
+- [x] Dado insuficiente nunca vira risco fabricado.
+- [x] As duas causas nunca colapsam num motivo só.
+- [x] Nunca reusa vocabulário de saúde de conta (decisão explícita da
+      reconciliação).
+- [x] `contact_id` desconhecido nunca derruba a função.
+- [x] Revisão de código sem achados Importantes/Críticos.
