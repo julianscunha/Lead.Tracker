@@ -75,7 +75,7 @@ export const styles = `
 .lt-btn:hover { background: hsl(var(--bg-subtle)); }
 .lt-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .lt-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.lt-hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 6px; }
+.lt-hint { font-size: 11px; color: hsl(var(--text-muted)); margin-top: 6px; }
 .lt-alert { font-size: 11px; font-weight: 600; color: hsl(var(--danger)); margin-top: 6px; }
 .lt-advisory { font-size: 11px; font-weight: 600; color: hsl(var(--warning)); margin: 0; }
 

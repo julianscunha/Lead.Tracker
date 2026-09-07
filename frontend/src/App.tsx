@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { exportOpportunitiesExcel, exportOpportunitiesPdf, listOpportunities } from './api'
 import { Dashboard } from './dashboard/Dashboard'
 import { applyFilters, defaultFilters, Filters, summarizeFilters, type FilterState } from './Filters'
@@ -99,30 +99,73 @@ function OpportunitiesView() {
   )
 }
 
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'oportunidades', label: 'Oportunidades' },
+  { id: 'prospeccao', label: 'Prospecção' },
+  { id: 'configuracoes', label: 'Configurações' },
+]
+
 export function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
+
+  // Achado da auditoria de acessibilidade: tabs sem navegação por seta
+  // obrigam quem usa teclado/leitor de tela a tabular por todos os
+  // outros controles da página pra trocar de aba. Roving tabindex
+  // padrão do padrão ARIA tabs: só a aba ativa é alcançável por Tab; as
+  // setas movem o foco (e a seleção) entre as abas.
+  const handleTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | null = null
+    if (e.key === 'ArrowRight') nextIndex = (index + 1) % TABS.length
+    else if (e.key === 'ArrowLeft') nextIndex = (index - 1 + TABS.length) % TABS.length
+    else if (e.key === 'Home') nextIndex = 0
+    else if (e.key === 'End') nextIndex = TABS.length - 1
+    if (nextIndex === null) return
+    e.preventDefault()
+    setTab(TABS[nextIndex].id)
+    const nextButton = e.currentTarget.parentElement?.children[nextIndex] as HTMLElement | undefined
+    nextButton?.focus()
+  }
 
   return (
     <div className="lt-root">
       <style>{styles}</style>
       <div className="lt-tabs" role="tablist" aria-label="Navegação Lead.Tracker">
-        <button type="button" role="tab" aria-selected={tab === 'dashboard'} className="lt-tab" onClick={() => setTab('dashboard')}>
-          Dashboard
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'oportunidades'} className="lt-tab" onClick={() => setTab('oportunidades')}>
-          Oportunidades
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'prospeccao'} className="lt-tab" onClick={() => setTab('prospeccao')}>
-          Prospecção
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'configuracoes'} className="lt-tab" onClick={() => setTab('configuracoes')}>
-          Configurações
-        </button>
+        {TABS.map((t, index) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`lt-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`lt-tabpanel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            className="lt-tab"
+            onClick={() => setTab(t.id)}
+            onKeyDown={e => handleTabKeyDown(e, index)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-      {tab === 'dashboard' && <Dashboard />}
-      {tab === 'oportunidades' && <OpportunitiesView />}
-      {tab === 'prospeccao' && <GeoDiscoveryWizard />}
-      {tab === 'configuracoes' && <SettingsScreen />}
+      {TABS.map(t => (
+        <div
+          key={t.id}
+          role="tabpanel"
+          id={`lt-tabpanel-${t.id}`}
+          aria-labelledby={`lt-tab-${t.id}`}
+          hidden={tab !== t.id}
+        >
+          {tab === t.id && (
+            <>
+              {t.id === 'dashboard' && <Dashboard />}
+              {t.id === 'oportunidades' && <OpportunitiesView />}
+              {t.id === 'prospeccao' && <GeoDiscoveryWizard />}
+              {t.id === 'configuracoes' && <SettingsScreen />}
+            </>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

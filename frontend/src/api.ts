@@ -193,6 +193,47 @@ export async function updateAiConfig(provider: string, apiKey: string): Promise<
   return resp.json()
 }
 
+export interface AgingSlaConfig {
+  days: number
+}
+
+export async function getAgingSlaConfig(): Promise<AgingSlaConfig> {
+  const resp = await fetch(`${BASE}/settings/config/aging-sla-days`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateAgingSlaConfig(days: number): Promise<AgingSlaConfig> {
+  const resp = await fetch(`${BASE}/settings/config/aging-sla-days`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ days }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export interface GeoPromotionConfig {
+  min_score: number
+  daily_cap: number
+}
+
+export async function getGeoPromotionConfig(): Promise<GeoPromotionConfig> {
+  const resp = await fetch(`${BASE}/settings/config/geo-promotion`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateGeoPromotionConfig(minScore: number, dailyCap: number): Promise<GeoPromotionConfig> {
+  const resp = await fetch(`${BASE}/settings/config/geo-promotion`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ min_score: minScore, daily_cap: dailyCap }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export async function testSourceConnection(sourceId: string): Promise<LastCheck> {
   const resp = await fetch(`${BASE}/settings/${sourceId}/test`, { method: 'POST' })
   if (!resp.ok) throw new Error(await friendlyError(resp))

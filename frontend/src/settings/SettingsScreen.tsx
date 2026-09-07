@@ -5,6 +5,7 @@ import { FieldMappingSection } from './FieldMappingSection'
 import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
+import { ThresholdsSection } from './ThresholdsSection'
 
 export function summarizeSync(results: SyncResult[]): string {
   if (results.length === 0) return 'Nenhuma fonte habilitada — ligue uma fonte acima antes de sincronizar.'
@@ -67,6 +68,7 @@ export function SettingsScreen() {
 
       {sources.find(s => s.id === 'salesforce')?.enabled && <FieldMappingSection />}
       <AiConfigSection />
+      <ThresholdsSection />
       <RulesSection />
       <RepTargetsSection />
     </div>

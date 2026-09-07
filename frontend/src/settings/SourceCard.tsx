@@ -87,7 +87,13 @@ export function SourceCard({ source, onChange }: { source: SourceStatus; onChang
             <span className="lt-hint">Sempre disponível</span>
           ) : (
             <label className="lt-toggle">
-              <input type="checkbox" checked={source.enabled} disabled={busy || !source.implemented} onChange={handleToggle} />
+              <input
+                type="checkbox"
+                checked={source.enabled}
+                disabled={busy || !source.implemented}
+                onChange={handleToggle}
+                aria-label={`Fonte ${source.label}`}
+              />
               <span>{source.enabled ? 'Ligado' : 'Desligado'}</span>
             </label>
           )}
