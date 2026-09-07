@@ -171,9 +171,16 @@ export interface AiProviderOption {
   label: string
 }
 
+export interface AiModelOption {
+  value: string
+  label: string
+}
+
 export interface AiConfig {
   provider: string
   has_key: boolean
+  model: string
+  model_options: AiModelOption[] // vazio = campo livre (ex.: OpenRouter)
   options: AiProviderOption[]
 }
 
@@ -183,11 +190,11 @@ export async function getAiConfig(): Promise<AiConfig> {
   return resp.json()
 }
 
-export async function updateAiConfig(provider: string, apiKey: string): Promise<AiConfig> {
+export async function updateAiConfig(provider: string, apiKey: string, model: string): Promise<AiConfig> {
   const resp = await fetch(`${BASE}/settings/ai`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider, api_key: apiKey }),
+    body: JSON.stringify({ provider, api_key: apiKey, model }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()

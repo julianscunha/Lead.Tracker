@@ -281,6 +281,60 @@ def test_put_ai_config_rejects_unknown_provider():
         assert "inválido" in resp.json()["detail"].lower()
 
 
+def test_get_ai_config_returns_three_model_tiers_for_openai_gemini_claude():
+    with _TempEnv():
+        for provider in ("openai", "gemini", "claude"):
+            client.put("/modules/lead_tracker/settings/ai", json={"provider": provider, "api_key": "sk-x"})
+            resp = client.get("/modules/lead_tracker/settings/ai")
+            options = resp.json()["model_options"]
+            assert len(options) == 3
+            values = [o["value"] for o in options]
+            assert len(set(values)) == 3  # sem model id duplicado entre os 3 níveis
+
+
+def test_get_ai_config_returns_no_model_tiers_for_openrouter():
+    """OpenRouter já dá acesso a qualquer modelo por string livre — travar em
+    3 opções fixas seria regressão, não melhoria."""
+    with _TempEnv():
+        client.put("/modules/lead_tracker/settings/ai", json={"provider": "openrouter", "api_key": "sk-x"})
+        resp = client.get("/modules/lead_tracker/settings/ai")
+        assert resp.json()["model_options"] == []
+
+
+def test_put_ai_config_persists_chosen_model():
+    with _TempEnv():
+        resp = client.put(
+            "/modules/lead_tracker/settings/ai",
+            json={"provider": "claude", "api_key": "sk-x", "model": "claude-opus-5"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["model"] == "claude-opus-5"
+
+        resp = client.get("/modules/lead_tracker/settings/ai")
+        assert resp.json()["model"] == "claude-opus-5"
+
+
+def test_put_ai_config_blank_model_keeps_existing_model():
+    with _TempEnv():
+        client.put(
+            "/modules/lead_tracker/settings/ai",
+            json={"provider": "openai", "api_key": "sk-x", "model": "gpt-5-pro"},
+        )
+        resp = client.put("/modules/lead_tracker/settings/ai", json={"provider": "openai", "api_key": ""})
+        assert resp.status_code == 200
+        assert resp.json()["model"] == "gpt-5-pro"
+
+
+def test_put_ai_config_accepts_freeform_model_for_openrouter():
+    with _TempEnv():
+        resp = client.put(
+            "/modules/lead_tracker/settings/ai",
+            json={"provider": "openrouter", "api_key": "sk-x", "model": "meta-llama/llama-3.1-405b"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["model"] == "meta-llama/llama-3.1-405b"
+
+
 def test_get_field_catalog_returns_fields_with_no_mapping_by_default():
     with _TempEnvAndDb(), _FieldCatalogStub():
         _StubSalesforceProvider.fields = [

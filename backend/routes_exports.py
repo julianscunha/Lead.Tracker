@@ -134,7 +134,7 @@ async def email_draft(body: EmailDraftRequest) -> dict:
             "Configure a chave de IA na aba Configurações (seção Inteligência Artificial) para gerar rascunhos.",
         ))
 
-    provider = create_ai_provider(env.get("AI_PROVIDER", ""), api_key)
+    provider = create_ai_provider(env.get("AI_PROVIDER", ""), api_key, env.get("AI_MODEL", ""))
     try:
         draft = await generate_email_draft(
             provider, body.company_name, body.opportunity_type,

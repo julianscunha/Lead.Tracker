@@ -23,11 +23,16 @@ _PROVIDERS: dict[str, type[AIProvider]] = {
 DEFAULT_PROVIDER = "openrouter"
 
 
-def create_ai_provider(provider_name: str, api_key: str) -> AIProvider:
+def create_ai_provider(provider_name: str, api_key: str, model: str = "") -> AIProvider:
+    """`model` vazio usa o `_DEFAULT_MODEL` embutido no provider escolhido —
+    nunca obrigatório, pra não quebrar instalação com `.env` antigo sem
+    `AI_MODEL` configurado."""
     name = (provider_name or DEFAULT_PROVIDER).strip().lower()
     cls = _PROVIDERS.get(name)
     if cls is None:
         raise AIProviderError(
             f"Provider de IA '{provider_name}' não suportado. Opções: {', '.join(_PROVIDERS)}."
         )
+    if model:
+        return cls(api_key, model=model)
     return cls(api_key)

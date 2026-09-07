@@ -134,9 +134,35 @@ _AI_PROVIDER_LABELS = {
     "claude": "Anthropic Claude",
 }
 
+# Achado do usuário: cada provider tinha só um modelo padrão fixo no código
+# (nenhum documentado como decisão deliberada), sem opção de escolha na UI —
+# ex.: Claude usava claude-sonnet-5 (camada intermediária) enquanto os outros
+# três usavam a camada barata, inconsistência sem critério registrado. Três
+# níveis por provider (nunca pra OpenRouter, que já dá acesso a qualquer
+# modelo por string livre — trava-lo em 3 opções seria regressão).
+# IDs confirmados contra doc oficial (developers.openai.com/ai.google.dev,
+# Sept/2026) e a skill claude-api — revisar quando os provedores lançarem
+# gerações novas, esses nomes rotacionam com frequência.
+_MODEL_TIERS: dict[str, list[tuple[str, str, str]]] = {
+    "openai": [
+        ("barato", "gpt-5-mini"), ("equilibrado", "gpt-5"), ("caro", "gpt-5-pro"),
+    ],
+    "gemini": [
+        ("barato", "gemini-2.5-flash-lite"), ("equilibrado", "gemini-2.5-flash"), ("caro", "gemini-2.5-pro"),
+    ],
+    "claude": [
+        ("barato", "claude-haiku-4-5"), ("equilibrado", "claude-sonnet-5"), ("caro", "claude-opus-5"),
+    ],
+}
+
 
 class AiProviderOption(BaseModel):
     value: str
+    label: str
+
+
+class AiModelOption(BaseModel):
+    value: str  # o próprio model id (ex. "gpt-5") — grava direto em AI_MODEL, sem tradução extra
     label: str
 
 
@@ -148,12 +174,18 @@ class AiConfig(BaseModel):
     `SOURCES` — IA não sincroniza empresa nenhuma, não é uma fonte de dado."""
     provider: str  # "" = nenhum configurado ainda (usa o default do backend)
     has_key: bool
+    model: str  # "" = usa o _DEFAULT_MODEL embutido no provider
+    model_options: list[AiModelOption]  # vazio = campo livre (OpenRouter, ou provider ainda não escolhido)
     options: list[AiProviderOption]
 
 
 def _ai_config(env: dict[str, str]) -> AiConfig:
+    provider = env.get("AI_PROVIDER", "")
+    tiers = _MODEL_TIERS.get(provider, [])
     return AiConfig(
-        provider=env.get("AI_PROVIDER", ""), has_key=bool(env.get("AI_API_KEY")),
+        provider=provider, has_key=bool(env.get("AI_API_KEY")),
+        model=env.get("AI_MODEL", ""),
+        model_options=[AiModelOption(value=model_id, label=f"{tier.capitalize()} ({model_id})") for tier, model_id in tiers],
         options=[AiProviderOption(value=k, label=v) for k, v in _AI_PROVIDER_LABELS.items()],
     )
 
@@ -161,6 +193,7 @@ def _ai_config(env: dict[str, str]) -> AiConfig:
 class AiConfigUpdate(BaseModel):
     provider: str
     api_key: str = ""  # vazio = mantém a chave já salva (mesmo padrão de SourceCard/campo secreto)
+    model: str = ""  # vazio = mantém o modelo já salvo (ou usa o default do provider, se nunca configurado)
 
 
 @router.get("/ai")
@@ -172,7 +205,7 @@ async def get_ai_config() -> AiConfig:
 async def update_ai_config(body: AiConfigUpdate) -> AiConfig:
     if body.provider and body.provider not in _AI_PROVIDER_LABELS:
         raise_http(DomainError(ErrorCategory.INVALID_DATA, "Provedor de IA inválido."))
-    values = {"AI_PROVIDER": body.provider}
+    values = {"AI_PROVIDER": body.provider, "AI_MODEL": body.model}
     if body.api_key:
         values["AI_API_KEY"] = body.api_key
     set_env_values(_ENV_PATH, values)

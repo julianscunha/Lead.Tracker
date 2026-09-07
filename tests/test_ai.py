@@ -130,6 +130,15 @@ def test_factory_resolves_each_supported_provider():
     assert create_ai_provider("claude", "k").id == "claude"
 
 
+def test_factory_uses_provider_default_model_when_none_given():
+    assert create_ai_provider("claude", "k")._model == "claude-sonnet-5"
+
+
+def test_factory_uses_explicit_model_when_given():
+    provider = create_ai_provider("claude", "k", model="claude-opus-5")
+    assert provider._model == "claude-opus-5"
+
+
 def test_factory_rejects_unknown_provider():
     try:
         create_ai_provider("nao_existe", "k")
