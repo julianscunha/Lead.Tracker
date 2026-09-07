@@ -307,6 +307,22 @@ class OpportunityStatusChange(BaseModel):
     dismissal_reason: DismissalReason | None = None
 
 
+class OutreachTouch(BaseModel):
+    """Fase G, módulo 5 (`outreach-touch-model`) — registro insert-only do
+    fato consumado ("marcado como enviado"), mesmo padrão de
+    `OpportunityStatusChange`. Nunca guarda "próximo passo planejado" — isso
+    é sempre derivado na leitura (módulo 6, `compute_next_suggested_touch`),
+    nunca persistido, mesmo princípio de `compute_qbr_suggested_days`
+    (Fase C). `channel`/`reason_label` ficam string livre — core genérico,
+    sem hardcode de canal (e-mail/ligação/LinkedIn/...) nem motivo fechado."""
+    id: str = Field(default_factory=_new_id)
+    opportunity_id: str
+    rep_id: str
+    channel: str
+    reason_label: str
+    sent_at: datetime = Field(default_factory=_now)
+
+
 class OpportunitySnapshot(BaseModel):
     """Foto diária de uma oportunidade viva (Fase D) — fonte de leitura do
     dashboard, nunca as tabelas transacionais em tempo real (decisão de

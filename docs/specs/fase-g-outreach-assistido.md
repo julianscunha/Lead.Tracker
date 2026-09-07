@@ -323,3 +323,69 @@ todos os guard-rails desta fase usam.
 - [x] Nenhum gatilho colide com palavra/verbo comum do português —
       provado por teste, não só por inspeção.
 - [x] Revisão de código sem achados Importantes pendentes.
+
+## Módulo 5 — `outreach-touch-model`
+
+Classificado como mecânico no mapa de capacidades (sem consulta a
+especialista). `OutreachTouch` — registro insert-only do fato
+consumado "toque marcado como enviado" (canal, motivo, quando), mesmo
+padrão de `OpportunityStatusChange` (histórico imutável). Nunca guarda
+"próximo passo planejado" — isso é sempre derivado na leitura pelo
+módulo 6 (`compute_next_suggested_touch`), nunca persistido, mesmo
+princípio de `compute_qbr_suggested_days` (Fase C).
+
+`channel`/`reason_label` ficam string livre, sem enum — decisão
+consciente: canal de outreach não é regra de negócio do domínio de
+oportunidades, é detalhe de apresentação que os módulos 6/7 vão
+normalizar na camada de UI se precisarem (ex.: ícone por canal), sem
+tocar o modelo de persistência. Fechar um enum aqui, antes de ver o
+módulo 6/7 usá-lo, seria especulação que YAGNI existe pra evitar.
+
+`save_outreach_touch` usa `session.add`+`commit` direto (não o helper
+`_upsert`/`session.merge` usado pelas outras entidades) — deliberado:
+é a primeira função deste arquivo pensada como caminho de escrita real
+de uma entidade insert-only; `session.add` levanta erro numa colisão
+de id em vez de silenciosamente fazer merge sobre uma linha de
+histórico existente, que seria o comportamento errado aqui.
+
+`count_outreach_touches_today` já nasce usando
+`datetime.now(timezone.utc).date()` como contrato esperado do
+chamador — aprendendo do bug já cometido uma vez em
+`count_geo_discoveries_today` (Fase E, módulo 6), com o teste de
+regressão escrito ANTES de qualquer código de negócio depender dele.
+
+**Revisão de código**: aprovada sem achados Críticos/Importantes.
+Sugestão aplicada: `count_outreach_touches_today` carrega todo o
+histórico do rep e filtra em Python (mesmo padrão de
+`count_geo_discoveries_today`) — mas aqui a suposição de volume é
+mais frágil (outreach não tem cota própria que limite o total
+acumulado ao longo da vida da oportunidade). Documentado com
+`ponytail:` no código, nomeando o teto e o upgrade (`WHERE sent_at >=
+início do dia UTC` + índice composto `(rep_id, sent_at)` se o volume
+justificar) — nunca resolvido especulativamente agora.
+
+### Não objetivo deste módulo
+
+- Enum fechado pra `channel` — decisão consciente de escopo, não
+  esquecimento.
+- Índice composto em `(rep_id, sent_at)` — prematuro pro volume atual,
+  documentado como upgrade futuro (`ponytail:`), não implementado.
+- Qualquer lógica de negócio (motor de cadência, UI) — é só o modelo
+  de dados; módulo 6 consome isso.
+
+### Teste
+
+- `tests/test_persistence.py` (5 testes novos): round-trip; múltiplos
+  toques nunca se sobrescrevem (garantia central do insert-only);
+  filtro por oportunidade; contagem só do rep certo hoje; contrato
+  UTC travado com caso de borda real (5 minutos após meia-noite UTC).
+- `tests/test_db_table_registration.py`: contagem bumped de 14→15
+  (`outreach_touches`).
+
+### Critério de sucesso
+
+- [x] Nenhum "próximo passo planejado" persistido — sempre derivado.
+- [x] Múltiplos toques da mesma oportunidade nunca se sobrescrevem.
+- [x] Contrato UTC correto desde o nascimento da função, sem repetir
+      o bug já corrigido uma vez na Fase E.
+- [x] Revisão de código sem achados Críticos/Importantes.

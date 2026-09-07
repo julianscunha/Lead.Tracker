@@ -17,14 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_models import (
     CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
-    OpportunitySnapshotORM, OpportunityStatusChangeORM, PortfolioORM, ProductORM, RepTargetORM, ServiceORM,
-    VendorORM,
+    OpportunitySnapshotORM, OpportunityStatusChangeORM, OutreachTouchORM, PortfolioORM, ProductORM, RepTargetORM,
+    ServiceORM, VendorORM,
 )
 from core.models import (
     Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
     DismissalReasonRequiredError, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
-    OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio, Product, ProductRelation, RepTarget,
-    SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
+    OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType, Portfolio, Product, ProductRelation,
+    RepTarget, SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import is_zombie_opportunity, requires_status_change_justification
 
@@ -416,6 +416,46 @@ async def list_opportunity_status_changes(session: AsyncSession, opportunity_id:
         status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at), note=r.note,
         dismissal_reason=DismissalReason(r.dismissal_reason) if r.dismissal_reason else None,
     ) for r in rows]
+
+
+# ── OutreachTouch ────────────────────────────────────────────────────────────
+
+async def save_outreach_touch(session: AsyncSession, touch: OutreachTouch) -> None:
+    """Insert-only — fato consumado ("marcado como enviado"), nunca editado
+    nem desfeito depois de registrado (mesmo espírito de
+    `OpportunityStatusChange`: histórico imutável)."""
+    session.add(OutreachTouchORM(
+        id=touch.id, opportunity_id=touch.opportunity_id, rep_id=touch.rep_id,
+        channel=touch.channel, reason_label=touch.reason_label, sent_at=touch.sent_at,
+    ))
+    await session.commit()
+
+
+async def list_outreach_touches(session: AsyncSession, opportunity_id: str) -> list[OutreachTouch]:
+    rows = (await session.execute(
+        select(OutreachTouchORM).where(OutreachTouchORM.opportunity_id == opportunity_id)
+    )).scalars().all()
+    return [OutreachTouch(
+        id=r.id, opportunity_id=r.opportunity_id, rep_id=r.rep_id,
+        channel=r.channel, reason_label=r.reason_label, sent_at=_ensure_utc(r.sent_at),
+    ) for r in rows]
+
+
+async def count_outreach_touches_today(session: AsyncSession, rep_id: str, today: date) -> int:
+    """Cota diária de prospecção fria (módulo 6) — mesmo padrão UTC de
+    `count_geo_discoveries_today` (Fase E): comparar contra data LOCAL em vez
+    de `datetime.now(timezone.utc).date()` desalinha a cota perto da meia-noite
+    em qualquer servidor fora de UTC (bug real já encontrado e corrigido uma
+    vez nesta base de código — nunca repetir aqui).
+
+    ponytail: carrega todo o histórico do rep e filtra em Python — mesmo
+    padrão aceito em `count_geo_discoveries_today`, mas aqui a suposição de
+    volume é mais frágil (outreach não tem cota própria que limite o total
+    acumulado ao longo da vida da oportunidade, diferente de descoberta
+    geográfica). Upgrade quando doer: `WHERE sent_at >= início do dia UTC`,
+    e um índice composto `(rep_id, sent_at)` se o volume justificar."""
+    rows = (await session.execute(select(OutreachTouchORM).where(OutreachTouchORM.rep_id == rep_id))).scalars().all()
+    return sum(1 for r in rows if _ensure_utc(r.sent_at).date() == today)
 
 
 async def update_opportunity_status(

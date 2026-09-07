@@ -138,6 +138,18 @@ class OpportunityStatusChangeORM(Base):
     dismissal_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class OutreachTouchORM(Base):
+    """Fase G, módulo 5 (`outreach-touch-model`) — insert-only, mesmo padrão
+    de `OpportunityStatusChangeORM`."""
+    __tablename__ = "outreach_touches"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    opportunity_id: Mapped[str] = mapped_column(String)
+    rep_id: Mapped[str] = mapped_column(String)
+    channel: Mapped[str] = mapped_column(String)
+    reason_label: Mapped[str] = mapped_column(String)
+    sent_at: Mapped[datetime] = mapped_column()
+
+
 class OpportunitySnapshotORM(Base):
     """Fase D — foto diária de cada oportunidade viva, recalculada no fim
     de todo `POST /sync` (nunca em tempo real a partir das tabelas

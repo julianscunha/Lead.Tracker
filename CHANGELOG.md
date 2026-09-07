@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Histórico de toques de outreach** (Fase G, módulo 5
+  `outreach-touch-model`): novo `OutreachTouch`, registro insert-only
+  do fato "toque marcado como enviado" (canal, motivo, quando), mesmo
+  padrão de `OpportunityStatusChange`. Base de dados pro motor de
+  cadência sugerida dos próximos módulos — nunca persiste "próximo
+  passo planejado", sempre derivado na leitura. Ver
+  `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Proibições determinísticas de urgência falsa e generalização vazia**
   (Fase G, módulo 4 `prompt-prohibition-guards`): subject/body/cta
   são rejeitados (pedindo nova geração) se mencionarem prazo/urgência

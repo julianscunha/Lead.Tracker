@@ -12,18 +12,18 @@ from datetime import date, datetime, timedelta, timezone
 
 from core.models import (
     Address, Company, CompanySignal, Contact, ContextNote, DismissalReason, DismissalReasonRequiredError,
-    FieldMapping, ICPProfile, Opportunity, OpportunityStatus, OpportunityStatusChange, PeriodType, Portfolio,
-    RepTarget, SemanticFieldRole, SourceRef, StatusChangeRequiresJustificationError, Vendor,
+    FieldMapping, ICPProfile, Opportunity, OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType,
+    Portfolio, RepTarget, SemanticFieldRole, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.opportunity_engine import CorrelationRule, evaluate_rules, field_mapping_id, rep_target_id
 from core.repository import (
-    count_geo_discoveries_today, delete_field_mapping, get_company, get_icp_profile, get_opportunity,
-    get_portfolio_by_company, list_active_rules, list_companies, list_company_signals, list_contacts,
-    list_field_mappings, list_latest_snapshot, list_opportunities, list_opportunity_status_changes,
-    list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company, save_company_signal,
-    save_contact, save_field_mapping, save_icp_profile, save_opportunity, save_opportunity_status_change,
-    save_portfolio, save_rep_target, save_rule, save_vendor, update_company_renewal_date,
-    update_opportunity_qualification, update_opportunity_status,
+    count_geo_discoveries_today, count_outreach_touches_today, delete_field_mapping, get_company, get_icp_profile,
+    get_opportunity, get_portfolio_by_company, list_active_rules, list_companies, list_company_signals,
+    list_contacts, list_field_mappings, list_latest_snapshot, list_opportunities, list_opportunity_status_changes,
+    list_outreach_touches, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company,
+    save_company_signal, save_contact, save_field_mapping, save_icp_profile, save_opportunity,
+    save_opportunity_status_change, save_outreach_touch, save_portfolio, save_rep_target, save_rule, save_vendor,
+    update_company_renewal_date, update_opportunity_qualification, update_opportunity_status,
 )
 
 
@@ -1296,6 +1296,103 @@ def test_list_rep_targets_filters_by_period():
     asyncio.run(run())
 
 
+def test_save_outreach_touch_round_trips():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            touch = OutreachTouch(
+                opportunity_id="o1", rep_id="rep-1", channel="email", reason_label="Reforçar diferencial X",
+            )
+            async with session_factory() as session:
+                await save_outreach_touch(session, touch)
+                loaded = await list_outreach_touches(session, "o1")
+            assert len(loaded) == 1
+            assert loaded[0].channel == "email"
+            assert loaded[0].reason_label == "Reforçar diferencial X"
+
+    asyncio.run(run())
+
+
+def test_save_outreach_touch_multiple_touches_never_overwrite_each_other():
+    """Insert-only -- cada toque é uma linha de histórico própria, nunca um
+    upsert que sobrescreve o toque anterior da mesma oportunidade."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="rep-1", channel="email", reason_label="Primeiro toque",
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="rep-1", channel="ligação", reason_label="Segundo toque",
+                ))
+                loaded = await list_outreach_touches(session, "o1")
+            assert len(loaded) == 2
+            assert {t.reason_label for t in loaded} == {"Primeiro toque", "Segundo toque"}
+
+    asyncio.run(run())
+
+
+def test_list_outreach_touches_filters_by_opportunity():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="rep-1", channel="email", reason_label="Toque o1",
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o2", rep_id="rep-1", channel="email", reason_label="Toque o2",
+                ))
+                loaded = await list_outreach_touches(session, "o1")
+            assert len(loaded) == 1
+            assert loaded[0].opportunity_id == "o1"
+
+    asyncio.run(run())
+
+
+def test_count_outreach_touches_today_counts_only_that_rep_today():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            today = datetime.now(timezone.utc).date()
+            async with session_factory() as session:
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="rep-1", channel="email", reason_label="Hoje, rep-1",
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o2", rep_id="rep-2", channel="email", reason_label="Hoje, outro rep",
+                ))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o3", rep_id="rep-1", channel="email", reason_label="Ontem",
+                    sent_at=datetime.now(timezone.utc) - timedelta(days=1),
+                ))
+                count = await count_outreach_touches_today(session, "rep-1", today)
+            assert count == 1
+
+    asyncio.run(run())
+
+
+def test_count_outreach_touches_today_compares_against_utc_date_not_local():
+    """Trava o contrato desde já (achado já cometido uma vez com
+    count_geo_discoveries_today, Fase E) — created_at logo após meia-noite
+    UTC precisa contar como "hoje" contra a data UTC de hoje."""
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            utc_today = datetime.now(timezone.utc).date()
+            just_after_utc_midnight = datetime.combine(utc_today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(minutes=5)
+            async with session_factory() as session:
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="rep-1", channel="email", reason_label="Recém após meia-noite UTC",
+                    sent_at=just_after_utc_midnight,
+                ))
+                count = await count_outreach_touches_today(session, "rep-1", utc_today)
+            assert count == 1
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     test_company_round_trip_preserves_sources_and_timestamps()
     test_company_round_trip_preserves_account_standard_fields()
@@ -1352,4 +1449,9 @@ if __name__ == "__main__":
     test_save_opportunity_never_resets_manually_advanced_status_on_resync()
     test_save_opportunity_never_resets_dismissal_reason_on_resync()
     test_save_opportunity_concurrent_with_qualification_update_never_reverts_it()
+    test_save_outreach_touch_round_trips()
+    test_save_outreach_touch_multiple_touches_never_overwrite_each_other()
+    test_list_outreach_touches_filters_by_opportunity()
+    test_count_outreach_touches_today_counts_only_that_rep_today()
+    test_count_outreach_touches_today_compares_against_utc_date_not_local()
     print("OK — todos os testes de persistência passaram")
