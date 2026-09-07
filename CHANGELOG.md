@@ -71,6 +71,25 @@
   enquanto a tela de Oportunidades continua montada; só refaz a busca
   depois de marcar um toque como enviado (dado real mudou).
 
+- **Prazo de triagem e limites de promoção geográfica ganham painel na
+  interface** (achado de auditoria de UX): "Limites e prazos" em
+  Configurações edita o prazo (dias) que define "triagem atrasada" e o
+  score mínimo/limite diário da promoção automática de descobertas de
+  geolocalização — rotas já existiam (`GET`/`PUT /settings/config/
+  aging-sla-days` e `/config/geo-promotion`), só faltava a tela.
+
+- **Navegação por teclado nas abas do módulo** (achado de auditoria de
+  acessibilidade): as abas (Dashboard/Oportunidades/Prospecção/
+  Configurações) agora expõem `role="tabpanel"` pro conteúdo de cada uma
+  e aceitam seta esquerda/direita, Home e End pra trocar de aba sem
+  precisar tabular por cima do resto da página primeiro.
+
+- **Nome acessível ambíguo no toggle de fonte de dados**: o controle de
+  ligar/desligar uma fonte (Salesforce, Google Maps, ...) só anunciava
+  "Ligado"/"Desligado" pra leitor de tela, sem dizer qual fonte —
+  ambíguo com várias fontes na mesma tela. Agora identifica a fonte
+  (“Fonte Salesforce”, “Fonte Google Maps”).
+
 - **Migração leve de schema em `init_db`**: `create_all` só criava tabela
   inteira nova, nunca adicionava coluna a uma tabela que já existia — uma
   instalação que já tinha `companies` antes de `Company.deal_size_hint`
