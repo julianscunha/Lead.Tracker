@@ -1,5 +1,6 @@
-import { SEQUENTIAL_HUE } from './palette'
+import { SEQUENTIAL_HUE, SEQUENTIAL_HUE_DARK } from './palette'
 import { ChartTooltip, useTooltip } from './Tooltip'
+import { useIsDarkTheme } from './useIsDarkTheme'
 
 export interface BarDatum { label: string; value: number }
 
@@ -11,6 +12,7 @@ export function BarChart({ data, formatValue, emptyMessage }: {
   emptyMessage: string
 }) {
   const { tooltip, setTooltip } = useTooltip()
+  const barColor = useIsDarkTheme() ? SEQUENTIAL_HUE_DARK : SEQUENTIAL_HUE
 
   if (data.length === 0) {
     return <p className="lt-empty" role="status">{emptyMessage}</p>
@@ -33,7 +35,7 @@ export function BarChart({ data, formatValue, emptyMessage }: {
           <div style={{ height: 8, background: 'hsl(var(--bg-subtle))', borderRadius: 4 }}>
             <div
               style={{
-                height: 8, borderRadius: 4, background: SEQUENTIAL_HUE,
+                height: 8, borderRadius: 4, background: barColor,
                 width: `${(d.value / max) * 100}%`,
               }}
               onMouseEnter={e => setTooltip({ x: e.clientX, y: e.clientY, label: d.label, value: formatValue(d.value) })}

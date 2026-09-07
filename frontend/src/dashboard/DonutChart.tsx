@@ -1,5 +1,6 @@
-import { CATEGORICAL, foldToOther } from './palette'
+import { CATEGORICAL, CATEGORICAL_DARK, foldToOther } from './palette'
 import { ChartTooltip, useTooltip } from './Tooltip'
+import { useIsDarkTheme } from './useIsDarkTheme'
 
 export interface DonutDatum { label: string; value: number }
 
@@ -20,10 +21,12 @@ function arcPath(startAngle: number, endAngle: number): string {
   return `M ${x1} ${y1} A ${RADIUS} ${RADIUS} 0 ${largeArc} 1 ${x2} ${y2}`
 }
 
-/** Distribuição categórica — donut. Legenda sempre presente (≥2 séries), rótulo
- * direto só nas 4 maiores fatias (seletivo, não em toda fatia pequena). */
+/** Distribuição categórica — donut. Legenda sempre presente (≥2 séries) com
+ * rótulo de texto pra cada fatia (identidade nunca só por cor) — sem rótulo
+ * direto sobre o arco em si, que não cabe numa fatia fina. */
 export function DonutChart({ data, emptyMessage }: { data: DonutDatum[]; emptyMessage: string }) {
   const { tooltip, setTooltip } = useTooltip()
+  const palette = useIsDarkTheme() ? CATEGORICAL_DARK : CATEGORICAL
 
   if (data.length === 0) {
     return <p className="lt-empty" role="status">{emptyMessage}</p>
@@ -37,7 +40,7 @@ export function DonutChart({ data, emptyMessage }: { data: DonutDatum[]; emptyMe
     const startAngle = cursor
     const sweep = (d.value / total) * 360
     cursor += sweep
-    return { ...d, startAngle, endAngle: cursor, color: CATEGORICAL[i % CATEGORICAL.length] }
+    return { ...d, startAngle, endAngle: cursor, color: palette[i % palette.length] }
   })
 
   return (

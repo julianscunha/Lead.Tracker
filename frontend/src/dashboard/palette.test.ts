@@ -17,7 +17,7 @@ describe('foldToOther', () => {
   })
 
   it('soma corretamente o valor agrupado em "Outros"', () => {
-    const items = Array.from({ length: 10 }, (_, i) => ({ value: 1 }))
+    const items = Array.from({ length: 10 }, () => ({ value: 1 }))
     const result = foldToOther(items, () => 'item')
     const outros = result[result.length - 1]
     // 10 itens, 7 slots nomeados + 1 "Outros" com os 3 restantes
