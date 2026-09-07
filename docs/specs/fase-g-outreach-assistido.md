@@ -389,3 +389,85 @@ justificar) — nunca resolvido especulativamente agora.
 - [x] Contrato UTC correto desde o nascimento da função, sem repetir
       o bug já corrigido uma vez na Fase E.
 - [x] Revisão de código sem achados Críticos/Importantes.
+
+## Módulo 6 — `suggested-cadence-engine`
+
+Consulta ao agente Outbound Strategist antes de implementar (números
+e regras confirmados, não reabrir). Função pura
+`compute_next_suggested_touch` (`core/opportunity_engine.py`) — nunca
+dispara nada, nunca decide status sozinha, sempre depende do rep
+marcar como enviado (módulo 5).
+
+**Cliente ativo**: 3 toques — toque 1 (dia 0, email,
+"continuidade_uso_atual"); toque 2 (+7 dias, ligação,
+"gap_portfolio"); toque 3 (+7 dias após o 2º, linkedin,
+"prova_social_urgencia"). Categorias mudam de ângulo (uso atual →
+expansão → prova social), nunca 3 e-mails genéricos repetidos.
+
+**Prospecção fria**: 2 toques — toque 1 (dia 0, email,
+"abertura_sinal"); toque 2 (+4 dias, ligação, "reforco_angulo_novo").
+Depois do 2º sem avanço, para — nunca sugere 3º toque automaticamente.
+
+**Cap diário**: 25 toques/dia por REP (não por oportunidade), cliente
+ativo + prospecção fria no MESMO contador — nunca dois caps
+paralelos, senão volta a ser volume disfarçado.
+
+**Três estados distintos**, nunca um `None` opaco:
+`CadenceSuggestion(channel, reason_category)` (há toque a sugerir);
+`CADENCE_AWAITING_INTERVAL` (ainda dentro do intervalo, não é estado
+especial pra UI); `CADENCE_EXHAUSTED` (cadência acabou sem avanço —
+sinal de decisão manual); `CADENCE_DAILY_CAP_REACHED` (cota do rep
+estourada — conceito de rep, não de oportunidade).
+
+O passo da cadência é determinado só pela CONTAGEM de toques já
+feitos (`len(touches)`) — nunca por inspecionar `reason_label` (string
+livre) pra adivinhar categoria. `touches_today_for_rep`/`daily_cap`
+chegam como parâmetro (nunca lidos de sessão aqui), mesmo padrão de
+`select_promotions` (Fase E) — função pura e testável sem sessão.
+
+**Achado da revisão de código** (1 Importante, corrigido; 2 Sugestões
+aplicadas):
+1. `list_outreach_touches` (módulo 5) não garante ordem — se um
+   chamador futuro passasse a lista fora de ordem, `touches[-1]`
+   escolheria silenciosamente o toque ERRADO como "mais recente" pra
+   calcular o próximo intervalo, sem levantar exceção nenhuma.
+   Corrigido: a função ordena internamente por `sent_at` antes de
+   indexar, ficando auto-defensiva independente do que o chamador
+   passar (mais barato que garantir ordem em todo `ORDER BY` de quem
+   consome).
+2. Nenhum teste provava que `daily_cap` como parâmetro de fato
+   substitui o default — todos usavam 25 (igual ao
+   `OUTREACH_DAILY_CAP`). Adicionado teste com cap customizado (5).
+3. Nenhum teste documentava o comportamento com lista fora de ordem.
+   Adicionado teste comparando lista em ordem vs. fora de ordem,
+   confirmando resultado idêntico (regressão do achado 1).
+
+### Não objetivo deste módulo
+
+- Aplicação em lote do cap pra múltiplas oportunidades de um rep
+  (decidir QUAIS sugestões "gastam" o cap quando há mais devidas que
+  vagas) — isso é módulo 7 (UI), que itera as oportunidades e aplica
+  a prioridade (cliente ativo antes de prospecção fria).
+- Cap configurável via tela de Configurações — `OUTREACH_DAILY_CAP` é
+  constante fixa nesta fatia; configurabilidade via `.env`/UI fica
+  pra quando houver necessidade real (YAGNI).
+
+### Teste
+
+- `tests/test_cadence_engine.py` (14 testes): cada posição das duas
+  cadências (toque devido e aguardando intervalo); esgotamento das
+  duas cadências; cap bloqueando toque devido; cap não bloqueando
+  abaixo do limite; cap customizado via parâmetro (regressão);
+  ordem de checagem cap-antes-de-esgotamento; lista fora de ordem
+  nunca escolhe o anchor errado (regressão); categorias nunca se
+  repetem dentro da mesma cadência (garantia estrutural).
+
+### Critério de sucesso
+
+- [x] Função genuinely pura — nenhum import de `core.repository`,
+      nenhuma sessão/rede.
+- [x] Categoria nunca se repete dentro da mesma cadência — garantido
+      pela estrutura (índice na tabela), não por checagem de texto.
+- [x] Lista de toques fora de ordem nunca produz resultado errado
+      silenciosamente — provado por teste.
+- [x] Revisão de código sem achados Importantes pendentes.

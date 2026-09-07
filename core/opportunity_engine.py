@@ -15,12 +15,13 @@ daqui pra quem já importava deste módulo continuar funcionando.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, PeriodType, Portfolio, Product,
-    RuleError, Service, SourceRef,
+    Company, CompanySignal, CorrelationRule, Opportunity, OpportunityStatus, OutreachTouch, PeriodType, Portfolio,
+    Product, RuleError, Service, SourceRef,
 )
 
 _WARM_WINDOW_DAYS = 120
@@ -171,11 +172,96 @@ def field_mapping_id(provider_id: str, source_field_api_name: str) -> str:
     return str(uuid5(NAMESPACE_URL, key))
 
 
+# ── Fase G, módulo 6 (`suggested-cadence-engine`) — Outbound Strategist
+# consultado (docs/specs/fase-g-outreach-assistido.md, módulo 6). Função pura:
+# nunca dispara nada, nunca decide status sozinha (CLAUDE.md "IA/regra nunca
+# decide sozinha" aplicado aqui também, mesmo sem IA envolvida) — só sugere,
+# sempre depende do rep marcar como enviado (`OutreachTouch`, módulo 5).
+#
+# Passo (índice na cadência) é determinado só pela CONTAGEM de toques já
+# feitos — nunca por inspecionar o texto de `reason_label` (que é string
+# livre) pra "adivinhar" em que categoria cada toque anterior estava. Isso
+# também garante estruturalmente que a categoria nunca se repete: cada
+# posição da tabela já tem uma categoria própria.
+OUTREACH_DAILY_CAP = 25
+
+_CUSTOMER_CADENCE: tuple[tuple[int, str, str], ...] = (
+    (0, "email", "continuidade_uso_atual"),
+    (7, "ligação", "gap_portfolio"),
+    (7, "linkedin", "prova_social_urgencia"),
+)
+
+_PROSPECT_CADENCE: tuple[tuple[int, str, str], ...] = (
+    (0, "email", "abertura_sinal"),
+    (4, "ligação", "reforco_angulo_novo"),
+)
+
+CADENCE_AWAITING_INTERVAL = "aguardando_intervalo"
+CADENCE_EXHAUSTED = "cadencia_esgotada"
+CADENCE_DAILY_CAP_REACHED = "cap_diario_atingido"
+
+
+@dataclass(frozen=True)
+class CadenceSuggestion:
+    channel: str
+    reason_category: str
+
+
+def compute_next_suggested_touch(
+    is_customer: bool,
+    touches: list[OutreachTouch],
+    first_detected_at: datetime,
+    now: datetime,
+    touches_today_for_rep: int,
+    daily_cap: int = OUTREACH_DAILY_CAP,
+) -> CadenceSuggestion | str:
+    """Devolve o próximo toque sugerido, ou um dos 3 estados que a UI
+    (módulo 7) precisa distinguir (nunca um `None` opaco pros três casos,
+    Outbound Strategist consultado):
+    - `CADENCE_AWAITING_INTERVAL`: ainda dentro do intervalo do próximo
+      toque — nada a fazer agora, não é um estado especial pra UI mostrar.
+    - `CADENCE_EXHAUSTED`: todos os toques da cadência (3 cliente / 2
+      prospecção fria) já foram feitos sem avanço de status — sinal de que
+      o rep precisa decidir algo manualmente (dismissar, escalar, outro
+      ângulo), não "está tudo bem, só esperar".
+    - `CADENCE_DAILY_CAP_REACHED`: cota diária do REP (não da oportunidade)
+      já atingida — cap único somando cliente ativo + prospecção fria
+      (nunca dois caps paralelos, senão volta a ser volume disfarçado).
+
+    `touches_today_for_rep`/`daily_cap` chegam como parâmetro (nunca lidos
+    de sessão/DB aqui) — mesmo padrão de `select_promotions`
+    (core/geo_promotion.py, Fase E): a cota é conceito de aplicação, a
+    função de domínio fica pura e testável sem sessão.
+
+    `touches` não precisa vir ordenado por `sent_at` — a função ordena
+    internamente antes de calcular o "anchor" (achado da revisão de
+    código: `list_outreach_touches` não garante ordem; sem essa defesa,
+    uma lista fora de ordem escolheria silenciosamente o toque errado
+    como mais recente, sem levantar exceção nenhuma)."""
+    if touches_today_for_rep >= daily_cap:
+        return CADENCE_DAILY_CAP_REACHED
+
+    cadence = _CUSTOMER_CADENCE if is_customer else _PROSPECT_CADENCE
+    step = len(touches)
+    if step >= len(cadence):
+        return CADENCE_EXHAUSTED
+
+    interval_days, channel, category = cadence[step]
+    ordered_touches = sorted(touches, key=lambda t: t.sent_at)
+    anchor = ordered_touches[-1].sent_at if ordered_touches else first_detected_at
+    due_at = anchor + timedelta(days=interval_days)
+    if now < due_at:
+        return CADENCE_AWAITING_INTERVAL
+
+    return CadenceSuggestion(channel=channel, reason_category=category)
+
+
 __all__ = [
-    "AGING_SLA_ENV_KEY", "CorrelationRule", "RuleError", "compute_account_health",
-    "compute_qbr_suggested_days", "compute_severity_band", "current_period_key", "evaluate_rules",
-    "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days", "rep_target_id",
-    "requires_status_change_justification",
+    "AGING_SLA_ENV_KEY", "CADENCE_AWAITING_INTERVAL", "CADENCE_DAILY_CAP_REACHED", "CADENCE_EXHAUSTED",
+    "CadenceSuggestion", "CorrelationRule", "OUTREACH_DAILY_CAP", "RuleError", "compute_account_health",
+    "compute_next_suggested_touch", "compute_qbr_suggested_days", "compute_severity_band", "current_period_key",
+    "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
+    "rep_target_id", "requires_status_change_justification",
 ]
 
 

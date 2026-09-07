@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Motor de cadência sugerida** (Fase G, módulo 6
+  `suggested-cadence-engine`): função pura que sugere o próximo toque
+  (canal + categoria de motivo) — cliente ativo (3 toques: uso atual
+  → expansão → prova social, intervalos de 7 dias) e prospecção fria
+  (2 toques: abertura → reforço, intervalo de 4 dias, para depois),
+  com cap único de 25 toques/dia por representante somando as duas
+  cadências. Nunca dispara nada — sempre depende do rep marcar como
+  enviado. Decisões de cadência em consulta ao agente Outbound
+  Strategist. Ver `docs/specs/fase-g-outreach-assistido.md`.
+
 - **Histórico de toques de outreach** (Fase G, módulo 5
   `outreach-touch-model`): novo `OutreachTouch`, registro insert-only
   do fato "toque marcado como enviado" (canal, motivo, quando), mesmo
