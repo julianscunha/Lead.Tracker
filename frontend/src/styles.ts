@@ -1,7 +1,12 @@
 // Usa só os tokens de tema já definidos pelo Core (hsl(var(--...))) —
 // sem cor inventada, sem gradiente, sem roxo padrão de IA.
 export const styles = `
-.lt-root { padding: 24px; font-family: inherit; color: hsl(var(--text)); }
+/* Base 12px: qualquer texto sem classe própria (ex.: <strong>/<p> soltos
+   dentro de um card) cai nesse tamanho em vez do padrão do navegador
+   (~16px) — antes disso, elementos sem regra explícita destoavam do
+   resto da escala (10/11/12/13/15/18px) por herdarem o default do
+   navegador. Achado de auditoria de UX. */
+.lt-root { padding: 24px; font-family: inherit; font-size: 12px; color: hsl(var(--text)); }
 .lt-header { margin-bottom: 16px; }
 .lt-header h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .lt-header p { font-size: 11px; color: hsl(var(--text-muted)); margin: 0; }
@@ -98,6 +103,7 @@ export const styles = `
 .lt-stat-tile { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 12px; background: hsl(var(--bg-elevated)); }
 .lt-stat-tile__value { font-size: 18px; font-weight: 600; color: hsl(var(--text)); }
 .lt-stat-tile__label { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 2px; }
+.lt-stat-tile__hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 4px; line-height: 1.4; }
 
 .lt-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .lt-chart-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }
