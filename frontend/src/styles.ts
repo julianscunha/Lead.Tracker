@@ -26,12 +26,17 @@ export const styles = `
 .lt-info-hint__btn:hover { background: hsl(var(--bg-subtle)); color: hsl(var(--text)); }
 .lt-info-hint__btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .lt-info-hint__popover {
-  position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 20;
+  position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 20;
   width: 220px; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 400;
   font-style: normal; text-align: left; background: hsl(var(--bg-elevated));
   border: 1px solid hsl(var(--border)); color: hsl(var(--text));
   box-shadow: 0 4px 12px hsl(0 0% 0% / 0.15);
 }
+/* StatTile fica na borda direita de uma grade estreita — abrir pra
+   esquerda evita invadir a coluna seguinte (a maioria dos outros usos de
+   InfoHint fica perto da borda esquerda da página, onde abrir pra
+   esquerda invadiria o menu lateral fixo do Core). */
+.lt-stat-tile__top .lt-info-hint__popover { left: auto; right: 0; }
 
 .lt-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 
