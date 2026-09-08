@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createRepTarget, listRepTargets, type PeriodType, type RepTarget } from '../api'
 import { currentPeriodKey, quarterOptions } from './logic'
+import { InfoHint } from '../InfoHint'
 
 export function RepTargetsSection() {
   const [periodType, setPeriodType] = useState<PeriodType>('monthly')
@@ -46,9 +47,9 @@ export function RepTargetsSection() {
 
   return (
     <div>
-      <div className="lt-header">
+      <div className="lt-header lt-header-row">
         <h2>Metas por representante</h2>
-        <p>Cadastro manual — sem meta definida, potencial financeiro é um número sem contexto pro dashboard.</p>
+        <InfoHint text="Cadastro manual — sem meta definida, potencial financeiro é um número sem contexto pro dashboard." />
       </div>
       <div className="lt-toolbar">
         <label className="lt-field">
@@ -81,6 +82,7 @@ export function RepTargetsSection() {
           <label className="lt-field">
             <span>Id do representante</span>
             <input value={repId} onChange={e => setRepId(e.target.value)} />
+            <span className="lt-hint">Identificador usado nas oportunidades pra atribuir o pipeline a esse representante.</span>
           </label>
           <label className="lt-field">
             <span>Meta financeira (R$) pro período selecionado acima</span>

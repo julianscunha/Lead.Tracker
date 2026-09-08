@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   getAgingSlaConfig, getGeoPromotionConfig, updateAgingSlaConfig, updateGeoPromotionConfig,
 } from '../api'
+import { InfoHint } from '../InfoHint'
 
 // Achado da auditoria de UX (não-técnico): SLA de triagem e limites de
 // promoção geográfica só existiam via .env/API direta — sem forma de
@@ -63,12 +64,9 @@ export function ThresholdsSection() {
   return (
     <div className="lt-source-card">
       <div className="lt-source-card__header">
-        <div>
+        <div className="lt-header-row">
           <p className="lt-source-card__title">Limites e prazos</p>
-          <p className="lt-hint">
-            Controla quando uma oportunidade conta como atrasada na triagem e quantas
-            descobertas de geolocalização entram automaticamente por dia.
-          </p>
+          <InfoHint text="Controla quando uma oportunidade conta como atrasada na triagem e quantas descobertas de geolocalização entram automaticamente por dia." />
         </div>
       </div>
       <div className="lt-source-card__form">
@@ -103,6 +101,7 @@ export function ThresholdsSection() {
             type="number" min={1} value={dailyCap}
             onChange={e => setDailyCap(e.target.value)}
           />
+          <span className="lt-hint">Teto de descobertas geográficas promovidas automaticamente por dia.</span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={saveGeo} disabled={saving === 'geo'}>

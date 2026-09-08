@@ -4,6 +4,7 @@ import { BarChart } from './BarChart'
 import { DonutChart } from './DonutChart'
 import { FunnelChart } from './FunnelChart'
 import { StatTile } from './StatTile'
+import { InfoHint } from '../InfoHint'
 import { FUNNEL_REACH_LABELS, FUNNEL_STAGES } from './types'
 
 function formatCurrency(v: number): string {
@@ -40,9 +41,9 @@ export function Dashboard() {
 
   return (
     <div className="lt-dashboard">
-      <div className="lt-header">
+      <div className="lt-header lt-header-row">
         <h2>Dashboard Executivo</h2>
-        <p>Visão consolidada — dado real da sua instalação.</p>
+        <InfoHint text="Visão consolidada — dado real da sua instalação." />
       </div>
 
       <div className="lt-stat-grid">
@@ -102,12 +103,10 @@ export function Dashboard() {
         </section>
 
         <section className="lt-chart-card lt-chart-card--wide">
-          <h3>Alcance do funil</h3>
-          <p className="lt-hint">
-            Quantas oportunidades já chegaram em cada etapa ou passaram dela, hoje — nunca "taxa de conversão"
-            (o histórico completo de quando cada uma mudou de estágio ainda não é guardado, então não dá pra
-            calcular uma taxa de coorte de verdade).
-          </p>
+          <div className="lt-header-row">
+            <h3>Alcance do funil</h3>
+            <InfoHint text={'Quantas oportunidades já chegaram em cada etapa ou passaram dela, hoje — nunca "taxa de conversão" (o histórico completo de quando cada uma mudou de estágio ainda não é guardado, então não dá pra calcular uma taxa de coorte de verdade).'} />
+          </div>
           <FunnelChart stages={reachStages} counts={reachCounts} />
         </section>
 
@@ -129,7 +128,10 @@ export function Dashboard() {
 
       <section className="lt-chart-card">
         <div className="lt-toolbar">
-          <h3>Cobertura de meta por representante</h3>
+          <div className="lt-header-row">
+            <h3>Cobertura de meta por representante</h3>
+            <InfoHint text={`Pipeline atual dividido pela meta cadastrada em Configurações pra ${metrics.coveragePeriodKey}. Sem meta definida pro representante, nunca mostra 0% — mostra "sem meta definida".`} />
+          </div>
           <label className="lt-field">
             <span>Período</span>
             <select value={periodType} onChange={e => setPeriodType(e.target.value as PeriodType)}>
@@ -138,10 +140,6 @@ export function Dashboard() {
             </select>
           </label>
         </div>
-        <p className="lt-hint">
-          Pipeline atual dividido pela meta cadastrada em Configurações pra {metrics.coveragePeriodKey}. Sem meta
-          definida pro representante, nunca mostra 0% — mostra "sem meta definida".
-        </p>
         {metrics.repCoverage.length === 0 ? (
           <p className="lt-empty" role="status">Nenhum representante com oportunidade atribuída ainda.</p>
         ) : (

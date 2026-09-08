@@ -10,6 +10,7 @@ import { RepTargetsSection } from './RepTargetsSection'
 import { RulesSection } from './RulesSection'
 import { SourceCard } from './SourceCard'
 import { ThresholdsSection } from './ThresholdsSection'
+import { InfoHint } from '../InfoHint'
 
 export function summarizeSync(results: SyncResult[]): string {
   if (results.length === 0) return 'Nenhuma fonte habilitada — ligue uma fonte acima antes de sincronizar.'
@@ -60,9 +61,9 @@ export function SettingsScreen() {
 
   return (
     <div>
-      <div className="lt-header">
+      <div className="lt-header lt-header-row">
         <h2>Configurações de Fontes</h2>
-        <p>Ligue as fontes de dados que o Lead.Tracker deve usar para encontrar oportunidades.</p>
+        <InfoHint text="Ligue as fontes de dados que o Lead.Tracker deve usar para encontrar oportunidades." />
       </div>
       <div className="lt-toolbar">
         <button type="button" className="lt-btn" onClick={handleSync} disabled={syncing} aria-busy={syncing}>

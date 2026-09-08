@@ -40,6 +40,7 @@ export function Filters({
           <option value="clientes">Clientes atuais</option>
           <option value="prospects">Prospects</option>
         </select>
+        <span className="lt-hint">Filtra pela relação da empresa: cliente atual ou prospect ainda sem venda.</span>
       </label>
 
       <label htmlFor="lt-filter-product" className="lt-field">
@@ -48,6 +49,7 @@ export function Filters({
           <option value="todos">Todos</option>
           {products.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
+        <span className="lt-hint">Mostra só oportunidades associadas a esse produto do portfólio.</span>
       </label>
 
       <label htmlFor="lt-filter-service" className="lt-field">
@@ -56,6 +58,7 @@ export function Filters({
           <option value="todos">Todos</option>
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        <span className="lt-hint">Mostra só oportunidades associadas a esse serviço do portfólio.</span>
       </label>
 
       <label htmlFor="lt-filter-source" className="lt-field">
@@ -64,6 +67,7 @@ export function Filters({
           <option value="todos">Todas</option>
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        <span className="lt-hint">Mostra só oportunidades com evidência vinda dessa fonte de dados.</span>
       </label>
 
       <label htmlFor="lt-filter-score" className="lt-field">
@@ -74,6 +78,7 @@ export function Filters({
           value={value.minScore}
           onChange={e => onChange({ ...value, minScore: Number(e.target.value) })}
         />
+        <span className="lt-hint">De 0.0 a 1.0 — esconde oportunidades com aderência abaixo desse valor.</span>
       </label>
     </div>
   )

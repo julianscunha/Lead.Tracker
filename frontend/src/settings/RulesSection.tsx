@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
+import { InfoHint } from '../InfoHint'
 
 type RuleKind = 'category' | 'presence' | 'relation'
 
@@ -78,9 +79,9 @@ export function RulesSection({ products, services }: { products: Product[]; serv
 
   return (
     <div>
-      <div className="lt-header">
+      <div className="lt-header lt-header-row">
         <h2>Regras</h2>
-        <p>Regras determinísticas que detectam oportunidade — sempre por categoria/item real do catálogo, nunca texto livre.</p>
+        <InfoHint text="Regras determinísticas que detectam oportunidade — sempre por categoria/item real do catálogo, nunca texto livre." />
       </div>
       <div className="lt-toolbar">
         <button type="button" className="lt-btn" onClick={() => setFormOpen(f => !f)}>
@@ -97,6 +98,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
               <option value="presence">Item específico</option>
               <option value="relation">Relação já cadastrada no catálogo</option>
             </select>
+            <span className="lt-hint">Categoria compara grupos de itens; item específico compara um produto/serviço só; relação reaproveita um vínculo já existente no catálogo.</span>
           </label>
 
           {kind === 'category' && (
@@ -144,6 +146,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
                 <option value="prerequisite">Pré-requisito — gera alerta de risco técnico</option>
                 <option value="substitute">Substituto — gera oportunidade de consolidação</option>
               </select>
+              <span className="lt-hint">Reaproveita a relação entre itens já definida no catálogo de portfólio.</span>
             </label>
           )}
 

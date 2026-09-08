@@ -3,6 +3,7 @@ import {
   createProduct, createService, createVendor, listVendors,
   type Product, type Service, type Vendor,
 } from '../api'
+import { InfoHint } from '../InfoHint'
 
 const NEW_VENDOR = '__new__'
 
@@ -100,9 +101,9 @@ export function PortfolioSection({
 
   return (
     <div>
-      <div className="lt-header">
+      <div className="lt-header lt-header-row">
         <h2>Portfólio</h2>
-        <p>Produtos e serviços que sua empresa vende — é o catálogo que as Regras usam pra detectar oportunidade.</p>
+        <InfoHint text="Produtos e serviços que sua empresa vende — é o catálogo que as Regras usam pra detectar oportunidade." />
       </div>
 
       <div className="lt-toolbar">
@@ -123,16 +124,19 @@ export function PortfolioSection({
               {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               <option value={NEW_VENDOR}>+ Cadastrar novo fabricante</option>
             </select>
+            <span className="lt-hint">Quem fabrica esse produto — escolha um já cadastrado ou crie um novo.</span>
           </label>
           {vendorChoice === NEW_VENDOR && (
             <label className="lt-field">
               <span>Nome do novo fabricante</span>
               <input value={newVendorName} onChange={e => setNewVendorName(e.target.value)} />
+              <span className="lt-hint">Nome do fabricante como deve aparecer nas telas do sistema.</span>
             </label>
           )}
           <label className="lt-field">
             <span>Nome do produto</span>
             <input value={productName} onChange={e => setProductName(e.target.value)} />
+            <span className="lt-hint">Nome comercial do produto, como aparece pro cliente.</span>
           </label>
           <label className="lt-field">
             <span>Categoria (ex.: backup, monitoramento — usada pelas Regras)</span>
@@ -152,6 +156,7 @@ export function PortfolioSection({
           <label className="lt-field">
             <span>Nome do serviço</span>
             <input value={serviceName} onChange={e => setServiceName(e.target.value)} />
+            <span className="lt-hint">Nome comercial do serviço, como aparece pro cliente.</span>
           </label>
           <label className="lt-field">
             <span>Categoria (ex.: backup, monitoramento — usada pelas Regras)</span>

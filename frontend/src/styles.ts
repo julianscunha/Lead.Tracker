@@ -11,6 +11,27 @@ export const styles = `
 .lt-header { margin-bottom: 16px; }
 .lt-header h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .lt-header p { font-size: 11px; color: hsl(var(--text-muted)); margin: 0; }
+.lt-header-row { display: flex; align-items: center; gap: 6px; }
+.lt-header-row h2, .lt-header-row h3 { margin: 0; }
+
+/* Achado do usuário: card com explicação sempre visível vira um botão
+   "(i)" no canto — clicável (funciona por teclado/toque, não só hover). */
+.lt-info-hint { position: relative; display: inline-flex; flex: none; }
+.lt-info-hint__btn {
+  all: unset; cursor: pointer; width: 15px; height: 15px; border-radius: 999px;
+  border: 1px solid hsl(var(--border)); color: hsl(var(--text-muted)); font-size: 9px;
+  font-weight: 700; font-style: italic; display: inline-flex; align-items: center;
+  justify-content: center; line-height: 1;
+}
+.lt-info-hint__btn:hover { background: hsl(var(--bg-subtle)); color: hsl(var(--text)); }
+.lt-info-hint__btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-info-hint__popover {
+  position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 20;
+  width: 220px; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 400;
+  font-style: normal; text-align: left; background: hsl(var(--bg-elevated));
+  border: 1px solid hsl(var(--border)); color: hsl(var(--text));
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.15);
+}
 
 .lt-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 
@@ -86,9 +107,9 @@ export const styles = `
 
 .lt-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .lt-stat-tile { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 12px; background: hsl(var(--bg-elevated)); }
+.lt-stat-tile__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
 .lt-stat-tile__value { font-size: 18px; font-weight: 600; color: hsl(var(--text)); }
 .lt-stat-tile__label { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 2px; }
-.lt-stat-tile__hint { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 4px; line-height: 1.4; }
 
 .lt-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .lt-chart-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }

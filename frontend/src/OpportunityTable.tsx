@@ -116,6 +116,7 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
         <select value={pendingStatus ?? row.status} onChange={e => handleSelect(e.target.value as OpportunityRow['status'])} disabled={saving}>
           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        <span className="lt-hint">Etapa atual no funil — detectada → qualificada → revisada → contatada → oportunidade.</span>
       </label>
       {row.status === 'dismissed' && pendingStatus === null && row.dismissalReason && (
         <p className="lt-hint">
@@ -129,12 +130,14 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
             <option value="">Selecione um motivo</option>
             {DISMISSAL_REASON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          <span className="lt-hint">Obrigatório pra descartar — fica registrado no histórico da oportunidade.</span>
         </label>
       )}
       {needsNote && (
         <label className="lt-field">
           <span>Justificativa (pulou etapas ou reabriu uma oportunidade descartada)</span>
           <textarea value={note} onChange={e => setNote(e.target.value)} />
+          <span className="lt-hint">Explica por que a mudança fugiu do fluxo normal — fica registrada no histórico.</span>
         </label>
       )}
       {needsConfirm && (
@@ -230,6 +233,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           <option value="">Não avaliado</option>
           {SCOPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        <span className="lt-hint">Quão abrangente é o gap identificado — usado no cálculo de severidade.</span>
       </label>
       <label className="lt-field">
         <span>Criticidade</span>
@@ -244,6 +248,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           <option value="">Não avaliado</option>
           {CRITICALITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        <span className="lt-hint">Quão urgente é o risco pro cliente — usado no cálculo de severidade.</span>
       </label>
       <label className="lt-field">
         <span>Observação (opcional)</span>
@@ -252,6 +257,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           onChange={e => setSeverityNote(e.target.value)}
           onBlur={() => save({ scopeNote, criticality, severityNote })}
         />
+        <span className="lt-hint">Contexto livre sobre o gap — não entra no cálculo de severidade.</span>
       </label>
       <span className={`lt-badge lt-badge--severity-${row.severityBand}`}>
         Severidade: {SEVERITY_LABEL[row.severityBand]}
@@ -303,6 +309,7 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
           onChange={e => setRenewalDate(e.target.value)}
           onBlur={() => save(renewalDate)}
         />
+        <span className="lt-hint">Alimenta a cadência de revisão de conta (QBR) sugerida acima.</span>
       </label>
       {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
     </div>
@@ -531,6 +538,7 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
             <option value="">Não atribuído</option>
             {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <span className="lt-hint">Pra quem o rascunho de e-mail abaixo é endereçado.</span>
         </label>
         {copyState === 'idle' && (
           <button type="button" className="lt-btn" onClick={copy} disabled={copying}>

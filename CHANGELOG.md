@@ -4,6 +4,20 @@
 
 ### Adicionado
 
+- **Hints explicativos em todos os campos e fontes de dados com fluxo
+  único de ligar/salvar/testar** (achado do usuário: telas de
+  Configurações misturavam parágrafo explicativo fixo no card com campos
+  sem nenhuma explicação, e o cartão de fonte de dados tinha dois
+  caminhos diferentes pro toggle — um que já tentava conectar direto,
+  outro que abria um formulário escondido). Todo campo do módulo agora
+  tem um texto de ajuda; todo card com explicação fixa vira um botão "(i)"
+  no canto do cabeçalho, com popover sob demanda. Cartão de fonte de
+  dados (Salesforce, Website, Google Maps) segue um fluxo único: o toggle
+  só habilita os campos pra edição, nunca liga a fonte sozinho; o botão
+  Salvar sempre grava as credenciais e testa a conexão de verdade;
+  o indicador de status mostra 🔴 Desconectado / 🟢 Conectado com o texto
+  ao lado, refletindo sempre o resultado do teste mais recente.
+
 - **Escolha de modelo de IA por nível de custo** (achado do usuário: cada
   provider tinha um único modelo padrão fixo no código, sem opção de
   escolha nem critério documentado — Claude usava camada intermediária

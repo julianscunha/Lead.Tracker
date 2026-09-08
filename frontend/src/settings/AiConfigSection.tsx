@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAiConfig, updateAiConfig, type AiConfig, type AiModelOption } from '../api'
+import { InfoHint } from '../InfoHint'
 
 const DEFAULT_MODEL_SENTINEL = '__custom__'
 
@@ -71,12 +72,9 @@ export function AiConfigSection() {
   return (
     <div className="lt-source-card">
       <div className="lt-source-card__header">
-        <div>
+        <div className="lt-header-row">
           <p className="lt-source-card__title">Inteligência Artificial</p>
-          <p className="lt-hint">
-            Opcional — usada só pra gerar rascunho de e-mail. O Lead.Tracker funciona
-            normalmente sem isso.
-          </p>
+          <InfoHint text="Opcional — usada só pra gerar rascunho de e-mail. O Lead.Tracker funciona normalmente sem isso." />
         </div>
       </div>
       <div className="lt-source-card__form">
@@ -89,6 +87,7 @@ export function AiConfigSection() {
             <option value="">Não configurado</option>
             {config.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          <span className="lt-hint">Escolha o provedor de IA que vai gerar os rascunhos de e-mail.</span>
         </label>
         {provider && (
           isFreeformModel ? (
@@ -114,6 +113,10 @@ export function AiConfigSection() {
                 <option value={DEFAULT_MODEL_SENTINEL}>Padrão do provedor</option>
                 {modelOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+              <span className="lt-hint">
+                Barato/equilibrado/caro reflete custo e capacidade do modelo — padrão do
+                provedor usa a opção equilibrada.
+              </span>
             </label>
           )
         )}
