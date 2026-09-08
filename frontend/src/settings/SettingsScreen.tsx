@@ -88,6 +88,8 @@ export function SettingsScreen() {
         products={products} services={services} loadError={catalogError}
         onProductCreated={p => setProducts(prev => [...(prev ?? []), p])}
         onServiceCreated={s => setServices(prev => [...(prev ?? []), s])}
+        onProductDeleted={id => setProducts(prev => (prev ?? []).filter(p => p.id !== id))}
+        onServiceDeleted={id => setServices(prev => (prev ?? []).filter(s => s.id !== id))}
       />
       <RulesSection products={products ?? []} services={services ?? []} />
       <RepTargetsSection />

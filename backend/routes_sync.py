@@ -46,12 +46,12 @@ from core.opportunity_engine import (
     current_period_key, is_aging_opportunity, parse_aging_sla_days, rep_target_id,
 )
 from core.repository import (
-    count_geo_discoveries_today, count_outreach_touches_today, get_company, get_icp_profile, get_opportunity,
-    list_companies, list_company_signals, list_contacts, list_latest_snapshot, list_opportunities,
-    list_outreach_touches, list_products, list_rep_targets, list_rules, list_services, list_vendors, save_company,
-    save_icp_profile, save_opportunity, save_outreach_touch, save_product, save_rep_target, save_rule,
-    save_service, save_vendor, update_company_renewal_date, update_opportunity_qualification,
-    update_opportunity_status,
+    count_geo_discoveries_today, count_outreach_touches_today, delete_product, delete_rule, delete_service,
+    delete_vendor, get_company, get_icp_profile, get_opportunity, list_companies, list_company_signals,
+    list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
+    list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
+    save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
+    update_opportunity_qualification, update_opportunity_status,
 )
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
@@ -493,6 +493,17 @@ async def create_vendor(body: VendorIn) -> Vendor:
     return vendor
 
 
+@router.delete("/vendors/{vendor_id}", status_code=204, response_model=None)
+async def remove_vendor(vendor_id: str) -> None:
+    async with session_factory() as session:
+        if any(p.vendor_id == vendor_id for p in await list_products(session)):
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA, "Fabricante tem produto cadastrado — remova os produtos primeiro.",
+            ))
+        if not await delete_vendor(session, vendor_id):
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Fabricante não encontrado."))
+
+
 @router.get("/products")
 async def get_products() -> list[Product]:
     async with session_factory() as session:
@@ -512,6 +523,23 @@ async def create_product(body: ProductIn) -> Product:
     return product
 
 
+@router.delete("/products/{product_id}", status_code=204, response_model=None)
+async def remove_product(product_id: str) -> None:
+    async with session_factory() as session:
+        rules = await list_rules(session)
+        if any(product_id in r.requires or product_id in r.absent for r in rules):
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA, "Produto usado em uma regra — remova a regra primeiro.",
+            ))
+        opportunities = await list_opportunities(session)
+        if any(o.product_id == product_id for o in opportunities):
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA, "Produto tem oportunidade gerada — não pode ser removido.",
+            ))
+        if not await delete_product(session, product_id):
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Produto não encontrado."))
+
+
 @router.get("/services")
 async def get_services() -> list[Service]:
     async with session_factory() as session:
@@ -524,6 +552,23 @@ async def create_service(body: ServiceIn) -> Service:
     async with session_factory() as session:
         await save_service(session, service)
     return service
+
+
+@router.delete("/services/{service_id}", status_code=204, response_model=None)
+async def remove_service(service_id: str) -> None:
+    async with session_factory() as session:
+        rules = await list_rules(session)
+        if any(service_id in r.requires or service_id in r.absent for r in rules):
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA, "Serviço usado em uma regra — remova a regra primeiro.",
+            ))
+        opportunities = await list_opportunities(session)
+        if any(o.service_id == service_id for o in opportunities):
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA, "Serviço tem oportunidade gerada — não pode ser removido.",
+            ))
+        if not await delete_service(session, service_id):
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Serviço não encontrado."))
 
 
 @router.get("/rules")
@@ -541,6 +586,13 @@ async def create_rule(body: RuleIn) -> CorrelationRule:
     async with session_factory() as session:
         await save_rule(session, rule)
     return rule
+
+
+@router.delete("/rules/{rule_id}", status_code=204, response_model=None)
+async def remove_rule(rule_id: str) -> None:
+    async with session_factory() as session:
+        if not await delete_rule(session, rule_id):
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Regra não encontrada."))
 
 
 @router.post("/rep-targets")

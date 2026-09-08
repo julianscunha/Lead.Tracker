@@ -722,6 +722,102 @@ def test_post_rule_without_any_evidence_mechanism_returns_friendly_error():
         assert "evidência" in resp.json()["detail"]
 
 
+def test_delete_rule_removes_it():
+    with _TempDb():
+        body = {
+            "opportunity_type": "cross-sell", "justification": "Tem backup.",
+            "requires_category": ["backup"],
+        }
+        rule_id = client.post("/modules/lead_tracker/rules", json=body).json()["id"]
+
+        resp = client.delete(f"/modules/lead_tracker/rules/{rule_id}")
+        assert resp.status_code == 204
+        assert client.get("/modules/lead_tracker/rules").json() == []
+
+
+def test_delete_rule_unknown_id_returns_friendly_error():
+    with _TempDb():
+        resp = client.delete("/modules/lead_tracker/rules/nao-existe")
+        assert resp.status_code == 404
+        assert "Regra" in resp.json()["detail"]
+
+
+def test_delete_vendor_removes_it():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+
+        resp = client.delete(f"/modules/lead_tracker/vendors/{vendor_id}")
+        assert resp.status_code == 204
+        assert client.get("/modules/lead_tracker/vendors").json() == []
+
+
+def test_delete_vendor_with_product_returns_friendly_error():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        )
+
+        resp = client.delete(f"/modules/lead_tracker/vendors/{vendor_id}")
+        assert resp.status_code == 422
+        assert "produto" in resp.json()["detail"].lower()
+
+
+def test_delete_product_removes_it():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        product_id = client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        ).json()["id"]
+
+        resp = client.delete(f"/modules/lead_tracker/products/{product_id}")
+        assert resp.status_code == 204
+        assert client.get("/modules/lead_tracker/products").json() == []
+
+
+def test_delete_product_used_in_rule_returns_friendly_error():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        product_id = client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        ).json()["id"]
+        client.post("/modules/lead_tracker/rules", json={
+            "opportunity_type": "cross-sell", "justification": "Tem o item.", "requires": [product_id],
+        })
+
+        resp = client.delete(f"/modules/lead_tracker/products/{product_id}")
+        assert resp.status_code == 422
+        assert "regra" in resp.json()["detail"].lower()
+
+
+def test_delete_service_removes_it():
+    with _TempDb():
+        service_id = client.post(
+            "/modules/lead_tracker/services", json={"name": "Zabbix", "category": "monitoring"},
+        ).json()["id"]
+
+        resp = client.delete(f"/modules/lead_tracker/services/{service_id}")
+        assert resp.status_code == 204
+        assert client.get("/modules/lead_tracker/services").json() == []
+
+
+def test_delete_service_used_in_rule_returns_friendly_error():
+    with _TempDb():
+        service_id = client.post(
+            "/modules/lead_tracker/services", json={"name": "Zabbix", "category": "monitoring"},
+        ).json()["id"]
+        client.post("/modules/lead_tracker/rules", json={
+            "opportunity_type": "cross-sell", "justification": "Tem o item.", "requires": [service_id],
+        })
+
+        resp = client.delete(f"/modules/lead_tracker/services/{service_id}")
+        assert resp.status_code == 422
+        assert "regra" in resp.json()["detail"].lower()
+
+
 class _StubGoogleMapsProvider:
     """Substitui GoogleMapsProvider real em POST /geo-discovery/run —
     nunca bate na rede de verdade em teste (CLAUDE.md: providers sempre

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
+import { createRule, deleteRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 import { InfoHint } from '../InfoHint'
 
 type RuleKind = 'category' | 'presence' | 'relation'
@@ -29,6 +29,8 @@ export function RulesSection({ products, services }: { products: Product[]; serv
   const [relationType, setRelationType] = useState('prerequisite')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     listRules()
@@ -67,6 +69,20 @@ export function RulesSection({ products, services }: { products: Product[]; serv
       setSaveError(err instanceof Error ? err.message : 'Falha ao salvar regra.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async (rule: CorrelationRule) => {
+    if (!window.confirm(`Remover a regra "${rule.opportunity_type}"? Essa ação não pode ser desfeita.`)) return
+    setDeletingId(rule.id)
+    setDeleteError(null)
+    try {
+      await deleteRule(rule.id)
+      setRules(prev => (prev ?? []).filter(r => r.id !== rule.id))
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Falha ao remover regra.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -168,12 +184,13 @@ export function RulesSection({ products, services }: { products: Product[]; serv
         </div>
       )}
 
+      {deleteError && <p className="lt-alert" role="alert">{deleteError}</p>}
       {rules.length === 0 ? (
         <p className="lt-empty" role="status">Nenhuma regra cadastrada ainda.</p>
       ) : (
         <table className="lt-table">
           <thead>
-            <tr><th>Rótulo</th><th>Condição</th><th>Justificativa</th><th>Ativa</th></tr>
+            <tr><th>Rótulo</th><th>Condição</th><th>Justificativa</th><th>Ativa</th><th></th></tr>
           </thead>
           <tbody>
             {rules.map(r => (
@@ -182,6 +199,11 @@ export function RulesSection({ products, services }: { products: Product[]; serv
                 <td>{describeRule(r)}</td>
                 <td>{r.justification}</td>
                 <td>{r.active ? 'Sim' : 'Não'}</td>
+                <td>
+                  <button type="button" className="lt-btn" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
+                    {deletingId === r.id ? 'Removendo…' : 'Remover'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  createProduct, createService, createVendor, listVendors,
+  createProduct, createService, createVendor, deleteProduct, deleteService, listVendors,
   type Product, type Service, type Vendor,
 } from '../api'
 import { InfoHint } from '../InfoHint'
@@ -17,13 +17,15 @@ const NEW_VENDOR = '__new__'
 // onServiceCreated em vez de guardar cópia local, senão uma regra criada
 // logo depois não veria a categoria nova sem recarregar a página.
 export function PortfolioSection({
-  products, services, loadError, onProductCreated, onServiceCreated,
+  products, services, loadError, onProductCreated, onServiceCreated, onProductDeleted, onServiceDeleted,
 }: {
   products: Product[] | null
   services: Service[] | null
   loadError: string | null
   onProductCreated: (p: Product) => void
   onServiceCreated: (s: Service) => void
+  onProductDeleted: (id: string) => void
+  onServiceDeleted: (id: string) => void
 }) {
   const [vendors, setVendors] = useState<Vendor[]>([])
 
@@ -42,6 +44,8 @@ export function PortfolioSection({
   const [serviceError, setServiceError] = useState<string | null>(null)
 
   const [vendorLoadError, setVendorLoadError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     listVendors()
@@ -88,6 +92,34 @@ export function PortfolioSection({
       setServiceError(err instanceof Error ? err.message : 'Falha ao salvar serviço.')
     } finally {
       setSavingService(false)
+    }
+  }
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!window.confirm(`Remover o produto "${product.name}"? Essa ação não pode ser desfeita.`)) return
+    setDeletingId(product.id)
+    setDeleteError(null)
+    try {
+      await deleteProduct(product.id)
+      onProductDeleted(product.id)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Falha ao remover produto.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleDeleteService = async (service: Service) => {
+    if (!window.confirm(`Remover o serviço "${service.name}"? Essa ação não pode ser desfeita.`)) return
+    setDeletingId(service.id)
+    setDeleteError(null)
+    try {
+      await deleteService(service.id)
+      onServiceDeleted(service.id)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Falha ao remover serviço.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -171,12 +203,14 @@ export function PortfolioSection({
         </div>
       )}
 
+      {deleteError && <p className="lt-alert" role="alert">{deleteError}</p>}
+
       {products.length === 0 ? (
         <p className="lt-empty" role="status">Nenhum produto cadastrado ainda.</p>
       ) : (
         <table className="lt-table">
           <thead>
-            <tr><th>Fabricante</th><th>Produto</th><th>Categoria</th></tr>
+            <tr><th>Fabricante</th><th>Produto</th><th>Categoria</th><th></th></tr>
           </thead>
           <tbody>
             {products.map(p => (
@@ -184,6 +218,11 @@ export function PortfolioSection({
                 <td>{vendorName(p.vendor_id)}</td>
                 <td>{p.name}</td>
                 <td>{p.category ?? '—'}</td>
+                <td>
+                  <button type="button" className="lt-btn" onClick={() => handleDeleteProduct(p)} disabled={deletingId === p.id}>
+                    {deletingId === p.id ? 'Removendo…' : 'Remover'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -195,13 +234,18 @@ export function PortfolioSection({
       ) : (
         <table className="lt-table">
           <thead>
-            <tr><th>Serviço</th><th>Categoria</th></tr>
+            <tr><th>Serviço</th><th>Categoria</th><th></th></tr>
           </thead>
           <tbody>
             {services.map(s => (
               <tr key={s.id}>
                 <td>{s.name}</td>
                 <td>{s.category ?? '—'}</td>
+                <td>
+                  <button type="button" className="lt-btn" onClick={() => handleDeleteService(s)} disabled={deletingId === s.id}>
+                    {deletingId === s.id ? 'Removendo…' : 'Remover'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

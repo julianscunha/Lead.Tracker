@@ -92,6 +92,15 @@ async def list_vendors(session: AsyncSession) -> list[Vendor]:
     return [Vendor(id=r.id, name=r.name) for r in rows]
 
 
+async def delete_vendor(session: AsyncSession, vendor_id: str) -> bool:
+    row = await session.get(VendorORM, vendor_id)
+    if row is None:
+        return False
+    await session.delete(row)
+    await session.commit()
+    return True
+
+
 # ── Product ──────────────────────────────────────────────────────────────────
 
 async def save_product(session: AsyncSession, product: Product) -> None:
@@ -112,6 +121,15 @@ async def list_products(session: AsyncSession) -> list[Product]:
     ) for r in rows]
 
 
+async def delete_product(session: AsyncSession, product_id: str) -> bool:
+    row = await session.get(ProductORM, product_id)
+    if row is None:
+        return False
+    await session.delete(row)
+    await session.commit()
+    return True
+
+
 # ── Service ──────────────────────────────────────────────────────────────────
 
 async def save_service(session: AsyncSession, service: Service) -> None:
@@ -126,6 +144,15 @@ async def list_services(session: AsyncSession) -> list[Service]:
     return [Service(
         id=r.id, name=r.name, description=r.description, status=r.status, category=r.category,
     ) for r in rows]
+
+
+async def delete_service(session: AsyncSession, service_id: str) -> bool:
+    row = await session.get(ServiceORM, service_id)
+    if row is None:
+        return False
+    await session.delete(row)
+    await session.commit()
+    return True
 
 
 # ── Company ──────────────────────────────────────────────────────────────────
@@ -649,6 +676,15 @@ async def list_rules(session: AsyncSession) -> list[CorrelationRule]:
 async def list_active_rules(session: AsyncSession) -> list[CorrelationRule]:
     rows = (await session.execute(select(CorrelationRuleORM).where(CorrelationRuleORM.active == True))).scalars().all()  # noqa: E712
     return [_rule_from_row(r) for r in rows]
+
+
+async def delete_rule(session: AsyncSession, rule_id: str) -> bool:
+    row = await session.get(CorrelationRuleORM, rule_id)
+    if row is None:
+        return False
+    await session.delete(row)
+    await session.commit()
+    return True
 
 
 # ── RepTarget ────────────────────────────────────────────────────────────────

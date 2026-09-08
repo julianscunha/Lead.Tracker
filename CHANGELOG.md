@@ -4,6 +4,15 @@
 
 ### Adicionado
 
+- **Remoção de fabricante, produto, serviço e regra** (achado do usuário:
+  não havia nenhuma forma de corrigir um cadastro errado no portfólio ou
+  regras sem editar o banco na mão). Botão "Remover" com confirmação em
+  cada linha; bloqueia com erro amigável quando a remoção deixaria dado
+  órfão — fabricante com produto associado, ou produto/serviço usado por
+  uma regra de item específico ou por uma oportunidade já gerada. Regras
+  por categoria não bloqueiam a remoção do item, já que a condição vive
+  na categoria, não no id do produto/serviço.
+
 - **Hints explicativos em todos os campos e fontes de dados com fluxo
   único de ligar/salvar/testar** (achado do usuário: telas de
   Configurações misturavam parágrafo explicativo fixo no card com campos

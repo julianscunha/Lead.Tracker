@@ -707,6 +707,11 @@ export async function createVendor(name: string): Promise<Vendor> {
   return resp.json()
 }
 
+export async function deleteVendor(id: string): Promise<void> {
+  const resp = await fetch(`${BASE}/vendors/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
 export async function listProducts(): Promise<Product[]> {
   const resp = await fetch(`${BASE}/products`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -725,6 +730,11 @@ export async function createProduct(
   return resp.json()
 }
 
+export async function deleteProduct(id: string): Promise<void> {
+  const resp = await fetch(`${BASE}/products/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
 export async function listServices(): Promise<Service[]> {
   const resp = await fetch(`${BASE}/services`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -741,6 +751,11 @@ export async function createService(name: string, category: string): Promise<Ser
   return resp.json()
 }
 
+export async function deleteService(id: string): Promise<void> {
+  const resp = await fetch(`${BASE}/services/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
 export async function listRules(): Promise<CorrelationRule[]> {
   const resp = await fetch(`${BASE}/rules`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -755,6 +770,11 @@ export async function createRule(rule: NewRule): Promise<CorrelationRule> {
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   return resp.json()
+}
+
+export async function deleteRule(id: string): Promise<void> {
+  const resp = await fetch(`${BASE}/rules/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
 }
 
 export type PeriodType = 'monthly' | 'quarterly'
