@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-08
+
+Primeiro release estável.
+
 ### Adicionado
 
 - **Importação de empresas + portfólio por CSV** (achado de teste manual:
