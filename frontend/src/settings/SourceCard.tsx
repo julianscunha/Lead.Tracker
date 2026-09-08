@@ -82,11 +82,13 @@ export function SourceCard({ source, onChange }: { source: SourceStatus; onChang
             <label className="lt-toggle">
               <input
                 type="checkbox"
+                className="lt-toggle__input"
                 checked={enabledDraft}
                 disabled={busy || !source.implemented}
                 onChange={handleToggle}
                 aria-label={`Fonte ${source.label}`}
               />
+              <span className="lt-toggle__track"><span className="lt-toggle__knob" /></span>
               <span>{enabledDraft ? 'Ligado' : 'Desligado'}</span>
             </label>
           )}

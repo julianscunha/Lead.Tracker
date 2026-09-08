@@ -123,6 +123,19 @@ export const styles = `
 .lt-source-card__status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .lt-conn-indicator { font-size: 11px; color: hsl(var(--text-muted)); white-space: nowrap; }
 .lt-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
+.lt-toggle__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.lt-toggle__track {
+  position: relative; flex: none; width: 32px; height: 18px; border-radius: 999px;
+  background: hsl(var(--border)); transition: background 0.15s;
+}
+.lt-toggle__knob {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: hsl(var(--bg)); box-shadow: 0 1px 2px hsl(0 0% 0% / 0.3); transition: transform 0.15s;
+}
+.lt-toggle__input:checked + .lt-toggle__track { background: hsl(var(--success)); }
+.lt-toggle__input:checked + .lt-toggle__track .lt-toggle__knob { transform: translateX(14px); }
+.lt-toggle__input:disabled + .lt-toggle__track { opacity: 0.5; cursor: not-allowed; }
+.lt-toggle__input:focus-visible + .lt-toggle__track { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .lt-source-card__form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 /* Definição canônica de "campo com rótulo": única fonte de estilo pra
    label+input/select/textarea em todo o módulo. Containers de layout
