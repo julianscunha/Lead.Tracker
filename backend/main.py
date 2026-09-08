@@ -46,7 +46,7 @@ router.include_router(sync_router)
 @router.get("/ping")
 async def ping():
     sdk.logger.info("ping called")
-    return {"module": "lead_tracker", "status": "ok", "version": "0.1.1"}
+    return {"module": "lead_tracker", "status": "ok", "version": "1.0.0"}
 
 
 async def _check_field_mappings_health() -> list:
@@ -90,11 +90,15 @@ class LeadTrackerModule(ModuleContract):
         return ModuleMetadata(
             id="lead_tracker",
             name="Lead.Tracker",
-            version="0.1.1",
+            version="1.0.0",
             category="Sales",
             vendor="TechForge",
             author="TechForge Team",
-            description="Opportunity Intelligence — esqueleto do módulo.",
+            description=(
+                "Módulo de Opportunity Intelligence: transforma dados de clientes, prospects, "
+                "portfólio tecnológico, produtos e serviços em oportunidades comerciais priorizadas "
+                "(cross-sell, up-sell, modernização, otimização de custos)."
+            ),
             platform_min_version="1.0.0",
             platform_max_version="2.0.0",
         )
