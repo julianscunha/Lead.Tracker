@@ -174,8 +174,9 @@ async def sync_all_enabled_sources(
     session_factory: async_sessionmaker, env: dict[str, str],
 ) -> list[SyncResult]:
     """Sincroniza toda fonte implementada e habilitada (`{ENABLED_KEY}=true`
-    no .env). Manual não entra aqui — não tem toggle (sempre disponível),
-    e não há ainda cadastro manual persistente pra sincronizar."""
+    no .env). Fonte sem toggle (`enabled_key is None`) nunca entra aqui —
+    hoje nenhuma fonte usa mais esse formato (ver core/repository.py /
+    backend/routes_csv_import.py pro caminho real de entrada em lote)."""
     results = []
     for source in SOURCES:
         if not source.implemented or source.enabled_key is None:

@@ -99,11 +99,7 @@ def test_list_settings_returns_all_sources_with_defaults():
         assert resp.status_code == 200
         body = resp.json()
         ids = {s["id"] for s in body}
-        assert ids == {"manual", "salesforce", "website", "google_maps"}
-
-        manual = next(s for s in body if s["id"] == "manual")
-        assert manual["enabled"] is None  # sempre disponível, sem toggle
-        assert manual["fields"] == []
+        assert ids == {"salesforce", "website", "google_maps"}
 
         salesforce = next(s for s in body if s["id"] == "salesforce")
         assert salesforce["enabled"] is False
@@ -145,12 +141,6 @@ def test_update_unknown_source_returns_friendly_error():
         assert resp.status_code == 422
         assert "não existe" in resp.json()["detail"]
 
-
-def test_test_connection_manual_always_connected():
-    with _TempEnv():
-        resp = client.post("/modules/lead_tracker/settings/manual/test")
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "connected"
 
 
 def test_test_connection_salesforce_without_credentials_fails_friendly():
@@ -451,7 +441,6 @@ if __name__ == "__main__":
     test_secret_field_never_returns_value_in_claro()
     test_update_settings_persists_fields_without_erasing_others()
     test_update_unknown_source_returns_friendly_error()
-    test_test_connection_manual_always_connected()
     test_test_connection_salesforce_without_credentials_fails_friendly()
     test_test_connection_not_implemented_source_never_500()
     test_get_aging_sla_days_defaults_to_7_when_not_configured()

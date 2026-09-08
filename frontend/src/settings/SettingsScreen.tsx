@@ -73,6 +73,7 @@ export function SettingsScreen() {
       </div>
       {syncMessage && <p className="lt-hint" role="status">{syncMessage}</p>}
       <div className="lt-source-grid">
+        <CsvImportSection />
         {sources.map(s => (
           <SourceCard
             key={s.id}
@@ -92,7 +93,6 @@ export function SettingsScreen() {
         onProductDeleted={id => setProducts(prev => (prev ?? []).filter(p => p.id !== id))}
         onServiceDeleted={id => setServices(prev => (prev ?? []).filter(s => s.id !== id))}
       />
-      <CsvImportSection />
       <RulesSection products={products ?? []} services={services ?? []} />
       <RepTargetsSection />
     </div>

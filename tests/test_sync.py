@@ -304,7 +304,7 @@ def test_sync_all_enabled_sources_skips_disabled_and_no_toggle_sources():
         with tempfile.TemporaryDirectory() as tmp:
             session_factory = await _fresh_session_factory(tmp)
             # env sem nenhuma fonte real habilitada — deve devolver lista vazia,
-            # nunca tentar sincronizar Manual (sem toggle) ou Salesforce (desligado).
+            # nunca tentar sincronizar Salesforce (desligado) ou Website (não implementado).
             results = await sync_all_enabled_sources(session_factory, {"SALESFORCE_ENABLED": "false"})
             assert results == []
 

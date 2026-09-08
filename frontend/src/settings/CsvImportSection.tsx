@@ -30,10 +30,12 @@ export function CsvImportSection() {
   }
 
   return (
-    <div>
-      <div className="lt-header lt-header-row">
-        <h2>Importar empresas por CSV</h2>
-        <InfoHint text="Cadastra empresa + portfólio (o que ela já tem do seu catálogo) em lote, sem precisar de Salesforce ou Google Maps configurados. Fabricante/produto/serviço citados no arquivo precisam já existir em Portfólio — o import nunca inventa item novo no catálogo." />
+    <div className="lt-source-card">
+      <div className="lt-source-card__header">
+        <div className="lt-header-row">
+          <p className="lt-source-card__title">Importar CSV</p>
+          <InfoHint text="Cadastra empresa + portfólio (o que ela já tem do seu catálogo) em lote, sem precisar de Salesforce ou Google Maps configurados. Fabricante/produto/serviço citados no arquivo precisam já existir em Portfólio — o import nunca inventa item novo no catálogo." />
+        </div>
       </div>
       <div className="lt-source-card__form">
         <label className="lt-field">

@@ -14,7 +14,6 @@ from typing import Callable
 
 from providers.base import DataProvider
 from providers.google_maps import GoogleMapsProvider
-from providers.manual import ManualProvider
 from providers.salesforce import SalesforceProvider
 
 
@@ -41,14 +40,6 @@ class SourceDescriptor:
 
 
 SOURCES: list[SourceDescriptor] = [
-    SourceDescriptor(
-        id="manual",
-        label="Manual",
-        enabled_key=None,
-        implemented=True,
-        fields=[],
-        build=lambda env: ManualProvider(),
-    ),
     SourceDescriptor(
         id="salesforce",
         label="Salesforce",
