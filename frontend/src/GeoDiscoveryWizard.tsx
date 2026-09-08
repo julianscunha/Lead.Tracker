@@ -289,7 +289,17 @@ export function GeoDiscoveryWizard() {
           <label className="lt-field">
             <span>Categoria (Google Places)</span>
             <input value={placeCategory} onChange={e => setPlaceCategory(e.target.value)} placeholder="ex.: car_dealer" />
-            <span className="lt-hint">Tipo de estabelecimento no Google Places usado como filtro da busca.</span>
+            <span className="lt-hint">
+              Tipo de estabelecimento no Google Places usado como filtro da busca — precisa ser exatamente um dos
+              valores da{' '}
+              <a
+                href="https://developers.google.com/maps/documentation/places/web-service/place-types"
+                target="_blank" rel="noopener noreferrer"
+              >
+                tabela oficial de tipos da Places API
+              </a>
+              {' '}(em inglês, ex.: accounting, lawyer, real_estate_agency).
+            </span>
           </label>
           <label className="lt-field">
             <span>Porte-alvo</span>
