@@ -1,5 +1,7 @@
 # Lead.Tracker
 
+![Lead.Tracker](assets/banner.svg)
+
 [![Release](https://img.shields.io/github/v/release/julianscunha/Lead.Tracker)](https://github.com/julianscunha/Lead.Tracker/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Tech.Forge module](https://img.shields.io/badge/Tech.Forge-module-6366f1)](https://github.com/julianscunha/Tech.Forge)
@@ -62,7 +64,7 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 | **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante. |
 | **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, gera rascunho de e-mail e vê a próxima ação sugerida por oportunidade. |
 | **Prospecção** | Assistente guiado de descoberta geográfica (Google Maps) — define raio/produto de referência e recebe uma lista de prospects pontuados. |
-| **Configurações** | Fontes de dado (Salesforce/website/manual), portfólio, mapeamento de campo personalizado, IA, metas por representante. |
+| **Configurações** | Fontes de dado (Salesforce, Google Maps), importação de empresas + portfólio por CSV em lote, cadastro de fabricante/produto/serviço/regra (com remoção), mapeamento de campo personalizado, IA, metas por representante. |
 
 ## Arquitetura
 
@@ -75,15 +77,17 @@ provider, empacotado como `.mod` do Tech.Forge.
 Lead.Tracker não é preso a nenhuma fonte específica — Salesforce é só uma
 integração opcional entre várias.
 
-Hoje: Salesforce, website da empresa, importação manual.
-No radar: HubSpot, Pipedrive, LinkedIn, Google Maps, CSV e outros conectores.
+Hoje: Salesforce (com mapeamento de campo customizado), Google Maps
+(prospecção geográfica) e importação de empresas + portfólio por CSV em
+lote — sem CRM nenhum conectado.
+No radar: HubSpot, Pipedrive, LinkedIn e outros conectores.
 
 ## Portfólio
 
-Você informa o website da sua empresa uma vez, e o Lead.Tracker monta a
-partir dele um portfólio estruturado — fabricantes, produtos, subprodutos,
-serviços e as relações entre eles. Você revisa e ajusta o resultado antes
-de valer pra qualquer oportunidade.
+O portfólio (fabricante, produto, serviço e as regras que os conectam) é
+cadastrado direto na tela de Configurações ou importado em lote por CSV.
+Nunca é inventado por IA nem por integração nenhuma — toda oportunidade
+referencia só o que já está no seu catálogo configurado.
 
 ## A tela de Oportunidades
 

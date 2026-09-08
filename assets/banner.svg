@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+  <title id="title">Lead.Tracker</title>
+  <desc id="desc">Módulo de Opportunity Intelligence do Tech.Forge</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#101a33"/>
+    </linearGradient>
+    <radialGradient id="ring-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="260" fill="url(#bg)"/>
+
+  <!-- alvo (ícone do manifest: target) ancorado à direita, meio recortado pela borda -->
+  <g transform="translate(1020,130)">
+    <circle r="150" fill="url(#ring-glow)"/>
+    <circle r="92" fill="none" stroke="#1e3a5f" stroke-width="2"/>
+    <circle r="68" fill="none" stroke="#2f5580" stroke-width="2"/>
+    <circle r="44" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+    <circle r="20" fill="#3b82f6"/>
+    <circle r="20" fill="none" stroke="#93c5fd" stroke-width="1.5"/>
+  </g>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="72" y="118" font-size="56" font-weight="700" fill="#f1f5f9">Lead.Tracker</text>
+    <text x="72" y="156" font-size="20" fill="#93c5fd" letter-spacing="0.3">Opportunity Intelligence para Tech.Forge</text>
+    <text x="72" y="196" font-size="15" fill="#94a3b8">Cruza portfólio de cliente com o seu catálogo — cross-sell, up-sell e modernização, sempre com evidência.</text>
+  </g>
+</svg>
