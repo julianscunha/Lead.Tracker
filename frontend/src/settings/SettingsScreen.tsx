@@ -4,6 +4,7 @@ import {
   type SyncResult,
 } from '../api'
 import { AiConfigSection } from './AiConfigSection'
+import { CsvImportSection } from './CsvImportSection'
 import { FieldMappingSection } from './FieldMappingSection'
 import { PortfolioSection } from './PortfolioSection'
 import { RepTargetsSection } from './RepTargetsSection'
@@ -91,6 +92,7 @@ export function SettingsScreen() {
         onProductDeleted={id => setProducts(prev => (prev ?? []).filter(p => p.id !== id))}
         onServiceDeleted={id => setServices(prev => (prev ?? []).filter(s => s.id !== id))}
       />
+      <CsvImportSection />
       <RulesSection products={products ?? []} services={services ?? []} />
       <RepTargetsSection />
     </div>

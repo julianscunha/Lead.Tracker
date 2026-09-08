@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import main as backend_main
-from backend import routes_settings, routes_sync
+from backend import routes_csv_import, routes_settings, routes_sync
 from core.db import create_engine, init_db, make_session_factory
 from core.models import Company, Contact, Opportunity, OpportunityStatus, OutreachTouch, Product, Service, SourceRef
 from core.repository import (
@@ -34,6 +34,7 @@ class _TempDb:
 
     def __enter__(self):
         self._original_sf = routes_sync.session_factory
+        self._original_csv_sf = routes_csv_import.session_factory
         self._original_env = routes_settings._ENV_PATH
         self._tmpdir = tempfile.TemporaryDirectory()
         tmp_path = Path(self._tmpdir.name)
@@ -43,6 +44,7 @@ class _TempDb:
         asyncio.run(init_db(engine))
         self.session_factory = make_session_factory(engine)
         routes_sync.session_factory = self.session_factory
+        routes_csv_import.session_factory = self.session_factory
 
         env_path = tmp_path / ".env"
         env_path.write_text("APP_ENV=local\n", encoding="utf-8")
@@ -52,6 +54,7 @@ class _TempDb:
 
     def __exit__(self, *exc):
         routes_sync.session_factory = self._original_sf
+        routes_csv_import.session_factory = self._original_csv_sf
         routes_settings._ENV_PATH = self._original_env
         self._tmpdir.cleanup()
 
@@ -816,6 +819,118 @@ def test_delete_service_used_in_rule_returns_friendly_error():
         resp = client.delete(f"/modules/lead_tracker/services/{service_id}")
         assert resp.status_code == 422
         assert "regra" in resp.json()["detail"].lower()
+
+
+def _upload_csv(text: str, mode: str = "merge"):
+    return client.post(
+        "/modules/lead_tracker/csv-import",
+        files={"file": ("empresas.csv", text.encode("utf-8"), "text/csv")},
+        data={"mode": mode},
+    )
+
+
+def test_csv_import_creates_company_portfolio_and_generates_opportunity():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        )
+        client.post("/modules/lead_tracker/rules", json={
+            "opportunity_type": "cross-sell", "justification": "Tem backup, sem monitoramento.",
+            "requires_category": ["backup"], "absent_category": ["monitoramento"],
+        })
+
+        csv_text = (
+            "company_name,is_customer,segment,vendor,product\n"
+            "Contoso Ltda,true,Distribuição,Veeam,Veeam VBR\n"
+        )
+        resp = _upload_csv(csv_text)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["companies_imported"] == 1
+        assert body["portfolios_updated"] == 1
+        assert body["opportunities_generated"] == 1
+        assert body["errors"] == []
+
+        companies = client.get("/modules/lead_tracker/companies").json()
+        assert companies[0]["name"] == "Contoso Ltda"
+        assert companies[0]["segment"] == "Distribuição"
+
+        opportunities = client.get("/modules/lead_tracker/opportunities").json()
+        assert len(opportunities) == 1
+        assert opportunities[0]["type"] == "cross-sell"
+
+
+def test_csv_import_missing_required_column_returns_friendly_error():
+    with _TempDb():
+        resp = _upload_csv("nome,fabricante\nContoso,Veeam\n")
+        assert resp.status_code == 422
+        assert "company_name" in resp.json()["detail"]
+
+
+def test_csv_import_unknown_vendor_reports_error_never_invents_catalog_item():
+    with _TempDb():
+        resp = _upload_csv("company_name,vendor\nContoso Ltda,Fabricante Inexistente\n")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["companies_imported"] == 1
+        assert body["portfolios_updated"] == 0
+        assert any("Fabricante Inexistente" in e for e in body["errors"])
+
+
+def test_csv_import_merge_mode_adds_to_existing_portfolio_never_drops_it():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        )
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam One", "category": "monitoramento"},
+        )
+        # Regra só dispara se a empresa tiver AS DUAS categorias — prova de que o
+        # segundo import (merge) preservou o produto do primeiro em vez de substituir.
+        client.post("/modules/lead_tracker/rules", json={
+            "opportunity_type": "cross-sell", "justification": "Tem backup e monitoramento.",
+            "requires_category": ["backup", "monitoramento"],
+        })
+
+        _upload_csv("company_name,vendor,product\nContoso Ltda,Veeam,Veeam VBR\n", mode="merge")
+        resp = _upload_csv("company_name,vendor,product\nContoso Ltda,Veeam,Veeam One\n", mode="merge")
+        assert resp.status_code == 200
+        assert resp.json()["companies_imported"] == 1
+        assert resp.json()["opportunities_generated"] == 1
+
+        opportunities = client.get("/modules/lead_tracker/opportunities").json()
+        assert len(opportunities) == 1
+
+
+def test_csv_import_replace_mode_overwrites_portfolio():
+    with _TempDb():
+        vendor_id = client.post("/modules/lead_tracker/vendors", json={"name": "Veeam"}).json()["id"]
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam VBR", "category": "backup"},
+        )
+        client.post(
+            "/modules/lead_tracker/products",
+            json={"vendor_id": vendor_id, "name": "Veeam One", "category": "monitoramento"},
+        )
+        client.post("/modules/lead_tracker/rules", json={
+            "opportunity_type": "cross-sell", "justification": "Tem backup, sem monitoramento.",
+            "requires_category": ["backup"], "absent_category": ["monitoramento"],
+        })
+
+        first = _upload_csv("company_name,vendor,product\nContoso Ltda,Veeam,Veeam VBR\n", mode="merge")
+        assert first.json()["opportunities_generated"] == 1  # tem backup, sem monitoramento — dispara
+
+        # Replace troca o portfólio inteiro: agora só tem monitoramento, backup saiu.
+        # A regra não dispara de novo nesta chamada (histórico da 1ª chamada não é apagado).
+        second = _upload_csv("company_name,vendor,product\nContoso Ltda,Veeam,Veeam One\n", mode="replace")
+        assert second.status_code == 200
+        assert second.json()["opportunities_generated"] == 0
 
 
 class _StubGoogleMapsProvider:

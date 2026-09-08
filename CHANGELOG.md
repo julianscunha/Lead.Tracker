@@ -4,6 +4,20 @@
 
 ### Adicionado
 
+- **Importação de empresas + portfólio por CSV** (achado de teste manual:
+  sem Salesforce ou Google Maps configurados não havia nenhuma forma de
+  colocar dado real no sistema em lote — "Manual" é só um stub de
+  arquitetura, sem persistência nem tela). Nova seção em Configurações
+  aceita um arquivo com `company_name` + (opcional) `is_customer`,
+  `segment`, `region`, `rep_id`, `vendor`, `product`, `service`. Reaproveita
+  a mesma deduplicação de empresa e o mesmo motor de regras do `/sync` —
+  nunca um pipeline paralelo — e nunca inventa fabricante/produto/serviço:
+  nome que não bate com o catálogo já cadastrado em Portfólio vira erro
+  reportado, nunca um item novo criado sozinho. Escolha explícita entre
+  Adicionar (mescla com o portfólio já existente da empresa) ou Substituir
+  (descarta o anterior), mesmo princípio de não sobrescrever dado calado
+  que já vale para o sync de fontes externas.
+
 - **Remoção de fabricante, produto, serviço e regra** (achado do usuário:
   não havia nenhuma forma de corrigir um cadastro errado no portfólio ou
   regras sem editar o banco na mão). Botão "Remover" com confirmação em

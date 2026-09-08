@@ -26,6 +26,7 @@ from core.db import init_db
 from core.field_mapping import detect_broken_mappings
 from core.repository import list_field_mappings
 from backend.db_session import DB_PATH as _DB_PATH, engine as _engine, session_factory
+from backend.routes_csv_import import router as csv_import_router
 from backend.routes_exports import router as exports_router
 from backend.routes_settings import router as settings_router
 from backend.routes_sync import router as sync_router
@@ -36,6 +37,7 @@ _MODULE_ROOT = Path(__file__).parent.parent
 sdk = create_sdk("lead_tracker")
 
 router = APIRouter(prefix="/modules/lead_tracker", tags=["lead_tracker"])
+router.include_router(csv_import_router)
 router.include_router(exports_router)
 router.include_router(settings_router)
 router.include_router(sync_router)

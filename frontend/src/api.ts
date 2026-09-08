@@ -777,6 +777,22 @@ export async function deleteRule(id: string): Promise<void> {
   if (!resp.ok) throw new Error(await friendlyError(resp))
 }
 
+export interface CsvImportResult {
+  companies_imported: number
+  portfolios_updated: number
+  opportunities_generated: number
+  errors: string[]
+}
+
+export async function importCsv(file: File, mode: 'merge' | 'replace'): Promise<CsvImportResult> {
+  const body = new FormData()
+  body.append('file', file)
+  body.append('mode', mode)
+  const resp = await fetch(`${BASE}/csv-import`, { method: 'POST', body })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export type PeriodType = 'monthly' | 'quarterly'
 
 export interface RepTarget {

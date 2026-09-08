@@ -86,7 +86,7 @@ async def sync_source(
 
     errors.extend(await _apply_field_mappings_for_synced_companies(session_factory, provider, source.id, to_persist))
 
-    opportunities_generated = await _evaluate_rules_for_synced_companies(session_factory, to_persist.values())
+    opportunities_generated = await evaluate_rules_for_synced_companies(session_factory, to_persist.values())
 
     return SyncResult(
         source_id=source.id, companies_synced=len(to_persist),
@@ -108,7 +108,7 @@ async def _apply_field_mappings_for_synced_companies(
     Achado da revisão de código: além de escrever no banco, atualiza
     `to_persist[native_id]` em memória (o dict é mutado in-place, o mesmo
     objeto que `sync_source` passa adiante) — sem isso, o motor de regras
-    (`_evaluate_rules_for_synced_companies`, chamado logo depois com esses
+    (`evaluate_rules_for_synced_companies`, chamado logo depois com esses
     mesmos objetos) avaliaria contra `industry`/`deal_size_hint` ainda
     `None` na primeira sincronização com um mapeamento novo, e só refletiria
     o valor mapeado no próximo `/sync` — quieto hoje (nenhuma regra lê esses
@@ -139,7 +139,7 @@ async def _apply_field_mappings_for_synced_companies(
     return errors
 
 
-async def _evaluate_rules_for_synced_companies(
+async def evaluate_rules_for_synced_companies(
     session_factory: async_sessionmaker, companies: Iterable[Company],
 ) -> int:
     """Roda o motor de regras (Fase C) contra o portfólio já conhecido de
