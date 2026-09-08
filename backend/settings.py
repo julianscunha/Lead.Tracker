@@ -94,7 +94,11 @@ SOURCES: list[SourceDescriptor] = [
             SourceField(
                 key="GOOGLE_MAPS_API_KEY",
                 label="Chave de API do Google Maps",
-                help_text="Usada para prospecção geográfica.",
+                help_text=(
+                    "Usada para prospecção geográfica. Para obter: crie um projeto em "
+                    "console.cloud.google.com, habilite a Geocoding API e a Places API (New), "
+                    "depois gere a chave em \"APIs e Serviços → Credenciais\"."
+                ),
                 secret=True,
             ),
         ],
