@@ -4,7 +4,7 @@ Origem: backlog priorizado do `engineering/roadmap.md` (sugestão do Proposal
 Strategist). Não depende de dado histórico novo — só compõe o que o motor já
 calcula (`core/models.py::Opportunity`).
 
-**Status:** rascunho para revisão do usuário. Nenhum código antes da aprovação.
+**Status:** spec e mapa de capacidades aprovados pelo usuário. Próximo: plano e tarefas (sem código ainda).
 
 ## Objetivo
 
@@ -28,12 +28,12 @@ sustentam (fato + fonte + data), sem número em R$ nem fato inventado.
 4. Sem IA configurada, o documento sai igual em fatos, com prosa
    determinística.
 
-## Mapa de capacidades (proposto — pendente de confirmação)
+## Mapa de capacidades (confirmado pelo usuário)
 
 | Ordem | Módulo | Responsabilidade | Consulta a especialista |
 |---|---|---|---|
 | 1 | `business-case-assembler` | Função pura: `Opportunity` + `Company` + item do portfólio → estrutura das 4 seções (+ cabeçalho e rodapé). Define seção essencial vs. complementar. Sem IA, sem I/O. | Proposal Strategist (feito) |
-| 2 | `score-to-band-thresholds` | Mapa score → banda (baixo/médio/alto) com limiares configuráveis; reutiliza `compute_severity_band` se já cobrir o caso. Decisão de produto, nunca da IA. | Pipeline Analyst |
+| 2 | `severity-band-reuse` | **Reutiliza `compute_severity_band(scope_note, criticality)`** (`core/opportunity_engine.py:427`). Sem mapa novo nem limiares: a banda vem do que o vendedor avaliou; qualquer campo em branco = `nao_avaliado`. Módulo fino: só liga a função existente ao assembler. | Não (reuso) |
 | 3 | `business-case-prose-guard` | IA opcional redige só a prosa; guardrail **em código** rejeita qualquer produto, número, data ou % fora dos campos de entrada e cai no modo determinístico. | Security Auditor (agent-skills) |
 | 4 | `business-case-pdf` | Renderiza em `exports/`, exatamente 1 página (limite de palavras por seção, truncamento determinístico). | Não (mecânico) |
 | 5 | `business-case-route-and-ui` | `POST /exports/business-case` + botão na tela de Oportunidades, com aviso em linguagem de negócio quando faltar dado. | Frontend Developer |
@@ -47,13 +47,13 @@ Dependência: 1 → 2 → 3 → 4 → 5 (cada módulo consome o anterior).
 | Cabeçalho | empresa, produto/serviço do portfólio, data, 4 scores como rótulos separados | — |
 | Situação (~70 pal.) | `evidence` (fato + fonte + data), atributos da empresa | **Essencial: bloqueia exportação** ("faltam evidências para esta oportunidade") |
 | Gap (~70 pal.) | motivo principal + 2–3 evidências (fato → implicação) | **Essencial.** Sem implicação: mostra só o fato |
-| Custo de não agir (~60 pal.) | banda (de `strategic_score`/`financial_potential`) + `confidence_score` + `discovery_prompt` | Mantém a seção com "Não avaliado" + pergunta em aberto |
+| Custo de não agir (~60 pal.) | banda de `compute_severity_band(scope_note, criticality)` + `confidence_score` (só para o tom); a pergunta em aberto (`discovery_prompt`) aparece **só na tela** | Banda `nao_avaliado` mantém a seção com "Não avaliado"; sem pergunta no PDF |
 | Estado futuro (~60 pal.) | descrição do item no portfólio | Omite o parágrafo, mostra só o nome (nunca "[preencher]" no PDF) |
 | Rodapé (~40 pal.) | fontes, nível de confiança, "rascunho para revisão do vendedor; não enviado" | — |
 
 Os 4 scores nunca se fundem em um. Rótulos para o vendedor: aderência,
 potencial financeiro, relevância estratégica, confiança. `financial_potential`
-aparece só como banda, nunca em R$.
+não aparece em R$ em lugar nenhum; no cabeçalho entra só como rótulo qualitativo.
 
 Confiança baixa rebaixa o tom (verbos condicionais: "indica", "sugere").
 Evidência antiga mostra a data e aviso de envelhecimento.
@@ -124,12 +124,12 @@ sua"); comparação com concorrente.
 - "Estado futuro" sem resultado quantificado é mais fraco; mitigação é a
   pergunta em aberto, não métrica genérica.
 
-## Perguntas em aberto (preciso da sua decisão)
+## Decisões do usuário (resolvem as perguntas em aberto)
 
-1. A **pergunta em aberto** do "custo de não agir" vai no PDF ou só na tela?
-   Recomendação do especialista: só na tela; o PDF traz a versão neutra "ponto
-   a validar com o cliente".
-2. Os **limiares** de banda: reutilizo `compute_severity_band` ou crio um
-   mapa novo configurável por tela?
-3. Posso confirmar o mapa de 5 módulos acima ou prefere menos (ex.: juntar 1
-   e 2)?
+1. A pergunta em aberto do "custo de não agir" aparece **somente na tela**.
+   O PDF não a traz (a linha neutra "ponto a validar com o cliente"
+   sugerida pelo especialista **não** foi adotada).
+2. Bandas: **reutilizar** `compute_severity_band`. Consequência: a banda
+   deriva de `scope_note` × `criticality` (avaliação do vendedor), não de
+   scores; o módulo 2 vira só uma ligação, sem limiares configuráveis.
+3. Os 5 módulos estão confirmados.
