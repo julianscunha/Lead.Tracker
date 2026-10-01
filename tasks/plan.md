@@ -46,8 +46,9 @@ sob guardrail em código.
 | Descrição de portfólio longa ou nula | Baixo | truncar; omitir parágrafo |
 | PDF encaminhado sem revisão | Médio | marca "rascunho" obrigatória no rodapé |
 
-## Perguntas em aberto (bloqueiam T1)
+## Perguntas resolvidas
 
-1. "Aderência" = `opportunity_score`?
-2. Data da evidência = `synced_at` (via `evidence_summary`) é aceitável?
-3. Confirma a rota por `opportunity_id` em vez de payload do front?
+Aderência = `opportunity_score`; data da evidência = `synced_at` com ressalva;
+rota por `opportunity_id`; faixas em terços de 0–1 (escala não imposta pelo
+modelo); `financial_potential`/`strategic_score` costumam ser `None`. Ver
+"Decisões adicionais" na spec.

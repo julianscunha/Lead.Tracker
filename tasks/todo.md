@@ -5,14 +5,14 @@ por ast-grep/git incremental, Haiku no mecânico e Sonnet no restante, commit
 e push por etapa.
 
 ## Bloqueio
-- [ ] Responder as 3 perguntas em aberto do `tasks/plan.md` (T1 depende de C2/C3).
+- [x] Perguntas em aberto respondidas (ver spec, decisões 4–9).
 
 ## T1 — `business-case-assembler` (S)
 - [ ] `assemble_business_case(opp, company, item)` pura: cabeçalho, 4 seções, rodapé
   - Acceptance: sem evidência → `ExportError` em linguagem de negócio; 4 scores separados; nenhum R$; sem descrição → só o nome do item; evidência antiga mostra data + aviso; confiança baixa → flag de tom condicional
   - Verify: `python -m pytest tests/test_business_case.py -q`
   - Files: `core/business_case.py`, `tests/test_business_case.py`
-  - Depende de: respostas C2/C3
+  - Depende de: nada (bloqueio resolvido)
 
 ## T2 — `severity-band-reuse` (XS)
 - [ ] Assembler chama `compute_severity_band(scope_note, criticality)`

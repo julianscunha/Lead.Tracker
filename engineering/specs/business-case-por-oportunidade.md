@@ -133,3 +133,34 @@ sua"); comparação com concorrente.
    deriva de `scope_note` × `criticality` (avaliação do vendedor), não de
    scores; o módulo 2 vira só uma ligação, sem limiares configuráveis.
 3. Os 5 módulos estão confirmados.
+
+## Decisões adicionais (parecer do Pipeline Analyst + usuário)
+
+4. **Rótulos e faixas dos scores** (sem número cru, lado a lado, sem total,
+   com legenda de 1 linha de que são dimensões independentes):
+   `opportunity_score` → "Aderência ao portfólio"; `financial_potential` →
+   "Porte estimado da conta"; `strategic_score` → "Relevância estratégica";
+   `confidence_score` → "Solidez das evidências". Nunca "chance",
+   "probabilidade", "valor" ou "receita".
+5. **Faixas:** Baixa/Média/Alta em terços iguais da escala 0–1 (até 0,33 /
+   até 0,66 / acima), ajustáveis depois. **Ressalva:** a escala 0–1 é o
+   default (`CorrelationRule.*_score = 1.0`), mas não é imposta pelo modelo;
+   regra personalizada pode usar outra. Score `None` = "Não avaliado".
+   `compute_severity_band` **não** serve para scores (recebe
+   `scope_note` × `criticality`).
+6. **`financial_potential` e `strategic_score` costumam ser `None`** nas
+   oportunidades geradas por regra (`core/opportunity_engine.py:589-590`),
+   então tendem a aparecer como "Não avaliado". Aceito na v1.
+7. **Data da evidência = data de sincronização**, rotulada: "Dado
+   sincronizado em dd/mm/aaaa (a data do fato no CRM pode ser anterior)".
+   Mais de 30 dias: "confirme com o cliente antes de usar"; mais de 90:
+   destaque "Dado antigo (N dias): reconfirmar". Nunca "hoje/recente/atual".
+   Data de geração do PDF no rodapé. Limitação conhecida: capturar a data do
+   fato no provider fica para depois.
+8. **Rota por `opportunity_id`**: o servidor carrega oportunidade, empresa e
+   item do portfólio; rejeita qualquer campo monetário no payload.
+   `scope_note`/`criticality` já estão gravados na oportunidade.
+9. **Guardrail:** reaproveita só a checagem de números e datas de
+   `ai/email_guardrails.py`; lista própria de termos (a do e-mail dá falso
+   positivo). **Degradação sem IA é código novo** (o `/email-draft` hoje
+   devolve erro sem chave).
