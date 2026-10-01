@@ -8,21 +8,21 @@ e push por etapa.
 - [x] Perguntas em aberto respondidas (ver spec, decisões 4–9).
 
 ## T1 — `business-case-assembler` (S)
-- [ ] `assemble_business_case(opp, company, item)` pura: cabeçalho, 4 seções, rodapé
+- [x] `assemble_business_case(opp, company, item, today)` pura: cabeçalho, 4 seções, rodapé
   - Acceptance: sem evidência → `ExportError` em linguagem de negócio; 4 scores separados; nenhum R$; sem descrição → só o nome do item; evidência antiga mostra data + aviso; confiança baixa → flag de tom condicional
   - Verify: `python -m pytest tests/test_business_case.py -q`
   - Files: `core/business_case.py`, `tests/test_business_case.py`
   - Depende de: nada (bloqueio resolvido)
 
 ## T2 — `severity-band-reuse` (XS)
-- [ ] Assembler chama `compute_severity_band(scope_note, criticality)`
+- [x] Assembler chama `compute_severity_band(scope_note, criticality)`
   - Acceptance: 9 combinações + `None` → "Não avaliado" com seção mantida; `discovery_prompt` nunca entra no PDF (assert)
   - Verify: `python -m pytest tests/test_business_case.py tests/test_opportunity_engine.py -q`
   - Files: `core/business_case.py`, `tests/test_business_case.py`
   - Depende de: T1
 
 ### Checkpoint após T1–T2
-- [ ] Suíte do motor verde; nenhum limiar novo; revisão do especialista (code-reviewer)
+- [x] Suíte do motor verde (109 testes focados); nenhum limiar novo; revisão do code-reviewer aplicada
 
 ## T3 — `prose-guard` (M)
 - [ ] `ai/business_case_prose.py`: request mínimo (sem segredo) + parse + guardrail
