@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Hints de prospecção geográfica** — o campo da chave do Google Maps agora
+  explica como obter a chave (projeto no Google Cloud, Geocoding API e Places
+  API (New), credenciais), e o campo de categoria do Google Places aponta para
+  a referência oficial de tipos.
+
 ## [1.0.0] - 2026-09-08
 
 Primeiro release estável.
