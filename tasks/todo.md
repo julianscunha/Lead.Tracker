@@ -24,15 +24,22 @@ e push por etapa.
 ### Checkpoint após T1–T2
 - [x] Suíte do motor verde (109 testes focados); nenhum limiar novo; revisão do code-reviewer aplicada
 
-## T3 — `prose-guard` (M)
-- [ ] `ai/business_case_prose.py`: request mínimo (sem segredo) + parse + guardrail
-  - Acceptance: rejeita número/data/%/"R$"/"mil/milhões"/produto fora da entrada e urgência sem data; IA mockada (`httpx.MockTransport`) que injeta produto e valor → rejeitada, cai na prosa determinística; sem IA/timeout/exceção → mesma prosa determinística, sem erro técnico
-  - Verify: `python -m pytest tests/test_business_case.py tests/test_email_guardrails.py -q`
-  - Files: `ai/business_case_prose.py`, `tests/test_business_case.py` (toca `ai/email_guardrails.py` só se extrair helpers)
-  - Depende de: T1, T2. Security Auditor antes de fechar.
+## T3a — guardrail da prosa (M) — parecer do Security Auditor
+- [x] `ai/business_case_guardrails.py`: funções puras `validate_section(text, allowed_text, ...)`, termos proibidos próprios (sem "sempre/nunca/mais/menos"), números/datas/R$/%/"mil/milhões" só se estiverem na entrada, entidades só as da entrada, tamanho como rejeição (nunca truncar saída da IA), cobertura dos fatos, scrub de PII/segredo para envio
+  - Acceptance: cada regra tem teste de rejeição e teste de não-falso-positivo ("30 dias", "VDC365", "M365", frases com "sempre/nunca/mais/menos"); urgência proibida SEMPRE (decisão 7); nenhum `except Exception`
+  - Verify: `python -m pytest tests/test_business_case_guardrails.py -q`
+  - Files: `ai/business_case_guardrails.py`, `tests/test_business_case_guardrails.py`
+  - Depende de: T1, T2
 
-### Checkpoint após T3
-- [ ] Teste de injeção de produto e valor passa (critério 1 da spec)
+## T3b — prosa por IA com degradação (M)
+- [ ] `ai/business_case_prose.py`: `apply_ai_prose(case, provider|None)` — whitelist de campos enviados, texto de fonte delimitado como dado, 1 chamada com `asyncio.wait_for`, validação por seção (seção ruim → determinística; ≥2 ruins, JSON não-dict ou injeção detectada → tudo determinístico), `fonte_prosa`, captura só `DomainError`/`httpx.HTTPError`/timeout
+  - Acceptance: os 8 testes do parecer (injeção via evidência, produto/número inventado, termos proibidos, boa resposta, parcial, degradação, vazamento no corpo da requisição, erro de programação não engolido); `custo` e `rodape` nunca reescritos
+  - Verify: `python -m pytest tests/test_business_case_prose.py tests/test_business_case.py -q`
+  - Files: `ai/business_case_prose.py`, `tests/test_business_case_prose.py`, `ai/base.py` (+ teste de regressão: `parse_structured_response` quebra com JSON que não é dict)
+  - Depende de: T3a
+
+### Checkpoint após T3a+T3b
+- [ ] Teste de injeção de produto e valor passa (critério 1 da spec); degradação sem IA passa (critério 2)
 
 ## T4 — `business-case-pdf` (S)
 - [ ] `business_case_pdf(doc, generated_at)` em `exports/pdf.py`
