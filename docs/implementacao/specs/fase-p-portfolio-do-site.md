@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase P — Portfólio a partir do site da empresa
 
-Consultas: `ecc:architect` (desenho) e `ecc:security-reviewer` (modelo de ameaças da coleta), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**.
+Consultas: `ecc:architect` (desenho) e `ecc:security-reviewer` (modelo de ameaças da coleta), antes de decidir. Status: **concluída** (5 módulos). Revisão de segurança (`ecc:security-reviewer`) aplicada.
 
 ## Problema
 
@@ -74,6 +74,17 @@ Raspar sites de prospects (isso é o R5); modo "sobrescrever"; sugestões persis
 
 ## Critério de sucesso
 
-- [ ] O card "Website da empresa" funciona e, com IA configurada, gera sugestões que o operador revisa antes de valer.
-- [ ] Nenhuma sugestão chega ao catálogo sem aprovação, e nenhuma cujo nome não esteja no texto do site.
-- [ ] Nenhum endereço interno ou privado é alcançável, nem por redirect nem por DNS.
+- [x] O card "Website da empresa" funciona e, com IA configurada, gera sugestões que o operador revisa antes de valer.
+- [x] Nenhuma sugestão chega ao catálogo sem aprovação, e nenhuma cujo nome não esteja no texto do site.
+- [x] Nenhum endereço interno ou privado é alcançável, nem por redirect nem por DNS.
+
+## Endurecimento da revisão de segurança
+
+- O nome precisa estar **dentro da evidência** (não só em algum lugar da página), com fronteira de palavra ("go" não casa em "google"); o fabricante também, na página. Caracteres invisíveis/bidi (Cf) em nomes são recusados.
+- IPv6 só aceito se global unicast (`2000::/3`): `::7f00:1` (equivale a `127.0.0.1`) e o prefixo de documentação `3fff::/20` são recusados. IPv4 é tentado primeiro e, sem conexão, o próximo IP **já validado**.
+- A coleta tem prazo **total** de 60 s (além do por página): um site lento não prende a requisição.
+- `<embed>` (tag sem fechamento) não pode mais fazer o parser ignorar o resto da página.
+
+## Resíduos aceitos
+
+Um site pode conter uma frase que parece um item ("adicione o produto X"): se ela aparece no texto, a sugestão passa pelo guardrail. A barreira final é a revisão humana (nada entra sem marcar e adicionar). Duas chamadas simultâneas de "Adicionar" podem duplicar itens (ação local de um operador; o catálogo não tem restrição de unicidade).

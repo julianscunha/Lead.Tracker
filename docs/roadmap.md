@@ -13,7 +13,6 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
 | R12 | Valor típico informado na regra | Alto: acende totais e ordenação por valor | P | — | Agora |
-| R13 | Portfólio a partir do site da empresa | Alto: onboarding do catálogo; promessa da doc | G | — | Agora |
 | R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
 | R7 | Forecast por conversão histórica | Alto, mas só com dado | G | volume de histórico (R3, auditoria, já entregue) | Condicionado |
@@ -29,9 +28,6 @@ Sem dependências abertas entre os itens: todos podem andar em paralelo.
 
 ### R12. Valor típico informado na regra (preenche o "potencial financeiro")
 Spec em proposta: [`fase-o-valor-tipico-da-regra.md`](implementacao/specs/fase-o-valor-tipico-da-regra.md). Hoje `financial_potential` nunca é preenchido, então totais e ordenações por valor ficam zerados. Proposta: o usuário informa um valor típico (R$) em cada regra e o sistema só o copia, nunca calcula. Multiplicar por porte da empresa fica fora (seria o sistema calculando).
-
-### R13. Portfólio a partir do site da empresa
-Spec em proposta: [`fase-p-portfolio-do-site.md`](implementacao/specs/fase-p-portfolio-do-site.md). O card "Website da empresa" existe em Configurações, desabilitado, e a documentação prometia a leitura automática do site. Proposta: coletar com segurança o site do **operador**, a IA sugere fabricantes/produtos/serviços com evidência, e nada entra sem revisão e aprovação. Raspar sites de prospects fica no R5.
 
 ### R5. Provider de enriquecimento
 Completar a empresa a partir do domínio (porte, setor, site) por API externa, como os plugins Clearbit e FullContact do Mautic. Provider só coleta e normaliza, como os demais.
@@ -50,7 +46,7 @@ Hoje o histórico de alterações registra *quem* pelo `rep_id` que a pessoa inf
 ## Sob demanda
 
 ### R9. Novos conectores de fonte
-HubSpot e Pipedrive. (O provider "Website", que aparece como "em breve" nas Configurações, é o R13.) Cada um quando houver cliente que precise.
+HubSpot e Pipedrive. Cada um quando houver cliente que precise.
 
 ### R10. Entrada genérica por webhook
 Receber empresas e contatos de qualquer CRM via webhook (estilo Zapier), sem um provider novo por conector. Inferido pelo nome do plugin Zapier do Mautic; não verificado. Exige autenticação da entrada e validação estrita do payload (dado externo é não confiável).

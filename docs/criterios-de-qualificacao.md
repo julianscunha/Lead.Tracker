@@ -212,6 +212,20 @@ contato bloqueado na empresa, o sistema pede para escolher o contato.
   status do cliente (sincronização e prospecção) e para segmento, região e
   representante (importação de planilha).
 
+## Portfólio sugerido pelo site: o que a IA pode propor
+
+A IA nunca decide o que entra no portfólio. Uma sugestão só aparece se: o
+**nome do item está escrito no texto do site**, dentro de um **trecho que o
+sistema também encontra literalmente na página** citada (esse trecho é mostrado
+para você conferir); o fabricante, quando indicado, também está no texto; e o
+nome não tem endereço, marcação nem caracteres invisíveis. O que a IA propõe
+sem essa prova é descartado e contado. Produto exige fabricante: sem
+fabricante citado, o item vira serviço e você pode trocar o tipo. Itens que
+já existem no portfólio (mesmo nome, ou apelido, ignorando caixa e acento)
+aparecem como "já no portfólio". O sistema lê só o endereço que você informou,
+até 5 páginas do mesmo site, respeitando o `robots.txt`, e nunca acessa
+endereços internos da sua rede.
+
 ## Os números não são definitivos
 
 Todo threshold e toda fórmula deste documento é revisável — nada aqui é
