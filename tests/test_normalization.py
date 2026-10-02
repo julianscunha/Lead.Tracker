@@ -188,3 +188,29 @@ if __name__ == "__main__":
     test_merge_pair_never_zeroes_deal_size_hint_when_freshly_fetched_company_has_none()
     test_merge_pair_fills_account_standard_fields_from_other_when_base_is_none()
     print("OK — todos os testes de normalização passaram")
+
+
+def test_normalize_website_accepts_http_https_and_prefixes_missing_scheme():
+    from core.normalization import normalize_website
+    assert normalize_website("https://www.empresa.com.br/contato") == "https://www.empresa.com.br/contato"
+    assert normalize_website("  www.empresa.com  ") == "https://www.empresa.com"
+    assert normalize_website("empresa.com:8080/x") == "https://empresa.com:8080/x"
+    assert normalize_website("HTTP://Empresa.com") == "http://empresa.com"
+
+
+def test_normalize_website_rejects_unsafe_or_malformed_values():
+    from core.normalization import normalize_website
+    for bad in (None, "", "   ", "javascript:alert(1)", "data:text/html,<b>x</b>", "mailto:a@b.com",
+                "ftp://empresa.com", "https://user:pw@empresa.com", "https://localhost", "empresa",
+                "https://em presa.com", "https://empresa.com/\x00", "https://" + "a" * 2050 + ".com"):
+        assert normalize_website(bad) is None, bad
+
+
+def test_dedup_key_ignores_generic_platform_domains():
+    from core.models import Company
+    from core.normalization import dedup_key
+    a = Company(name="Padaria Central", website="https://instagram.com/padariacentral")
+    b = Company(name="Mercado do Bairro", website="https://instagram.com/mercadobairro")
+    assert dedup_key(a) != dedup_key(b)
+    assert dedup_key(a).startswith("name:")
+    assert dedup_key(Company(name="X", website="https://www.empresa.com")) == "domain:empresa.com"

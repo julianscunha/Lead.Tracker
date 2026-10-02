@@ -50,12 +50,53 @@ def normalize_domain(website: str | None) -> str | None:
     return host or None
 
 
+# Domínios que aparecem como "site" no Maps/CRM mas pertencem a uma plataforma,
+# não à empresa: duas empresas diferentes colidiriam na chave de dedup. O link
+# continua válido para exibição; só não serve de chave.
+GENERIC_DOMAINS = {
+    "facebook.com", "instagram.com", "wa.me", "linktr.ee", "sites.google.com",
+    "linkedin.com", "twitter.com", "x.com", "youtube.com", "tiktok.com", "wixsite.com",
+}
+
+_MAX_WEBSITE_LEN = 2048
+
+
+def normalize_website(raw: str | None) -> str | None:
+    """URL segura para guardar/exibir, ou `None`. O dado vem de fonte externa
+    (Maps, CRM com texto livre) e nunca é buscado por nós — só guardado e
+    mostrado como link. Aceita só http/https com host contendo ponto e sem
+    `user:pass@`; sem esquema ("www.x.com") prefixa https://. Esquemas opacos
+    (`javascript:`, `data:`, `mailto:`) não têm `//`, por isso o teste é
+    por `:` seguido de não-dígito (preserva `host.com:8080`). Qualquer
+    rejeição devolve `None`, nunca erro: o campo é opcional."""
+    if not raw:
+        return None
+    candidate = raw.strip()
+    if not candidate or len(candidate) > _MAX_WEBSITE_LEN or any(c.isspace() or ord(c) < 32 for c in candidate):
+        return None
+    if "://" not in candidate:
+        if re.match(r"^[a-z][a-z0-9+.-]*:(?!\d)", candidate, re.I):
+            return None
+        candidate = f"https://{candidate}"
+    try:
+        parsed = urlparse(candidate)
+        host = parsed.hostname
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or "@" in parsed.netloc or not host or "." not in host:
+        return None
+    return parsed._replace(netloc=parsed.netloc.lower()).geturl()
+
+
 def dedup_key(company: Company) -> str:
     """Chave de deduplicação: domínio quando disponível, senão nome normalizado.
     Pública — backend/sync.py usa pra reconciliar empresa vinda de uma fonte
-    contra empresa já persistida de outra fonte, sem duplicar."""
+    contra empresa já persistida de outra fonte, sem duplicar. Domínio de
+    plataforma (`GENERIC_DOMAINS`) não conta como domínio da empresa."""
     domain = normalize_domain(company.website)
-    return f"domain:{domain}" if domain else f"name:{normalize_name(company.name)}"
+    if domain and domain not in GENERIC_DOMAINS:
+        return f"domain:{domain}"
+    return f"name:{normalize_name(company.name)}"
 
 
 def _merge_sources(existing: list[SourceRef], incoming: list[SourceRef]) -> list[SourceRef]:
