@@ -10,7 +10,7 @@
 
 ## Suas melhores oportunidades de venda já estão no seu CRM — só ninguém olhou
 
-Lead.Tracker cruza o que você já sabe sobre seus clientes (CRM, website,
+Lead.Tracker cruza o que você já sabe sobre seus clientes (CRM, planilhas,
 portfólio técnico) com o que você vende, e aponta onde tem dinheiro na mesa:
 cliente com Veeam mas sem DR, prospect crescendo sem produto X, conta que
 vale reavaliação de preço. Tudo com evidência, nunca um palpite.

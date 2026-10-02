@@ -13,8 +13,8 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
 
 ## O que o módulo faz
 
-- **Consolida** empresas vindas de múltiplas fontes (Salesforce, website,
-  importação manual) numa única `Company`, sem duplicação — a mesma conta
+- **Consolida** empresas vindas de múltiplas fontes (Salesforce, Google Maps,
+  importação por planilha) numa única `Company`, sem duplicação — a mesma conta
   nunca aparece duas vezes só porque veio de fontes diferentes.
 - **Detecta oportunidades** por regras determinísticas de correlação de
   portfólio (presença/ausência de produto ou serviço) e por sinais de
@@ -79,8 +79,8 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
   revisão do critério sugerido → confirmar) pra descoberta geográfica via
   Google Maps.
 - **Configurações** — fontes de dado, portfólio (fabricantes/produtos/
-  serviços, construído automaticamente a partir do seu website e revisável
-  antes de valer), mapeamento de campo personalizado do Salesforce, IA,
+  serviços, cadastrados à mão ou por planilha; a leitura automática do seu
+  site, com revisão antes de valer, está em desenvolvimento), mapeamento de campo personalizado do Salesforce, IA,
   metas por representante, e conflitos de dados entre fontes.
 
 ## Arquitetura
