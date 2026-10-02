@@ -30,4 +30,5 @@ Tudo que **já foi construído**. O que falta está em [`../roadmap.md`](../road
 | O | Valor típico informado na regra (o usuário digita, o sistema só copia; nunca calcula) | [`fase-o-valor-tipico-da-regra.md`](specs/fase-o-valor-tipico-da-regra.md) |
 | P | Portfólio a partir do site da própria empresa (coleta segura, sugestão por IA validada contra o texto, revisão antes de valer) | [`fase-p-portfolio-do-site.md`](specs/fase-p-portfolio-do-site.md) |
 | Q | Enriquecimento de porte e setor por API HTTP JSON configurável (sob demanda, preenche só o vazio, divergência vira conflito) | [`fase-q-enriquecimento.md`](specs/fase-q-enriquecimento.md) |
+| R | Sugerir regras com IA a partir do portfólio (aceite uma a uma, validado contra o catálogo; nada vale sem o usuário aceitar) | [`fase-r-regras-do-portfolio.md`](specs/fase-r-regras-do-portfolio.md) |
 | — | Business case por oportunidade (PDF de 1 página) | [`business-case-por-oportunidade.md`](specs/business-case-por-oportunidade.md) |

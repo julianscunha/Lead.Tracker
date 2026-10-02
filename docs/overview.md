@@ -92,7 +92,8 @@ O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → c
   case, preencher a discovery, qualificar o gap e consultar o histórico de
   alterações. Exporta PDF e Excel.
 - **Configurações** — calibragem de uso mais raro, em seções recolhíveis:
-  portfólio (inclui sugestão pelo site), regras, mapeamento de campo
+  portfólio (inclui sugestão pelo site), regras (com sugestão opcional por IA,
+  que você aceita ou ignora uma a uma), mapeamento de campo
   personalizado do Salesforce, IA, limites e prazos, metas por representante.
 
 O campo **Você é**, no topo, informa o representante uma única vez para todas as

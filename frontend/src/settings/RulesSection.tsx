@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { InfoHint } from '../InfoHint'
+import { parseBRL } from './logic'
+import { RuleSuggestions } from './RuleSuggestions'
 
-// "40.000", "40.000,50" e "40000.5" (pt-BR ou simples); qualquer outra coisa, inclusive infinito, vira NaN.
-const parseBRL = (s: string) => {
-  const t = s.trim()
-  const n = Number(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(',', '.'))
-  return Number.isFinite(n) ? n : NaN
-}
 import { createRule, deleteRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 
 type RuleKind = 'category' | 'presence' | 'relation'
@@ -116,6 +112,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
           {formOpen ? 'Cancelar' : 'Nova regra'}
         </button>
       </div>
+      <RuleSuggestions onCreated={created => setRules(prev => [...(prev ?? []), created])} />
 
       {formOpen && (
         <div className="lt-source-card__form">

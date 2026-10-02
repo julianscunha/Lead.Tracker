@@ -61,6 +61,7 @@ from core.repository import (
     resolve_field_conflict, save_do_not_contact, update_opportunity_discovery,
     update_opportunity_qualification, update_opportunity_status,
 )
+from ai.portfolio_guardrails import _norm as _norm_text
 from backend.blocks import REASON_LABEL, block_error, find_block
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
@@ -238,12 +239,12 @@ class ServiceIn(BaseModel):
 
 
 class RuleIn(BaseModel):
-    opportunity_type: str
-    justification: str
-    requires: list[str] = []
-    absent: list[str] = []
-    requires_category: list[str] = []
-    absent_category: list[str] = []
+    opportunity_type: str = Field(max_length=100)
+    justification: str = Field(max_length=1000)
+    requires: list[str] = Field(default=[], max_length=20)
+    absent: list[str] = Field(default=[], max_length=20)
+    requires_category: list[str] = Field(default=[], max_length=20)
+    absent_category: list[str] = Field(default=[], max_length=20)
     relation_type: str | None = None
     opportunity_score: float = 1.0
     confidence_score: float = 1.0
@@ -811,8 +812,33 @@ async def create_rule(body: RuleIn) -> CorrelationRule:
     except RuleError as exc:
         raise_http(DomainError(ErrorCategory.INVALID_DATA, str(exc)))
     async with session_factory() as session:
+        await _check_rule_against_catalog(session, rule)
         await save_rule(session, rule)
     return rule
+
+
+async def _check_rule_against_catalog(session, rule: CorrelationRule) -> None:
+    """Ids e categorias exigidas pela regra precisam existir no catálogo (fecha aceite adulterado de sugestão da IA).
+    Catálogo vazio: sem o que conferir, a regra manual segue como sempre. Categoria é regravada com a
+    grafia do catálogo (o motor compara texto exato)."""
+    vendors, products, services = await list_vendors(session), await list_products(session), await list_services(session)
+    if not (vendors or products or services):
+        return
+    known = {i.id for i in (*vendors, *products, *services)}
+    if any(i not in known for i in (*rule.requires, *rule.absent)):
+        raise_http(DomainError(
+            ErrorCategory.INVALID_DATA, "A regra usa um item que não existe no portfólio.",
+            "Escolha os itens na lista do portfólio.",
+        ))
+    spelling = {_norm_text(i.category): i.category for i in (*products, *services) if i.category}
+    if any(_norm_text(c) not in spelling for c in rule.requires_category):
+        raise_http(DomainError(
+            ErrorCategory.INVALID_DATA, "A regra usa uma categoria que não existe no portfólio.",
+            "Escolha a categoria na lista do portfólio.",
+        ))
+    # `absent_category` NÃO é conferida: "não tem a categoria X" é legítimo mesmo sem nada de X no catálogo.
+    rule.requires_category = [spelling[_norm_text(c)] for c in rule.requires_category]
+    rule.absent_category = [spelling.get(_norm_text(c), c) for c in rule.absent_category]
 
 
 @router.delete("/rules/{rule_id}", status_code=204, response_model=None)

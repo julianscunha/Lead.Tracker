@@ -31,6 +31,7 @@ from backend.routes_enrichment import router as enrichment_router
 from backend.routes_exports import router as exports_router
 from backend.routes_settings import router as settings_router
 from backend.routes_portfolio_suggest import router as portfolio_suggest_router
+from backend.routes_rule_suggest import router as rule_suggest_router
 from backend.routes_sync import router as sync_router
 from providers.base import ProviderError
 
@@ -44,6 +45,7 @@ router.include_router(exports_router)
 router.include_router(settings_router)
 router.include_router(sync_router)
 router.include_router(portfolio_suggest_router)
+router.include_router(rule_suggest_router)
 router.include_router(enrichment_router)
 
 

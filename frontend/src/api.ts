@@ -1031,6 +1031,24 @@ export async function createRule(rule: NewRule): Promise<CorrelationRule> {
   return resp.json()
 }
 
+export interface RuleSuggestion {
+  opportunity_type: string
+  justification: string
+  requires: string[]
+  absent: string[]
+  requires_category: string[]
+  absent_category: string[]
+  relation_type: string | null
+  requires_labels: string[]
+  absent_labels: string[]
+}
+
+export async function suggestRules(): Promise<{ suggestions: RuleSuggestion[]; discarded: number }> {
+  const resp = await fetch(`${BASE}/rule-suggestions`, { method: 'POST' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export async function deleteRule(id: string): Promise<void> {
   const resp = await fetch(`${BASE}/rules/${id}`, { method: 'DELETE' })
   if (!resp.ok) throw new Error(await friendlyError(resp))

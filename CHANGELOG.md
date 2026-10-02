@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Sugerir regras com IA** — em Configurações > Regras, o botão opcional "Sugerir regras
+  com IA" usa a IA configurada para propor regras a partir do seu portfólio (nomes,
+  categorias e relações; nenhum dado de clientes é enviado). Cada sugestão aparece em um
+  cartão com a regra em linguagem legível e a justificativa; nada vale até você clicar em
+  Aceitar (com valor típico opcional) ou Ignorar. Sugestões que citam itens ou categorias
+  fora do portfólio, repetem regras existentes ou trazem texto suspeito são descartadas e
+  contadas. Ao criar uma regra, o sistema agora confere que os itens e as categorias
+  existem no portfólio.
+
 ## [1.4.0] - 2026-10-02
 
 ### Adicionado

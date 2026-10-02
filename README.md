@@ -97,7 +97,7 @@ O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → c
 | **Dashboard** | Visão executiva: o que pede decisão hoje (cada número leva à lista já filtrada), valor do pipeline e funil. Cobertura de meta por representante, matriz por categoria e demais indicadores ficam recolhidos. |
 | **Entrada de dados** | A porta de entrada única: atualizar os dados das fontes, conectar Salesforce, Google Maps, o site da sua empresa e uma API de enriquecimento (porte e setor), importar planilha CSV e fazer a prospecção geográfica (assistente guiado). |
 | **Oportunidades** | Lapidar e agir: a lista viva do que o motor encontrou, com status e saúde da conta, filtros, conflitos de dados entre fontes (quando houver), e em cada linha o status, a próxima ação sugerida, "não contatar", rascunho de e-mail, business case, discovery, qualificação e histórico de alterações. Exporta PDF e Excel do que está na tela. |
-| **Configurações** | Calibragem de uso mais raro, em seções recolhíveis: portfólio (inclui "Ler meu site"), regras, mapeamento de campos do Salesforce, IA, limites e prazos e metas por representante. |
+| **Configurações** | Calibragem de uso mais raro, em seções recolhíveis: portfólio (inclui "Ler meu site"), regras (com o botão opcional "Sugerir regras com IA": você aceita ou ignora cada sugestão), mapeamento de campos do Salesforce, IA, limites e prazos e metas por representante. |
 
 O campo **Você é**, no topo, vale para todas as abas (próxima ação, prospecção, escolhas em conflitos e histórico).
 
