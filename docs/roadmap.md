@@ -22,6 +22,15 @@ Registrar *quem* editou a discovery (hoje só *quando*). Depende de o produto te
 ### 4. Novos conectores de fonte
 HubSpot, Pipedrive e LinkedIn (no radar). O provider "Website" (coleta de texto do site) aparece como "em breve" nas Configurações e ainda não existe.
 
+### 4a. Conflito entre fontes
+Hoje, quando Salesforce, Maps e CSV trazem a mesma empresa, `core/normalization.py` fica com o primeiro valor não vazio, sem avisar. Proposta: precedência configurável por campo (fonte preferida e/ou mais recente) e, quando não der para decidir, mostrar o conflito ao usuário em vez de escolher em silêncio — mesma regra de "nunca sobrescrever em silêncio" do portfólio. Ideia do `SyncJudge` do Mautic (modos `BestEvidence`/`FuzzyEvidence`/`HardEvidence` e `ConflictUnresolvedException`); detalhes do funcionamento dele não foram lidos.
+
+### 4b. Provider de enriquecimento
+Completar uma empresa a partir do domínio (porte, setor, site) por API externa, como os plugins Clearbit e FullContact do Mautic. Provider só coleta e normaliza, como os demais. Depende do item 1 (URL da empresa).
+
+### 4c. Entrada genérica por webhook
+Receber empresas e contatos de qualquer CRM via webhook (estilo Zapier), sem escrever um provider novo por conector. Inferido pelo nome do plugin Zapier do Mautic; não verificado. Precisa de autenticação da entrada e validação estrita do payload (dado externo é não confiável).
+
 ### 5. Registro de auditoria geral
 Hoje só a mudança de status tem histórico (`OpportunityStatusChange`). Falta registrar edições de qualificação, discovery, data de renovação e postura do contato: entidade, campo, valor anterior e novo, quando (e quem, quando houver autenticação — item 3). É também a base de dado para o forecast (item 2). Ideia vinda da leitura do Mautic (`LeadEventLog`), adaptada ao nosso modelo; sem código copiado (Mautic é GPL).
 
