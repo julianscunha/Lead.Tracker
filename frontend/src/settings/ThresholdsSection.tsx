@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import { InfoHint } from '../InfoHint'
 import {
   getAgingSlaConfig, getGeoPromotionConfig, getRepCategoryMinSampleConfig, updateAgingSlaConfig,
   updateGeoPromotionConfig, updateRepCategoryMinSampleConfig,
 } from '../api'
-import { InfoHint } from '../InfoHint'
 
 // Achado da auditoria de UX (não-técnico): SLA de triagem e limites de
 // promoção geográfica só existiam via .env/API direta — sem forma de
@@ -89,15 +89,11 @@ export function ThresholdsSection() {
       </div>
       <div className="lt-source-card__form">
         <label className="lt-field">
-          <span>Prazo de triagem (dias)</span>
+          <span>Prazo de triagem (dias) <InfoHint text="Detectada sem virar qualificada nem descartada depois desse prazo conta como &quot;triagem atrasada&quot; no dashboard." /></span>
           <input
             type="number" min={1} value={slaDays}
             onChange={e => setSlaDays(e.target.value)}
           />
-          <span className="lt-hint">
-            Detectada sem virar qualificada nem descartada depois desse prazo conta como
-            "triagem atrasada" no dashboard.
-          </span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={saveSla} disabled={saving === 'sla'}>
@@ -106,14 +102,11 @@ export function ThresholdsSection() {
         </div>
 
         <label className="lt-field">
-          <span>Mínimo de oportunidades por representante e categoria</span>
+          <span>Mínimo de oportunidades por representante e categoria <InfoHint text="Abaixo disso, o par aparece como &quot;dado insuficiente&quot; no dashboard — nunca como 0%." /></span>
           <input
             type="number" min={1} value={minSample}
             onChange={e => setMinSample(e.target.value)}
           />
-          <span className="lt-hint">
-            Abaixo disso, o par aparece como "dado insuficiente" no dashboard — nunca como 0%.
-          </span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={saveSample} disabled={saving === 'sample'}>
@@ -122,20 +115,18 @@ export function ThresholdsSection() {
         </div>
 
         <label className="lt-field">
-          <span>Score mínimo pra promoção automática</span>
+          <span>Score mínimo pra promoção automática <InfoHint text="De 0.0 a 1.0 — quanto maior, mais seletiva a promoção automática." /></span>
           <input
             type="number" min={0} max={1} step={0.01} value={minScore}
             onChange={e => setMinScore(e.target.value)}
           />
-          <span className="lt-hint">De 0.0 a 1.0 — quanto maior, mais seletiva a promoção automática.</span>
         </label>
         <label className="lt-field">
-          <span>Limite diário de promoções automáticas</span>
+          <span>Limite diário de promoções automáticas <InfoHint text="Teto de descobertas geográficas promovidas automaticamente por dia." /></span>
           <input
             type="number" min={1} value={dailyCap}
             onChange={e => setDailyCap(e.target.value)}
           />
-          <span className="lt-hint">Teto de descobertas geográficas promovidas automaticamente por dia.</span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={saveGeo} disabled={saving === 'geo'}>

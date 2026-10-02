@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { importCsv, type CsvImportResult } from '../api'
 import { InfoHint } from '../InfoHint'
+import { importCsv, type CsvImportResult } from '../api'
 
 // Achado de teste manual: sem Salesforce/Google Maps configurados não havia
 // nenhuma forma de colocar empresa + portfólio real no sistema em lote
@@ -39,26 +39,18 @@ export function CsvImportSection() {
       </div>
       <div className="lt-source-card__form">
         <label className="lt-field">
-          <span>Arquivo CSV</span>
+          <span>Arquivo CSV <InfoHint text="Colunas: company_name (obrigatória), is_customer, segment, region, rep_id, vendor, product, service. Uma linha por empresa + item de portfólio — repita a empresa numa linha por produto/serviço." /></span>
           <input
             type="file" accept=".csv,text/csv"
             onChange={e => setFile(e.target.files?.[0] ?? null)}
           />
-          <span className="lt-hint">
-            Colunas: company_name (obrigatória), is_customer, segment, region, rep_id, vendor, product,
-            service. Uma linha por empresa + item de portfólio — repita a empresa numa linha por produto/serviço.
-          </span>
         </label>
         <label className="lt-field">
-          <span>Empresa já cadastrada: o que fazer com o portfólio</span>
+          <span>Empresa já cadastrada: o que fazer com o portfólio <InfoHint text="Adicionar preserva o que já foi cadastrado antes; Substituir descarta o portfólio anterior da empresa e usa só o que está neste arquivo." /></span>
           <select value={mode} onChange={e => setMode(e.target.value as 'merge' | 'replace')}>
             <option value="merge">Adicionar aos itens já cadastrados</option>
             <option value="replace">Substituir pelos itens deste arquivo</option>
           </select>
-          <span className="lt-hint">
-            Adicionar preserva o que já foi cadastrado antes; Substituir descarta o portfólio anterior
-            da empresa e usa só o que está neste arquivo.
-          </span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={handleImport} disabled={importing || !file}>

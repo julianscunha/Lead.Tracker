@@ -1,4 +1,5 @@
 import type { ClientFilter, OpportunityRow } from './types'
+import { InfoHint } from './InfoHint'
 
 export interface FilterState {
   client: ClientFilter
@@ -30,7 +31,7 @@ export function Filters({
   return (
     <div className="lt-filters" role="group" aria-label="Filtros de oportunidades">
       <label htmlFor="lt-filter-client" className="lt-field">
-        <span>Cliente</span>
+        <span>Cliente <InfoHint text="Filtra pela relação da empresa: cliente atual ou prospect ainda sem venda." /></span>
         <select
           id="lt-filter-client"
           value={value.client}
@@ -40,45 +41,40 @@ export function Filters({
           <option value="clientes">Clientes atuais</option>
           <option value="prospects">Prospects</option>
         </select>
-        <span className="lt-hint">Filtra pela relação da empresa: cliente atual ou prospect ainda sem venda.</span>
       </label>
 
       <label htmlFor="lt-filter-product" className="lt-field">
-        <span>Produto</span>
+        <span>Produto <InfoHint text="Mostra só oportunidades associadas a esse produto do portfólio." /></span>
         <select id="lt-filter-product" value={value.product} onChange={e => onChange({ ...value, product: e.target.value })}>
           <option value="todos">Todos</option>
           {products.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        <span className="lt-hint">Mostra só oportunidades associadas a esse produto do portfólio.</span>
       </label>
 
       <label htmlFor="lt-filter-service" className="lt-field">
-        <span>Serviço</span>
+        <span>Serviço <InfoHint text="Mostra só oportunidades associadas a esse serviço do portfólio." /></span>
         <select id="lt-filter-service" value={value.service} onChange={e => onChange({ ...value, service: e.target.value })}>
           <option value="todos">Todos</option>
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="lt-hint">Mostra só oportunidades associadas a esse serviço do portfólio.</span>
       </label>
 
       <label htmlFor="lt-filter-source" className="lt-field">
-        <span>Fonte</span>
+        <span>Fonte <InfoHint text="Mostra só oportunidades com evidência vinda dessa fonte de dados." /></span>
         <select id="lt-filter-source" value={value.source} onChange={e => onChange({ ...value, source: e.target.value })}>
           <option value="todos">Todas</option>
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="lt-hint">Mostra só oportunidades com evidência vinda dessa fonte de dados.</span>
       </label>
 
       <label htmlFor="lt-filter-score" className="lt-field">
-        <span>Score mínimo</span>
+        <span>Score mínimo <InfoHint text="De 0.0 a 1.0 — esconde oportunidades com aderência abaixo desse valor." /></span>
         <input
           id="lt-filter-score"
           type="number" min={0} max={1} step={0.1}
           value={value.minScore}
           onChange={e => onChange({ ...value, minScore: Number(e.target.value) })}
         />
-        <span className="lt-hint">De 0.0 a 1.0 — esconde oportunidades com aderência abaixo desse valor.</span>
       </label>
     </div>
   )

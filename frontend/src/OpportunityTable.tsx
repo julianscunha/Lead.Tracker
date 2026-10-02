@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { InfoHint } from './InfoHint'
 import {
-  createDoNotContact, exportBusinessCase, generateEmailDraft, getAiConfig, liftDoNotContact, listDoNotContact, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
+  createDoNotContact, exportBusinessCase, listOpportunityAudit, generateEmailDraft, getAiConfig, liftDoNotContact, listDoNotContact, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
   updateOpportunityDiscovery, updateOpportunityQualification, updateOpportunityStatus,
-  type CompanyContact, type DoNotContactEntry, type DoNotContactReason, type EmailDraft, type NextSuggestedTouch,
+  type AuditEntry, type CompanyContact, type DoNotContactEntry, type DoNotContactReason, type EmailDraft, type NextSuggestedTouch,
 } from './api'
 import { canExportBusinessCase, proseSourceMessage } from './businessCase'
-import { InfoHint } from './InfoHint'
 import type { AccountHealth, Criticality, DismissalReason, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
 const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
@@ -128,11 +128,10 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
   return (
     <div className="lt-severity">
       <label className="lt-field">
-        <span>Status</span>
+        <span>Status <InfoHint text="Etapa atual no funil — detectada → qualificada → revisada → contatada → oportunidade." /></span>
         <select value={pendingStatus ?? row.status} onChange={e => handleSelect(e.target.value as OpportunityRow['status'])} disabled={saving}>
           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <span className="lt-hint">Etapa atual no funil — detectada → qualificada → revisada → contatada → oportunidade.</span>
       </label>
       {row.status === 'dismissed' && pendingStatus === null && row.dismissalReason && (
         <p className="lt-hint">
@@ -141,26 +140,23 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
       )}
       {needsDismissalReason && (
         <label className="lt-field">
-          <span>Motivo do descarte</span>
+          <span>Motivo do descarte <InfoHint text="Obrigatório pra descartar — fica registrado no histórico da oportunidade." /></span>
           <select value={dismissalReason} onChange={e => setDismissalReason(e.target.value as DismissalReason)}>
             <option value="">Selecione um motivo</option>
             {DISMISSAL_REASON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <span className="lt-hint">Obrigatório pra descartar — fica registrado no histórico da oportunidade.</span>
         </label>
       )}
       {needsNote && (
         <label className="lt-field">
-          <span>Justificativa (pulou etapas ou reabriu uma oportunidade descartada)</span>
+          <span>Justificativa (pulou etapas ou reabriu uma oportunidade descartada) <InfoHint text="Explica por que a mudança fugiu do fluxo normal — fica registrada no histórico." /></span>
           <textarea value={note} onChange={e => setNote(e.target.value)} />
-          <span className="lt-hint">Explica por que a mudança fugiu do fluxo normal — fica registrada no histórico.</span>
         </label>
       )}
       {leavingDetected && (
         <label className="lt-field">
-          <span>Qualificar sem discovery (opcional)</span>
+          <span>Qualificar sem discovery (opcional) <InfoHint text="Só se não der pra preencher a discovery acima — a justificativa fica registrada e a oportunidade aparece como &quot;sem discovery&quot;." /></span>
           <textarea value={skipReason} onChange={e => setSkipReason(e.target.value)} />
-          <span className="lt-hint">Só se não der pra preencher a discovery acima — a justificativa fica registrada e a oportunidade aparece como "sem discovery".</span>
         </label>
       )}
       {needsConfirm && (
@@ -225,7 +221,7 @@ const DISCOVERY_FIELDS = [
   { key: 'championStake', label: 'O que o seu contato ganha ou perde com isso?', help: 'O que está em jogo para essa pessoa: uma meta, uma apresentação, a reputação dela?' },
 ] as const
 
-function DiscoveryFields({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
+function DiscoveryFields({ row, repId, onUpdated }: { row: OpportunityRow; repId: string; onUpdated: (updated: OpportunityRow) => void }) {
   const [values, setValues] = useState({
     rootCauseStated: row.rootCauseStated ?? '', triggerEvent: row.triggerEvent ?? '', championStake: row.championStake ?? '',
   })
@@ -234,7 +230,7 @@ function DiscoveryFields({ row, onUpdated }: { row: OpportunityRow; onUpdated: (
   const save = async () => {
     setSaveError(null)
     try {
-      onUpdated(await updateOpportunityDiscovery(row.id, values))
+      onUpdated(await updateOpportunityDiscovery(row.id, values, repId.trim() || null))
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Falha ao salvar a discovery.')
     }
@@ -246,13 +242,12 @@ function DiscoveryFields({ row, onUpdated }: { row: OpportunityRow; onUpdated: (
       {row.discoverySkipped && <p className="lt-hint">Qualificada sem discovery: {row.discoverySkipReason}</p>}
       {DISCOVERY_FIELDS.map(f => (
         <label key={f.key} className="lt-field">
-          <span>{f.label}</span>
+          <span>{f.label} <InfoHint text={f.help} /></span>
           <textarea
             value={values[f.key]}
             onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
             onBlur={save}
           />
-          <span className="lt-hint">{f.help}</span>
         </label>
       ))}
       {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
@@ -260,7 +255,7 @@ function DiscoveryFields({ row, onUpdated }: { row: OpportunityRow; onUpdated: (
   )
 }
 
-function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
+function SeverityQualification({ row, repId, onUpdated }: { row: OpportunityRow; repId: string; onUpdated: (updated: OpportunityRow) => void }) {
   const [scopeNote, setScopeNote] = useState(row.scopeNote)
   const [criticality, setCriticality] = useState(row.criticality)
   const [severityNote, setSeverityNote] = useState(row.severityNote ?? '')
@@ -273,7 +268,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
     try {
       const updated = await updateOpportunityQualification(row.id, {
         scopeNote: next.scopeNote, criticality: next.criticality, severityNote: next.severityNote || null,
-      })
+      }, repId.trim() || null)
       if (seq !== requestSeq.current) return // resposta atrasada de um save anterior — descarta, não reverte o estado mais novo
       onUpdated(updated)
     } catch (err) {
@@ -285,7 +280,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
   return (
     <div className="lt-severity">
       <label className="lt-field">
-        <span>Alcance do gap</span>
+        <span>Alcance do gap <InfoHint text="Quão abrangente é o gap identificado — usado no cálculo de severidade." /></span>
         <select
           value={scopeNote ?? ''}
           onChange={e => {
@@ -297,10 +292,9 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           <option value="">Não avaliado</option>
           {SCOPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <span className="lt-hint">Quão abrangente é o gap identificado — usado no cálculo de severidade.</span>
       </label>
       <label className="lt-field">
-        <span>Criticidade</span>
+        <span>Criticidade <InfoHint text="Quão urgente é o risco pro cliente — usado no cálculo de severidade." /></span>
         <select
           value={criticality ?? ''}
           onChange={e => {
@@ -312,16 +306,14 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
           <option value="">Não avaliado</option>
           {CRITICALITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <span className="lt-hint">Quão urgente é o risco pro cliente — usado no cálculo de severidade.</span>
       </label>
       <label className="lt-field">
-        <span>Observação (opcional)</span>
+        <span>Observação (opcional) <InfoHint text="Contexto livre sobre o gap — não entra no cálculo de severidade." /></span>
         <textarea
           value={severityNote}
           onChange={e => setSeverityNote(e.target.value)}
           onBlur={() => save({ scopeNote, criticality, severityNote })}
         />
-        <span className="lt-hint">Contexto livre sobre o gap — não entra no cálculo de severidade.</span>
       </label>
       <span className={`lt-badge lt-badge--severity-${row.severityBand}`}>
         Severidade: {SEVERITY_LABEL[row.severityBand]}
@@ -331,7 +323,7 @@ function SeverityQualification({ row, onUpdated }: { row: OpportunityRow; onUpda
   )
 }
 
-function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow; onRenewalDateUpdated: () => void }) {
+function AccountHealthPanel({ row, repId, onRenewalDateUpdated }: { row: OpportunityRow; repId: string; onRenewalDateUpdated: () => void }) {
   const [renewalDate, setRenewalDate] = useState(toDateInputValue(row.renewalDate))
   const [saveError, setSaveError] = useState<string | null>(null)
   const requestSeq = useRef(0)
@@ -340,7 +332,7 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
     setSaveError(null)
     const seq = ++requestSeq.current
     try {
-      await updateCompanyRenewalDate(row.companyId, value || null)
+      await updateCompanyRenewalDate(row.companyId, value || null, repId.trim() || null)
       if (seq !== requestSeq.current) return
       onRenewalDateUpdated()
     } catch (err) {
@@ -366,14 +358,13 @@ function AccountHealthPanel({ row, onRenewalDateUpdated }: { row: OpportunityRow
         </span>
       </div>
       <label className="lt-field">
-        <span>Data de renovação do contrato</span>
+        <span>Data de renovação do contrato <InfoHint text="Alimenta a cadência de revisão de conta (QBR) sugerida acima." /></span>
         <input
           type="date"
           value={renewalDate}
           onChange={e => setRenewalDate(e.target.value)}
           onBlur={() => save(renewalDate)}
         />
-        <span className="lt-hint">Alimenta a cadência de revisão de conta (QBR) sugerida acima.</span>
       </label>
       {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
     </div>
@@ -624,12 +615,11 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
       <p className="lt-panel-text">{phrase}</p>
       <div className="lt-panel-row">
         <label className="lt-field">
-          <span>Contato (opcional)</span>
+          <span>Contato (opcional) <InfoHint text="Pra quem o rascunho de e-mail abaixo é endereçado." /></span>
           <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
             <option value="">Não atribuído</option>
             {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.do_not_contact ? ' (não contatar)' : ''}</option>)}
           </select>
-          <span className="lt-hint">Pra quem o rascunho de e-mail abaixo é endereçado.</span>
         </label>
         {copyState === 'idle' && (
           <button type="button" className="lt-btn" onClick={copy} disabled={copying}>
@@ -643,6 +633,55 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+// Rótulos de negócio (nunca o nome do campo) e formatação dos valores do histórico.
+const AUDIT_FIELD_LABEL: Record<string, string> = {
+  scope_note: 'Alcance do gap', criticality: 'Criticidade', severity_note: 'Observação de severidade',
+  root_cause_stated: 'Por que isso acontece hoje?', trigger_event: 'Por que agora?',
+  champion_stake: 'O que o contato ganha ou perde', discovery_skipped: 'Qualificada sem discovery',
+  discovery_skip_reason: 'Justificativa para qualificar sem discovery', renewal_date: 'Data de renovação',
+  industry: 'Setor', deal_size_hint: 'Porte estimado', stance: 'Postura do contato',
+}
+
+function auditValue(field: string, value: string | null): string {
+  if (value === null) return 'vazio'
+  if (field === 'renewal_date') return new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+  if (field === 'scope_note') return SCOPE_OPTIONS.find(o => o.value === value)?.label.split(' (')[0] ?? value
+  if (field === 'criticality') return CRITICALITY_OPTIONS.find(o => o.value === value)?.label.split(' (')[0] ?? value
+  if (field === 'discovery_skipped') return value === 'True' ? 'sim' : 'não'
+  return value
+}
+
+function AuditHistory({ row }: { row: OpportunityRow }) {
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    listOpportunityAudit(row.id).then(setEntries).catch(err => setError(err instanceof Error ? err.message : 'Falha ao carregar o histórico.'))
+  }, [open, row.id])
+
+  return (
+    <div className="lt-panel">
+      <button type="button" className="lt-btn" onClick={() => setOpen(v => !v)} aria-expanded={open}>
+        {open ? 'Ocultar' : 'Ver'} histórico de alterações
+      </button>
+      {open && error && <p className="lt-alert" role="alert">{error}</p>}
+      {open && entries !== null && entries.length === 0 && <p className="lt-hint">Nenhuma alteração registrada ainda.</p>}
+      {open && entries !== null && entries.length > 0 && (
+        <ul className="lt-hint">
+          {entries.map(e => (
+            <li key={e.id}>
+              {new Date(e.changed_at).toLocaleString('pt-BR')} — {AUDIT_FIELD_LABEL[e.field] ?? e.field}: {auditValue(e.field, e.old_value)} → {auditValue(e.field, e.new_value)}
+              {' '}({e.actor === 'sync' ? 'sincronização automática' : e.actor ?? 'não identificado'})
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -749,9 +788,8 @@ function DoNotContactPanel({ row, repId }: { row: OpportunityRow; repId: string 
           </select>
         </label>
         <label className="lt-field">
-          <span>Observação (opcional)</span>
+          <span>Observação (opcional) <InfoHint text="Fica só aqui: não vai para exportações nem para a IA." /></span>
           <input value={comment} onChange={e => setComment(e.target.value)} maxLength={500} />
-          <span className="lt-hint">Fica só aqui: não vai para exportações nem para a IA.</span>
         </label>
         <button type="button" className="lt-btn" onClick={add} disabled={!repId.trim()}>Marcar como não contatar</button>
       </div>
@@ -855,11 +893,12 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           )}
           {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
         </dl>
-        <DiscoveryFields row={row} onUpdated={onRowUpdated} />
+        <DiscoveryFields row={row} repId={repId} onUpdated={onRowUpdated} />
         <DoNotContactPanel row={row} repId={repId} />
         <StatusTransition row={row} onUpdated={onRowUpdated} />
-        <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
-        <SeverityQualification row={row} onUpdated={onRowUpdated} />
+        <AccountHealthPanel row={row} repId={repId} onRenewalDateUpdated={onRenewalDateUpdated} />
+        <SeverityQualification row={row} repId={repId} onUpdated={onRowUpdated} />
+        <AuditHistory row={row} />
         <div className="lt-panel">
           <strong>Próxima ação sugerida</strong>
           <NextActionSuggestion row={row} repId={repId} suggestionCache={suggestionCache} contactsCache={contactsCache} />

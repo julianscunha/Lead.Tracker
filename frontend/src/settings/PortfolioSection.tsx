@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
+import { InfoHint } from '../InfoHint'
 import {
   createProduct, createService, createVendor, deleteProduct, deleteService, listVendors,
   type Product, type Service, type Vendor,
 } from '../api'
-import { InfoHint } from '../InfoHint'
 
 const NEW_VENDOR = '__new__'
 
@@ -150,25 +150,22 @@ export function PortfolioSection({
       {productFormOpen && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Fabricante</span>
+            <span>Fabricante <InfoHint text="Quem fabrica esse produto — escolha um já cadastrado ou crie um novo." /></span>
             <select value={vendorChoice} onChange={e => setVendorChoice(e.target.value)}>
               <option value="">Selecione…</option>
               {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               <option value={NEW_VENDOR}>+ Cadastrar novo fabricante</option>
             </select>
-            <span className="lt-hint">Quem fabrica esse produto — escolha um já cadastrado ou crie um novo.</span>
           </label>
           {vendorChoice === NEW_VENDOR && (
             <label className="lt-field">
-              <span>Nome do novo fabricante</span>
+              <span>Nome do novo fabricante <InfoHint text="Nome do fabricante como deve aparecer nas telas do sistema." /></span>
               <input value={newVendorName} onChange={e => setNewVendorName(e.target.value)} />
-              <span className="lt-hint">Nome do fabricante como deve aparecer nas telas do sistema.</span>
             </label>
           )}
           <label className="lt-field">
-            <span>Nome do produto</span>
+            <span>Nome do produto <InfoHint text="Nome comercial do produto, como aparece pro cliente." /></span>
             <input value={productName} onChange={e => setProductName(e.target.value)} />
-            <span className="lt-hint">Nome comercial do produto, como aparece pro cliente.</span>
           </label>
           <label className="lt-field">
             <span>Categoria (ex.: backup, monitoramento — usada pelas Regras)</span>
@@ -186,9 +183,8 @@ export function PortfolioSection({
       {serviceFormOpen && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Nome do serviço</span>
+            <span>Nome do serviço <InfoHint text="Nome comercial do serviço, como aparece pro cliente." /></span>
             <input value={serviceName} onChange={e => setServiceName(e.target.value)} />
-            <span className="lt-hint">Nome comercial do serviço, como aparece pro cliente.</span>
           </label>
           <label className="lt-field">
             <span>Categoria (ex.: backup, monitoramento — usada pelas Regras)</span>

@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase M — Registro de auditoria geral
 
-Item R3 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (escrita explícita × listener, privacidade, furos, autoria), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**. Ideia do `LeadEventLog` do Mautic; sem código copiado (Mautic é GPL).
+Item R3 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (escrita explícita × listener, privacidade, furos, autoria), antes de decidir. Status: **concluída** (4 módulos). Revisão de segurança (`ecc:security-reviewer`) aplicada. Ideia do `LeadEventLog` do Mautic; sem código copiado (Mautic é GPL).
 
 ## Problema
 
@@ -33,6 +33,8 @@ Só a mudança de status tem histórico (`OpportunityStatusChange`). Edições d
   - `Company.renewal_date`; e `industry` / `deal_size_hint` quando o sync os altera (`actor = "sync"`), porque esse caminho contorna o `update_company_renewal_date`;
   - `Contact.stance` (a função existe, ainda sem rota; auditar é barato);
   - `discovery_skipped` ao qualificar sem discovery (`update_opportunity_status`), motivo como marcador.
+- **Fuso:** datas com offset (`-03:00`) são convertidas para UTC **antes** de gravar e de comparar (o SQLite guarda a data sem fuso; sem isso cada sync geraria uma alteração falsa). Achado da revisão.
+- **Autor reservado:** `rep_id` igual a `sync` (qualquer caixa) é rejeitado nas rotas de edição, para ninguém se passar pela escrita automática.
 - **Fora:** status (já tem `OpportunityStatusChange`), bloqueios de "não contatar" (histórico próprio), qualquer escrita do motor.
 - **Autoria:** coluna anulável, nunca inventada. As rotas de qualificação, discovery e renovação passam a aceitar `rep_id` **opcional** (o mesmo id que o usuário informa na tela para o resto do produto, autodeclarado, sem autenticação); ausente = `NULL`, e a UI mostra "não identificado". Escrita automática usa `"sync"`. Não usa o `rep_id` da empresa.
 - **Retenção:** volume pequeno (só edição manual e mudança real do sync), sem expurgo nesta fase. Como o texto pessoal nunca é gravado, não há obrigação de expurgo por LGPD agora.
@@ -52,6 +54,10 @@ Unit/persistência: cada `update_*` grava 1 entrada com antigo/novo certos; mesm
 
 ## Critério de sucesso
 
-- [ ] Toda edição manual de qualificação, discovery e renovação deixa rastro com antes/depois.
-- [ ] Nenhum texto livre pessoal é gravado no log.
-- [ ] O sync deixa de poder mudar `renewal_date` sem rastro.
+- [x] Toda edição manual de qualificação, discovery e renovação deixa rastro com antes/depois.
+- [x] Nenhum texto livre pessoal é gravado no log.
+- [x] O sync deixa de poder mudar `renewal_date` sem rastro.
+
+## Resíduos aceitos
+
+`industry` e `deal_size_hint` trazidos pelo provider via `save_company` (Salesforce/CSV) **não** geram entrada: são atributos de perfil vindos da fonte, e auditar todo upsert de empresa não traz valor para o forecast (o `renewal_date`, que importa, passa por `apply_field_mapping_updates`). Já os mapeados pelo usuário (`apply_field_mapping_updates`) são auditados. `industry` é gravado como veio (categoria curta); se a política de LGPD exigir, trocar por marcador. `actor` é autodeclarado, sem autenticação (R8).

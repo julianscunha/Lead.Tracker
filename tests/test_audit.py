@@ -124,3 +124,22 @@ def test_contact_stance_and_discovery_skip_are_audited():
         assert fields["discovery_skip_reason"].new_value == "preenchido"
         assert "proposta" not in str([(e.old_value, e.new_value) for e in skip])
     _run(body)
+
+
+def test_renewal_date_with_offset_is_normalized_to_utc_and_does_not_audit_again():
+    """Regressão da revisão: `-03:00` gravado cru era relido como UTC e gerava
+    uma alteração falsa a cada sync/edição repetida."""
+    from datetime import timedelta
+
+    async def body(sf):
+        company = Company(name="Aurora")
+        brt = timezone(timedelta(hours=-3))
+        value = datetime(2026, 10, 10, 0, 0, tzinfo=brt)
+        async with sf() as session:
+            await save_company(session, company)
+            await update_company_renewal_date(session, company.id, value)
+            await update_company_renewal_date(session, company.id, value)
+            await apply_field_mapping_updates(session, company.id, {"renewal_date": value})
+            entries = await list_audit_entries(session, company_id=company.id)
+        assert len(entries) == 1 and entries[0].new_value.startswith("2026-10-10T03:00:00")
+    _run(body)

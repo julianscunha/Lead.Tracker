@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { testSourceConnection, updateSettings, type SourceStatus } from '../api'
+import { InfoHint } from '../InfoHint'
 
 const STATUS_ICON: Record<string, string> = { connected: '🟢', failed: '🔴', unknown: '🔴' }
 const STATUS_LABEL: Record<string, string> = {
@@ -102,14 +103,13 @@ export function SourceCard({ source, onChange }: { source: SourceStatus; onChang
         <div className="lt-source-card__form">
           {source.fields.map(f => (
             <label key={f.key} className="lt-field">
-              <span>{f.label}</span>
+              <span>{f.label} <InfoHint text={f.help_text} /></span>
               <input
                 type={f.secret ? 'password' : 'text'}
                 placeholder={f.has_value ? '••••••••' : ''}
                 disabled={!enabledDraft}
                 onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
               />
-              <span className="lt-hint">{f.help_text}</span>
             </label>
           ))}
           <div className="lt-detail-actions">

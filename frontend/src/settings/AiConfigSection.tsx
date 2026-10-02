@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getAiConfig, updateAiConfig, type AiConfig, type AiModelOption } from '../api'
 import { InfoHint } from '../InfoHint'
+import { getAiConfig, updateAiConfig, type AiConfig, type AiModelOption } from '../api'
 
 const DEFAULT_MODEL_SENTINEL = '__custom__'
 
@@ -79,7 +79,7 @@ export function AiConfigSection() {
       </div>
       <div className="lt-source-card__form">
         <label className="lt-field">
-          <span>Provedor de IA</span>
+          <span>Provedor de IA <InfoHint text="Escolha o provedor de IA que vai gerar os rascunhos de e-mail." /></span>
           <select
             value={provider}
             onChange={e => { setProvider(e.target.value); setModel('') }}
@@ -87,25 +87,20 @@ export function AiConfigSection() {
             <option value="">Não configurado</option>
             {config.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <span className="lt-hint">Escolha o provedor de IA que vai gerar os rascunhos de e-mail.</span>
         </label>
         {provider && (
           isFreeformModel ? (
             <label className="lt-field">
-              <span>Modelo</span>
+              <span>Modelo <InfoHint text="OpenRouter dá acesso a qualquer modelo pelo nome exato — deixe em branco pra usar o padrão do OpenRouter." /></span>
               <input
                 value={model}
                 onChange={e => setModel(e.target.value)}
                 placeholder="ex.: openai/gpt-4o-mini"
               />
-              <span className="lt-hint">
-                OpenRouter dá acesso a qualquer modelo pelo nome exato — deixe em branco
-                pra usar o padrão do OpenRouter.
-              </span>
             </label>
           ) : (
             <label className="lt-field">
-              <span>Modelo</span>
+              <span>Modelo <InfoHint text="Barato/equilibrado/caro reflete custo e capacidade do modelo — padrão do provedor usa a opção equilibrada." /></span>
               <select
                 value={showsCustomInput ? DEFAULT_MODEL_SENTINEL : model}
                 onChange={e => setModel(e.target.value === DEFAULT_MODEL_SENTINEL ? '' : e.target.value)}
@@ -113,25 +108,17 @@ export function AiConfigSection() {
                 <option value={DEFAULT_MODEL_SENTINEL}>Padrão do provedor</option>
                 {modelOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              <span className="lt-hint">
-                Barato/equilibrado/caro reflete custo e capacidade do modelo — padrão do
-                provedor usa a opção equilibrada.
-              </span>
             </label>
           )
         )}
         <label className="lt-field">
-          <span>Chave de acesso do provedor</span>
+          <span>Chave de acesso do provedor <InfoHint text="Cole aqui a chave fornecida pelo provedor escolhido. Deixe em branco pra manter a chave já salva." /></span>
           <input
             type="password"
             value={apiKey}
             onChange={e => setApiKey(e.target.value)}
             placeholder={config.has_key ? '••••••••' : ''}
           />
-          <span className="lt-hint">
-            Cole aqui a chave fornecida pelo provedor escolhido. Deixe em branco pra manter
-            a chave já salva.
-          </span>
         </label>
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={handleSave} disabled={saving}>

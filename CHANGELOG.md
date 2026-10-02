@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Histórico de alterações** — no detalhe da oportunidade, o botão "Ver
+  histórico de alterações" mostra o que mudou (alcance, criticidade, data de
+  renovação, discovery e o que a sincronização alterou), com o valor de antes
+  e de depois, quando e por quem (quando o id de representante foi informado;
+  senão aparece "não identificado"). Os textos pessoais da discovery e a
+  observação de severidade nunca são gravados no histórico, só se foram
+  preenchidos, alterados ou removidos.
+
 - **Lista de "não contatar"** — dá para marcar uma empresa inteira, ou só um
   contato, e escolher o canal (ou todos), com motivo e observação. Enquanto o
   bloqueio estiver ativo, o sistema não sugere o próximo toque, não gera

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { createRule, deleteRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 import { InfoHint } from '../InfoHint'
+import { createRule, deleteRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 
 type RuleKind = 'category' | 'presence' | 'relation'
 
@@ -108,13 +108,12 @@ export function RulesSection({ products, services }: { products: Product[]; serv
       {formOpen && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Tipo de regra</span>
+            <span>Tipo de regra <InfoHint text="Categoria compara grupos de itens; item específico compara um produto/serviço só; relação reaproveita um vínculo já existente no catálogo." /></span>
             <select value={kind} onChange={e => setKind(e.target.value as RuleKind)}>
               <option value="category">Categoria (tenho X, não tenho Y)</option>
               <option value="presence">Item específico</option>
               <option value="relation">Relação já cadastrada no catálogo</option>
             </select>
-            <span className="lt-hint">Categoria compara grupos de itens; item específico compara um produto/serviço só; relação reaproveita um vínculo já existente no catálogo.</span>
           </label>
 
           {kind === 'category' && (
@@ -157,12 +156,11 @@ export function RulesSection({ products, services }: { products: Product[]; serv
 
           {kind === 'relation' && (
             <label className="lt-field">
-              <span>Tipo de relação</span>
+              <span>Tipo de relação <InfoHint text="Reaproveita a relação entre itens já definida no catálogo de portfólio." /></span>
               <select value={relationType} onChange={e => setRelationType(e.target.value)}>
                 <option value="prerequisite">Pré-requisito — gera alerta de risco técnico</option>
                 <option value="substitute">Substituto — gera oportunidade de consolidação</option>
               </select>
-              <span className="lt-hint">Reaproveita a relação entre itens já definida no catálogo de portfólio.</span>
             </label>
           )}
 

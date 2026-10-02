@@ -444,6 +444,7 @@ export async function listOpportunities(): Promise<OpportunityRow[]> {
 export async function updateOpportunityQualification(
   id: string,
   qualification: { scopeNote: OpportunityRow['scopeNote']; criticality: OpportunityRow['criticality']; severityNote: string | null },
+  repId: string | null = null,
 ): Promise<OpportunityRow> {
   const resp = await fetch(`${BASE}/opportunities/${id}`, {
     method: 'PATCH',
@@ -452,6 +453,7 @@ export async function updateOpportunityQualification(
       scope_note: qualification.scopeNote,
       criticality: qualification.criticality,
       severity_note: qualification.severityNote,
+      rep_id: repId || null,
     }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -479,6 +481,7 @@ export async function updateOpportunityStatus(
 export async function updateOpportunityDiscovery(
   id: string,
   discovery: { rootCauseStated: string; triggerEvent: string; championStake: string },
+  repId: string | null = null,
 ): Promise<OpportunityRow> {
   const resp = await fetch(`${BASE}/opportunities/${id}/discovery`, {
     method: 'PATCH',
@@ -487,6 +490,7 @@ export async function updateOpportunityDiscovery(
       root_cause_stated: discovery.rootCauseStated,
       trigger_event: discovery.triggerEvent,
       champion_stake: discovery.championStake,
+      rep_id: repId || null,
     }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -494,11 +498,28 @@ export async function updateOpportunityDiscovery(
   return fromApiRow(data)
 }
 
-export async function updateCompanyRenewalDate(companyId: string, renewalDate: string | null): Promise<void> {
+export interface AuditEntry {
+  id: string
+  entity_type: 'opportunity' | 'company' | 'contact'
+  entity_id: string
+  field: string
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+  actor: string | null
+}
+
+export async function listOpportunityAudit(opportunityId: string): Promise<AuditEntry[]> {
+  const resp = await fetch(`${BASE}/opportunities/${opportunityId}/audit`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateCompanyRenewalDate(companyId: string, renewalDate: string | null, repId: string | null = null): Promise<void> {
   const resp = await fetch(`${BASE}/companies/${companyId}/renewal-date`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ renewal_date: renewalDate }),
+    body: JSON.stringify({ renewal_date: renewalDate, rep_id: repId || null }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
 }

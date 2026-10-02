@@ -11,10 +11,10 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -113,12 +113,22 @@ class OpportunityOut(BaseModel):
     company_website: str | None = None
 
 
+def _reject_reserved_actor(value: str | None) -> str | None:
+    # "sync" é o autor das escritas automáticas: um cliente não pode se passar por ele no histórico.
+    if value is not None and value.strip().lower() == "sync":
+        raise ValueError('O identificador "sync" é reservado.')
+    return value
+
+
+ActorId = Annotated[str | None, Field(max_length=64), AfterValidator(_reject_reserved_actor)]
+
+
 class OpportunityDiscoveryIn(BaseModel):
     root_cause_stated: str | None = Field(default=None, max_length=2000)
     trigger_event: str | None = Field(default=None, max_length=2000)
     champion_stake: str | None = Field(default=None, max_length=2000)
     # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
-    rep_id: str | None = Field(default=None, max_length=64)
+    rep_id: ActorId = None
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -130,13 +140,13 @@ class OpportunityQualificationIn(BaseModel):
     criticality: Literal["nao_critico", "critico_interno", "critico_exposto"] | None = None
     severity_note: str | None = None
     # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
-    rep_id: str | None = Field(default=None, max_length=64)
+    rep_id: ActorId = None
 
 
 class CompanyRenewalDateIn(BaseModel):
     renewal_date: datetime | None = None
     # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
-    rep_id: str | None = Field(default=None, max_length=64)
+    rep_id: ActorId = None
 
 
 class OpportunityStatusIn(BaseModel):

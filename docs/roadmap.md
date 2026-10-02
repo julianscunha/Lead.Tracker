@@ -12,23 +12,17 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
-| R3 | Registro de auditoria geral | Médio: rastro de edições, base de R7 e R8 | P | — | Agora |
 | R4 | Conflito entre fontes | Médio: qualidade do dado com 3+ fontes | M | — | Depois |
 | R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
-| R7 | Forecast por conversão histórica | Alto, mas só com dado | G | R3 e volume de histórico | Condicionado |
-| R8 | Autoria das edições | Baixo hoje | P | autenticação no produto | Condicionado |
+| R7 | Forecast por conversão histórica | Alto, mas só com dado | G | volume de histórico (R3, auditoria, já entregue) | Condicionado |
+| R8 | Autenticação e autoria confiável | Baixo hoje | M | — | Condicionado |
 | R9 | Novos conectores (HubSpot, Pipedrive, Website) | Depende do cliente | M cada | — | Sob demanda |
 | R10 | Entrada genérica por webhook | Médio | M | R4 (ideal) | Sob demanda |
 
-Dependências: `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
+Dependências: `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
 
 ## Agora
-
-### R3. Registro de auditoria geral
-Spec em proposta: [`fase-m-auditoria-geral.md`](implementacao/specs/fase-m-auditoria-geral.md).
-
-Só a mudança de status tem histórico (`OpportunityStatusChange`). Falta registrar edições de qualificação, discovery, data de renovação e postura do contato: entidade, campo, valor anterior e novo, quando (e quem, após R8). Base de dado para R7. Ideia do `LeadEventLog` do Mautic; sem código copiado (Mautic é GPL).
 
 ## Depois
 
@@ -46,8 +40,8 @@ O vendedor guarda combinações de filtro com nome ("renovação em 60 dias + se
 ### R7. Forecast calibrado por conversão histórica
 Taxa de conversão real por estágio/segmento no lugar de probabilidade estática, cruzada com velocidade no estágio, para Commit/Best Case/Upside baseado em dado. **Antes de especificar**, medir quantas transições de estágio existem (hoje: foto diária e `OpportunityStatusChange`). Com pouco histórico o forecast sai enganoso; nesse caso, aguardar volume.
 
-### R8. Autoria das edições
-Registrar *quem* editou (hoje só *quando*). Depende de o produto ter identidade de usuário/autenticação.
+### R8. Autenticação e autoria confiável
+Hoje o histórico de alterações registra *quem* pelo `rep_id` que a pessoa informa na tela (autodeclarado, sem verificação), ou "não identificado". Autoria confiável exige identidade de usuário/autenticação no produto; quando existir, o `rep_id` informado vira o usuário logado e o campo deixa de ser editável.
 
 ## Sob demanda
 

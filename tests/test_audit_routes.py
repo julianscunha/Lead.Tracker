@@ -59,3 +59,10 @@ def test_audit_routes_return_friendly_404_for_unknown_ids():
     with _TempDb():
         assert client.get(f"{BASE}/opportunities/inexistente/audit").status_code == 404
         assert client.get(f"{BASE}/companies/inexistente/audit").status_code == 404
+
+
+def test_reserved_actor_sync_is_rejected_on_edit_routes():
+    with _TempDb() as db:
+        company, opp, _ = _seed(db)
+        assert client.patch(f"{BASE}/opportunities/{opp.id}", json={"scope_note": "isolado", "rep_id": "SYNC"}).status_code == 422
+        assert client.patch(f"{BASE}/companies/{company.id}/renewal-date", json={"renewal_date": None, "rep_id": " sync "}).status_code == 422

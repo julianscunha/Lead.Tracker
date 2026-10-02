@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { InfoHint } from './InfoHint'
 import {
   exportGeoDiscoveryExcel, exportGeoDiscoveryPdf, getIcpProfile, getIcpSuggestion, listProducts,
   runGeoDiscovery, updateIcpProfile,
@@ -227,17 +228,15 @@ export function GeoDiscoveryWizard() {
       {step === 1 && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Buscar prospecção para (representante)</span>
+            <span>Buscar prospecção para (representante) <InfoHint text="Quem vai receber as oportunidades descobertas nessa busca." /></span>
             <input value={repId} onChange={e => setRepId(e.target.value)} placeholder="Id ou nome do representante" />
-            <span className="lt-hint">Quem vai receber as oportunidades descobertas nessa busca.</span>
           </label>
           <label className="lt-field">
-            <span>A partir de qual produto ou serviço?</span>
+            <span>A partir de qual produto ou serviço? <InfoHint text="Usa clientes satisfeitos com esse item pra sugerir categoria e porte no passo 3." /></span>
             <select value={referenceProductId} onChange={e => setReferenceProductId(e.target.value)}>
               <option value="">Nenhum em particular</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <span className="lt-hint">Usa clientes satisfeitos com esse item pra sugerir categoria e porte no passo 3.</span>
           </label>
           <div className="lt-detail-actions">
             <button type="button" className="lt-btn" onClick={() => setStep(2)} disabled={!repId.trim()}>
@@ -250,17 +249,15 @@ export function GeoDiscoveryWizard() {
       {step === 2 && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Endereço de origem da busca</span>
+            <span>Endereço de origem da busca <InfoHint text="Ponto central da busca geográfica." /></span>
             <input
               value={searchOriginAddress} onChange={e => setSearchOriginAddress(e.target.value)}
               placeholder="Rua, número, cidade"
             />
-            <span className="lt-hint">Ponto central da busca geográfica.</span>
           </label>
           <label className="lt-field">
-            <span>Raio de busca: {radiusKm} km</span>
+            <span>Raio de busca: {radiusKm} km <InfoHint text="Distância máxima do endereço de origem pra considerar uma empresa candidata." /></span>
             <input type="range" min={1} max={50} value={radiusKm} onChange={e => setRadiusKm(Number(e.target.value))} />
-            <span className="lt-hint">Distância máxima do endereço de origem pra considerar uma empresa candidata.</span>
           </label>
           <div className="lt-detail-actions">
             <button type="button" className="lt-btn" onClick={() => setStep(1)}>Voltar</button>
@@ -293,24 +290,18 @@ export function GeoDiscoveryWizard() {
             </p>
           )}
           <label className="lt-field">
-            <span>Categoria (Google Places)</span>
+            <span>Categoria (Google Places) <InfoHint text="Tipo de estabelecimento no Google Places usado como filtro da busca — precisa ser exatamente um dos valores da tabela oficial de tipos da Places API (em inglês, ex.: accounting, lawyer, real_estate_agency)." /></span>
             <input value={placeCategory} onChange={e => setPlaceCategory(e.target.value)} placeholder="ex.: car_dealer" />
-            <span className="lt-hint">
-              Tipo de estabelecimento no Google Places usado como filtro da busca — precisa ser exatamente um dos
-              valores da{' '}
-              <a
-                href="https://developers.google.com/maps/documentation/places/web-service/place-types"
-                target="_blank" rel="noopener noreferrer"
-              >
-                tabela oficial de tipos da Places API
-              </a>
-              {' '}(em inglês, ex.: accounting, lawyer, real_estate_agency).
-            </span>
+            <a
+              href="https://developers.google.com/maps/documentation/places/web-service/place-types"
+              target="_blank" rel="noopener noreferrer"
+            >
+              Ver tabela oficial de tipos
+            </a>
           </label>
           <label className="lt-field">
-            <span>Porte-alvo</span>
+            <span>Porte-alvo <InfoHint text="Descrição livre do porte de empresa procurado — só orienta a triagem, não filtra sozinho." /></span>
             <input value={companySizeHint} onChange={e => setCompanySizeHint(e.target.value)} placeholder="ex.: média" />
-            <span className="lt-hint">Descrição livre do porte de empresa procurado — só orienta a triagem, não filtra sozinho.</span>
           </label>
           <div className="lt-detail-actions">
             <button type="button" className="lt-btn" onClick={() => setStep(2)}>Voltar</button>

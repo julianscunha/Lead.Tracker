@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
+import { InfoHint } from '../InfoHint'
 import { createRepTarget, listRepTargets, type PeriodType, type RepTarget } from '../api'
 import { currentPeriodKey, quarterOptions } from './logic'
-import { InfoHint } from '../InfoHint'
 
 export function RepTargetsSection() {
   const [periodType, setPeriodType] = useState<PeriodType>('monthly')
@@ -80,9 +80,8 @@ export function RepTargetsSection() {
       {formOpen && (
         <div className="lt-source-card__form">
           <label className="lt-field">
-            <span>Id do representante</span>
+            <span>Id do representante <InfoHint text="Identificador usado nas oportunidades pra atribuir o pipeline a esse representante." /></span>
             <input value={repId} onChange={e => setRepId(e.target.value)} />
-            <span className="lt-hint">Identificador usado nas oportunidades pra atribuir o pipeline a esse representante.</span>
           </label>
           <label className="lt-field">
             <span>Meta financeira (R$) pro período selecionado acima</span>

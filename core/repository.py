@@ -226,12 +226,20 @@ async def get_company(session: AsyncSession, company_id: str) -> Company | None:
 
 # ── AuditLog (Fase M) ────────────────────────────────────────────────────────
 
+def _to_utc(value):
+    """Datetime com offset vira UTC ANTES de gravar: o SQLite guarda a data sem fuso, então um
+    `-03:00` gravado cru seria relido como UTC e geraria uma "alteração" falsa a cada sync."""
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        return value.astimezone(timezone.utc)
+    return value
+
+
 def _audit_text(value) -> str | None:
     """Texto estável pra comparar/gravar: data em ISO UTC, enum pelo `.value`."""
     if value is None:
         return None
     if isinstance(value, datetime):
-        return _ensure_utc(value).isoformat()
+        return _ensure_utc(_to_utc(value)).isoformat()
     if hasattr(value, "value"):
         return str(value.value)
     return str(value)
@@ -304,6 +312,7 @@ async def update_company_renewal_date(
     row = await session.get(CompanyORM, company_id)
     if row is None:
         return None
+    renewal_date = _to_utc(renewal_date)
     _audit(session, "company", company_id, company_id, "renewal_date", row.renewal_date, renewal_date, actor)
     row.renewal_date = renewal_date
     await session.commit()
@@ -326,6 +335,7 @@ async def apply_field_mapping_updates(session: AsyncSession, company_id: str, up
     if row is None:
         return
     for column, value in updates.items():
+        value = _to_utc(value)
         # Escrita automática do sync: sem isso o renewal_date mudaria sem rastro (Fase M).
         _audit(session, "company", company_id, company_id, column, getattr(row, column, None), value, "sync")
         setattr(row, column, value)
