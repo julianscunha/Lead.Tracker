@@ -20,7 +20,8 @@ import core.db_models  # noqa: F401 — registra todas as tabelas em Base.metada
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # False: o padrão (True) desligaria todos os loggers da aplicação já criados antes do startup.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
