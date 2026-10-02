@@ -422,7 +422,7 @@ houver espaço/prioridade):**
   isola se um rep converte mal numa categoria específica (cross-sell vs.
   modernização, etc.) vs. na média geral — diferencia skill gap de will gap
   com dado, não anedota de call review.
-- **Gerador de business case por oportunidade** (Proposal Strategist):
+- **Gerador de business case por oportunidade** (Proposal Strategist) — **entregue** (spec: `engineering/specs/business-case-por-oportunidade.md`):
   documento de 1 página (situação → gap → custo de não agir → estado
   futuro) compondo os campos que o motor já calcula — sem lógica de score
   nova, IA só preenche prosa numa estrutura fixa.
