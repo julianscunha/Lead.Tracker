@@ -561,3 +561,45 @@ def test_parse_discovery_gate_enabled_defaults_on():
     assert parse_discovery_gate_enabled({}) is True
     assert parse_discovery_gate_enabled({"DISCOVERY_GATE_ENABLED": "false"}) is False
     assert parse_discovery_gate_enabled({"DISCOVERY_GATE_ENABLED": "lixo"}) is True
+
+
+def _block(**kw):
+    from core.models import DoNotContact, DoNotContactReason
+    defaults = dict(company_id="c1", reason=DoNotContactReason.REP_DECISION, created_by="rep-1")
+    defaults.update(kw)
+    return DoNotContact(**defaults)
+
+
+def test_find_active_block_company_wide_covers_any_contact_of_that_company_only():
+    from core.opportunity_engine import find_active_block
+    entry = _block()
+    assert find_active_block([entry], "c1", None, None, "email") is entry
+    assert find_active_block([entry], "c1", "novo-contato", "x@y.com", "email") is entry
+    assert find_active_block([entry], "c2", None, None, "email") is None
+
+
+def test_find_active_block_contact_matches_by_id_or_normalized_email_across_companies():
+    from core.opportunity_engine import find_active_block
+    entry = _block(contact_id="p1", contact_email="ana@acme.com")
+    assert find_active_block([entry], "c1", "p1", None, None) is entry
+    assert find_active_block([entry], "c9", "outro-id", "  ANA@Acme.com ", None) is entry  # reimport com id novo
+    assert find_active_block([entry], "c1", "p2", "bia@acme.com", None) is None
+
+
+def test_find_active_block_never_matches_empty_email_and_ignores_lifted():
+    from datetime import datetime, timezone
+    from core.opportunity_engine import find_active_block
+    no_email = _block(contact_id="p1")
+    assert find_active_block([no_email], "c1", "p2", None, None) is None
+    assert find_active_block([no_email], "c1", "p2", "", None) is None
+    lifted = _block(lifted_at=datetime.now(timezone.utc))
+    assert find_active_block([lifted], "c1", None, None, None) is None
+
+
+def test_find_active_block_channel_none_means_all_and_comparison_ignores_case_and_accents():
+    from core.opportunity_engine import find_active_block
+    all_channels = _block()
+    only_call = _block(channel="Ligação")
+    assert find_active_block([all_channels], "c1", None, None, "linkedin") is all_channels
+    assert find_active_block([only_call], "c1", None, None, "ligacao") is only_call
+    assert find_active_block([only_call], "c1", None, None, "email") is None

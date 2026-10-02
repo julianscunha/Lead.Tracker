@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from core.models import (
-    Company, CompanySignal, Contact, CorrelationRule, Opportunity, OpportunityStatus, OutreachTouch, PeriodType,
+    Company, CompanySignal, Contact, CorrelationRule, DoNotContact, Opportunity, OpportunityStatus, OutreachTouch, PeriodType,
     Portfolio, Product, RuleError, Service, SourceRef,
 )
 
@@ -181,6 +181,47 @@ def requires_discovery_gate(old_status: str, new_status: str) -> bool:
     e `detected→dismissed→qualified`, que de outro modo contornariam o gate.
     Descartar nunca é gateado."""
     return old_status in ("detected", "dismissed") and new_status in _STAGE_ORDER and new_status != "detected"
+
+
+# Fase L — lista de "não contatar". Regra pura: o backend carrega os bloqueios
+# e consulta aqui (nunca só a UI decide).
+def normalize_block_text(text: str | None) -> str | None:
+    """Canal/e-mail comparáveis: `strip`, `casefold`, sem acento. Vazio vira None."""
+    if text is None:
+        return None
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", text.strip().casefold()) if not unicodedata.combining(c)
+    )
+    return folded or None
+
+
+def find_active_block(
+    entries: list[DoNotContact], company_id: str, contact_id: str | None,
+    contact_email: str | None, channel: str | None,
+) -> DoNotContact | None:
+    """Primeiro bloqueio ATIVO (`lifted_at is None`) que cobre o alvo, ou `None`.
+    Casa por: empresa inteira da mesma `company_id` (cobre contato que chegar
+    depois); contato com o mesmo `contact_id`; ou o mesmo e-mail normalizado,
+    globalmente (sobrevive a reimport com id novo e a empresa duplicada). E-mail
+    só é comparado quando os dois lados são não vazios. Canal: bloqueio sem canal
+    vale pra todos; com canal, só pro mesmo canal normalizado. Consulta com
+    `channel=None` pergunta "há bloqueio nesse alvo em algum canal?"."""
+    email = normalize_block_text(contact_email)
+    wanted_channel = normalize_block_text(channel)
+    for entry in entries:
+        if entry.lifted_at is not None:
+            continue
+        entry_channel = normalize_block_text(entry.channel)
+        if wanted_channel is not None and entry_channel is not None and entry_channel != wanted_channel:
+            continue
+        company_wide = entry.contact_id is None and entry.contact_email is None
+        if company_wide and entry.company_id == company_id:
+            return entry
+        if contact_id is not None and entry.contact_id == contact_id and entry.company_id == company_id:
+            return entry
+        if email is not None and normalize_block_text(entry.contact_email) == email:
+            return entry
+    return None
 
 
 def is_aging_opportunity(status: str, first_detected_at: datetime, now: datetime, sla_days: int) -> bool:
@@ -473,7 +514,8 @@ __all__ = [
     "ThreadingRiskSignal", "compute_account_health", "compute_next_suggested_touch", "compute_qbr_suggested_days",
     "compute_severity_band", "compute_silence_signal", "compute_threading_risk_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
-    "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "DISCOVERY_GATE_ENV_KEY", "parse_discovery_gate_enabled",
+    "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "DISCOVERY_GATE_ENV_KEY", "parse_discovery_gate_enabled", "find_active_block",
+    "normalize_block_text",
     "is_valid_discovery_text", "is_discovery_complete", "requires_discovery_gate", "parse_rep_category_min_sample", "rep_target_id",
     "requires_status_change_justification",
 ]

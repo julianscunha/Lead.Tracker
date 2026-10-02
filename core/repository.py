@@ -11,19 +11,19 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE
 from core.db_models import (
-    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
+    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, DoNotContactORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, OutreachTouchORM, PortfolioORM, ProductORM, RepTargetORM,
     ServiceORM, VendorORM,
 )
 from core.models import (
     Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
-    DiscoveryRequiredError, DismissalReasonRequiredError, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
+    DiscoveryRequiredError, DismissalReasonRequiredError, DoNotContact, DoNotContactReason, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType, Portfolio, Product, ProductRelation,
     RepTarget, SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
@@ -487,7 +487,7 @@ async def save_outreach_touch(session: AsyncSession, touch: OutreachTouch) -> No
     session.add(OutreachTouchORM(
         id=touch.id, opportunity_id=touch.opportunity_id, rep_id=touch.rep_id,
         contact_id=touch.contact_id, channel=touch.channel, reason_label=touch.reason_label,
-        sent_at=touch.sent_at,
+        sent_at=touch.sent_at, block_acknowledged=touch.block_acknowledged,
     ))
     await session.commit()
 
@@ -499,7 +499,63 @@ async def list_outreach_touches(session: AsyncSession, opportunity_id: str) -> l
     return [OutreachTouch(
         id=r.id, opportunity_id=r.opportunity_id, rep_id=r.rep_id, contact_id=r.contact_id,
         channel=r.channel, reason_label=r.reason_label, sent_at=_ensure_utc(r.sent_at),
+        block_acknowledged=bool(r.block_acknowledged),
     ) for r in rows]
+
+
+# ── DoNotContact (Fase L) ────────────────────────────────────────────────────
+
+def _do_not_contact_from_row(r: DoNotContactORM) -> DoNotContact:
+    return DoNotContact(
+        id=r.id, company_id=r.company_id, contact_id=r.contact_id, contact_email=r.contact_email,
+        channel=r.channel, reason=DoNotContactReason(r.reason), comment=r.comment, created_by=r.created_by,
+        created_at=_ensure_utc(r.created_at),
+        lifted_at=_ensure_utc(r.lifted_at) if r.lifted_at else None,
+        lifted_by=r.lifted_by, lift_reason=r.lift_reason,
+    )
+
+
+async def save_do_not_contact(session: AsyncSession, entry: DoNotContact) -> None:
+    """Só insere — retirar usa `lift_do_not_contact`. Quem chama já normalizou
+    `contact_email`/`channel` (ver `core.opportunity_engine.normalize_block_text`)."""
+    session.add(DoNotContactORM(
+        id=entry.id, company_id=entry.company_id, contact_id=entry.contact_id,
+        contact_email=entry.contact_email, channel=entry.channel, reason=entry.reason.value,
+        comment=entry.comment, created_by=entry.created_by, created_at=entry.created_at,
+    ))
+    await session.commit()
+
+
+async def list_do_not_contact(
+    session: AsyncSession, company_id: str | None = None, active_only: bool = False,
+) -> list[DoNotContact]:
+    """`company_id=None` devolve de todas as empresas (o casamento por e-mail
+    vale globalmente). Ativos primeiro, mais recentes antes."""
+    stmt = select(DoNotContactORM)
+    if company_id is not None:
+        stmt = stmt.where(DoNotContactORM.company_id == company_id)
+    if active_only:
+        stmt = stmt.where(DoNotContactORM.lifted_at.is_(None))
+    rows = (await session.execute(stmt)).scalars().all()
+    entries = [_do_not_contact_from_row(r) for r in rows]
+    return sorted(entries, key=lambda e: (e.lifted_at is not None, -e.created_at.timestamp()))
+
+
+async def lift_do_not_contact(
+    session: AsyncSession, entry_id: str, lifted_by: str, lift_reason: str | None,
+) -> DoNotContact | None:
+    """Retira UMA vez: `UPDATE ... WHERE lifted_at IS NULL` — a segunda chamada
+    não sobrescreve quem/quando/por quê da primeira. `None` se o id não existe."""
+    await session.execute(
+        update(DoNotContactORM)
+        .where(DoNotContactORM.id == entry_id, DoNotContactORM.lifted_at.is_(None))
+        .values(lifted_at=datetime.now(timezone.utc), lifted_by=lifted_by, lift_reason=lift_reason)
+    )
+    await session.commit()
+    row = await session.get(DoNotContactORM, entry_id)
+    if row is not None:
+        await session.refresh(row)
+    return _do_not_contact_from_row(row) if row else None
 
 
 async def count_outreach_touches_today(session: AsyncSession, rep_id: str, today: date) -> int:

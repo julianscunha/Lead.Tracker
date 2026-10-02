@@ -155,6 +155,24 @@ class OutreachTouchORM(Base):
     channel: Mapped[str] = mapped_column(String)
     reason_label: Mapped[str] = mapped_column(String)
     sent_at: Mapped[datetime] = mapped_column()
+    block_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class DoNotContactORM(Base):
+    """Fase L — bloqueio de contato; ver `core.models.DoNotContact`."""
+    __tablename__ = "do_not_contact"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    company_id: Mapped[str] = mapped_column(String, index=True)
+    contact_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    channel: Mapped[str | None] = mapped_column(String, nullable=True)
+    reason: Mapped[str] = mapped_column(String)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column()
+    lifted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    lifted_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    lift_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class OpportunitySnapshotORM(Base):

@@ -177,6 +177,15 @@ class OpportunityStatus(str, Enum):
     DISMISSED = "dismissed"
 
 
+class DoNotContactReason(str, Enum):
+    """Motivo categorizado de um bloqueio de contato (Fase L) — enum fechado,
+    `OTHER` como escape; o texto livre fica em `comment`."""
+    REQUESTED_BY_CONTACT = "requested_by_contact"
+    INVALID_CONTACT_DATA = "invalid_contact_data"
+    REP_DECISION = "rep_decision"
+    OTHER = "other"
+
+
 class DismissalReason(str, Enum):
     """Motivo categorizado de `dismissed` (roadmap Fase D) — enum fechado,
     não texto livre, pra permitir agregação ("por que perdemos
@@ -349,6 +358,30 @@ class OutreachTouch(BaseModel):
     channel: str
     reason_label: str
     sent_at: datetime = Field(default_factory=_now)
+    # Fase L: toque registrado MESMO com alvo bloqueado (o rep confirmou
+    # explicitamente) — fato consumado nunca é recusado, só marcado pra auditoria.
+    block_acknowledged: bool = False
+
+
+class DoNotContact(BaseModel):
+    """Bloqueio de contato (Fase L). Histórico mantido: nada é apagado; retirar
+    grava `lifted_*` uma única vez. `contact_id`/`contact_email` ambos None =
+    empresa inteira. `contact_email` é o snapshot normalizado (`strip().casefold()`),
+    pra o bloqueio sobreviver a reimport do contato com id novo. `channel` None =
+    todos os canais. `comment`/`lift_reason` podem ter dado pessoal: nunca em
+    exports, logs nem prompts de IA."""
+    id: str = Field(default_factory=_new_id)
+    company_id: str
+    contact_id: str | None = None
+    contact_email: str | None = None
+    channel: str | None = None
+    reason: DoNotContactReason
+    comment: str | None = Field(default=None, max_length=500)
+    created_by: str
+    created_at: datetime = Field(default_factory=_now)
+    lifted_at: datetime | None = None
+    lifted_by: str | None = None
+    lift_reason: str | None = Field(default=None, max_length=500)
 
 
 class OpportunitySnapshot(BaseModel):

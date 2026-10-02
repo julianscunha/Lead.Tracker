@@ -1668,3 +1668,45 @@ def test_update_opportunity_status_gate_is_on_by_default_in_the_service_layer():
                     return True
                 return False
         assert asyncio.run(run()) is True
+
+
+def test_do_not_contact_create_list_and_lift_only_once():
+    from core.models import DoNotContact, DoNotContactReason
+    from core.repository import lift_do_not_contact, list_do_not_contact, save_do_not_contact
+
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            entry = DoNotContact(
+                company_id="c1", contact_email="ana@acme.com", reason=DoNotContactReason.REQUESTED_BY_CONTACT,
+                comment="Pediu por telefone", created_by="rep-1",
+            )
+            other = DoNotContact(company_id="c2", reason=DoNotContactReason.REP_DECISION, created_by="rep-1")
+            async with session_factory() as session:
+                await save_do_not_contact(session, entry)
+                await save_do_not_contact(session, other)
+                assert {e.id for e in await list_do_not_contact(session)} == {entry.id, other.id}
+                assert [e.id for e in await list_do_not_contact(session, company_id="c1")] == [entry.id]
+                first = await lift_do_not_contact(session, entry.id, "rep-2", "Cliente voltou a pedir proposta")
+                assert first.lifted_by == "rep-2" and first.lifted_at is not None
+                second = await lift_do_not_contact(session, entry.id, "rep-3", "outra coisa")
+                assert second.lifted_by == "rep-2" and second.lift_reason == "Cliente voltou a pedir proposta"
+                assert [e.id for e in await list_do_not_contact(session, active_only=True)] == [other.id]
+                assert await lift_do_not_contact(session, "inexistente", "rep-1", None) is None
+
+    asyncio.run(run())
+
+
+def test_outreach_touch_block_acknowledged_round_trips_and_defaults_false():
+    async def run():
+        with tempfile.TemporaryDirectory() as tmp:
+            session_factory = await _fresh_session_factory(tmp)
+            async with session_factory() as session:
+                await save_outreach_touch(session, OutreachTouch(opportunity_id="o1", rep_id="r", channel="email", reason_label="x"))
+                await save_outreach_touch(session, OutreachTouch(
+                    opportunity_id="o1", rep_id="r", channel="email", reason_label="y", block_acknowledged=True,
+                ))
+                touches = await list_outreach_touches(session, "o1")
+            assert sorted(t.block_acknowledged for t in touches) == [False, True]
+
+    asyncio.run(run())
