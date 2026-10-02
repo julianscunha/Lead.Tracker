@@ -204,6 +204,12 @@ def _fold(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", folded)).strip()
 
 
+def catalog_key(name: str) -> str:
+    """Chave de comparação de nome de fabricante/produto/serviço (caixa, acento, pontuação, espaços).
+    Única para o CSV e para a sugestão de portfólio; compara-se também contra `aliases`."""
+    return _fold(name)
+
+
 def comparable(field: str, value: Any) -> str | None:
     """Forma comparável do valor (ignora formatação); `None` = ausência (nunca discorda)."""
     if value is None:
