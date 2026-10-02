@@ -32,7 +32,7 @@ from backend.sync import evaluate_rules_for_synced_companies
 from core.errors import DomainError, ErrorCategory
 from core.models import Company, Portfolio
 from backend.sync import SYNC_LOCK
-from core.normalization import CSV_PROFILE_FIELDS, dedup_key, normalize_name, reconcile, with_field_sources
+from core.normalization import CSV_PROFILE_FIELDS, catalog_key, dedup_key, normalize_name, reconcile, with_field_sources
 from core.repository import (
     get_portfolio_by_company, list_companies, list_products, list_services, list_vendors, record_reconciliation,
     rejected_conflict_keys, save_company,
@@ -83,9 +83,9 @@ async def _import_csv(file: UploadFile, mode: str) -> CsvImportResult:
     rows = list(reader)
 
     async with session_factory() as session:
-        vendor_by_name = {v.name.strip().lower(): v.id for v in await list_vendors(session)}
-        product_by_name = {p.name.strip().lower(): p.id for p in await list_products(session)}
-        service_by_name = {s.name.strip().lower(): s.id for s in await list_services(session)}
+        vendor_by_name = {catalog_key(v.name): v.id for v in await list_vendors(session)}
+        product_by_name = {catalog_key(n): p.id for p in await list_products(session) for n in [p.name, *p.aliases]}
+        service_by_name = {catalog_key(s.name): s.id for s in await list_services(session)}
         existing_by_key = {dedup_key(c): c for c in await list_companies(session)}
         rejected_by_company = await rejected_conflict_keys(session)
 
@@ -128,7 +128,7 @@ async def _import_csv(file: UploadFile, mode: str) -> CsvImportResult:
 
         vendor_name = (row.get("vendor") or "").strip()
         if vendor_name:
-            vendor_id = vendor_by_name.get(vendor_name.lower())
+            vendor_id = vendor_by_name.get(catalog_key(vendor_name))
             if vendor_id is None:
                 errors.append(f"Linha {i}: fabricante '{vendor_name}' não encontrado no portfólio — cadastre antes de importar.")
             else:
@@ -136,7 +136,7 @@ async def _import_csv(file: UploadFile, mode: str) -> CsvImportResult:
 
         product_name = (row.get("product") or "").strip()
         if product_name:
-            product_id = product_by_name.get(product_name.lower())
+            product_id = product_by_name.get(catalog_key(product_name))
             if product_id is None:
                 errors.append(f"Linha {i}: produto '{product_name}' não encontrado no portfólio — cadastre antes de importar.")
             else:
@@ -144,7 +144,7 @@ async def _import_csv(file: UploadFile, mode: str) -> CsvImportResult:
 
         service_name = (row.get("service") or "").strip()
         if service_name:
-            service_id = service_by_name.get(service_name.lower())
+            service_id = service_by_name.get(catalog_key(service_name))
             if service_id is None:
                 errors.append(f"Linha {i}: serviço '{service_name}' não encontrado no portfólio — cadastre antes de importar.")
             else:

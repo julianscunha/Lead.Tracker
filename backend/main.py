@@ -29,6 +29,7 @@ from backend.db_session import DB_PATH as _DB_PATH, engine as _engine, session_f
 from backend.routes_csv_import import router as csv_import_router
 from backend.routes_exports import router as exports_router
 from backend.routes_settings import router as settings_router
+from backend.routes_portfolio_suggest import router as portfolio_suggest_router
 from backend.routes_sync import router as sync_router
 from providers.base import ProviderError
 
@@ -41,6 +42,7 @@ router.include_router(csv_import_router)
 router.include_router(exports_router)
 router.include_router(settings_router)
 router.include_router(sync_router)
+router.include_router(portfolio_suggest_router)
 
 
 @router.get("/ping")
