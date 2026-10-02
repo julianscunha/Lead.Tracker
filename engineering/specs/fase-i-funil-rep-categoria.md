@@ -149,12 +149,35 @@ cortado por `overflow` dentro de `<details>`; matriz larga em mobile.
 - Frontend (vitest): célula insuficiente nunca renderiza "0%", caption e
   `scope`, ordenação, seletor de estágio, loading/erro do período.
 
+## Decisões da implementação
+
+- Categoria da oportunidade: a do produto; sem categoria no produto, a do
+  serviço; sem nenhuma, balde "Sem categoria" (confirmado pelo usuário).
+- Oportunidade sem rep: fora da matriz, só em `unassigned_count` (confirmado).
+- A rota devolve também `opportunity_ids` por célula, pra o clique listar os
+  deals por trás do número (pedido do Sales Coach).
+- `formatPercent` nunca arredonda um valor real pra "0%"/"100%" ("<1%"/">99%"),
+  achado da revisão de React.
+- Acessibilidade (achados da auditoria): nome acessível da célula começa pelo
+  texto visível; contagens por estágio vão no `aria-label`/descrição, não só no
+  `title`; amostra pequena marcada com `*` (não só borda); foco vai pro título
+  do painel de deals e volta pra célula ao fechar.
+- **Desvios do plano, deliberados:** (1) em tela estreita a matriz rola na
+  própria região com a coluna do rep fixa, em vez da lista agrupada por rep
+  abaixo de ~480px (menos código, mesma informação); (2) `StatTile` mantém valor
+  antes do rótulo no DOM (sugestão de `dl` do auditor não aplicada); (3) os
+  passos 1–4 e 6 da reorganização foram entregues num commit só, e o 5 (matriz)
+  em outro, com revisão de especialista em cada um.
+- Verificado ao vivo numa página de pré-visualização com os componentes reais e
+  dados fictícios (tema claro, escuro e 400px). A instalação local do Core não
+  foi reiniciada, então as rotas novas ainda não foram exercitadas por ela.
+
 ## Critério de sucesso
 
-- [ ] Nenhum percentual de conversão histórica aparece em lugar nenhum.
-- [ ] Par com n < N nunca mostra número de razão nem "0%".
-- [ ] Nenhuma ordenação nem destaque por desempenho de rep.
-- [ ] Dashboard sem linguagem de fase/módulo e com landmarks corretos.
-- [ ] Build e todos os testes (backend + frontend) verdes a cada passo.
-- [ ] Revisão de especialista após cada fatia, sem achado Importante/Crítico
+- [x] Nenhum percentual de conversão histórica aparece em lugar nenhum.
+- [x] Par com n < N nunca mostra número de razão nem "0%".
+- [x] Nenhuma ordenação nem destaque por desempenho de rep.
+- [x] Dashboard sem linguagem de fase/módulo e com landmarks corretos.
+- [x] Build e todos os testes (backend + frontend) verdes a cada passo.
+- [x] Revisão de especialista após cada fatia, sem achado Importante/Crítico
       pendente.

@@ -201,6 +201,7 @@ def test_rep_category_reach_groups_by_rep_and_category_and_flags_insufficient():
         assert set(cells) == {"Continuidade", "Sem categoria"}
         assert cells["Continuidade"]["n"] == 5 and cells["Continuidade"]["insufficient"] is False
         assert cells["Continuidade"]["reach_ratios"]["detected"] == 1.0
+        assert cells["Continuidade"]["opportunity_ids"] == sorted(o.id for o in enough)
         assert cells["Sem categoria"]["insufficient"] is True  # n=1 < 5
         assert all(v is None for v in cells["Sem categoria"]["reach_ratios"].values())  # nunca 0%
         assert body["team_median"]["Continuidade"]["detected"] is None  # só 1 rep elegível, sem referência

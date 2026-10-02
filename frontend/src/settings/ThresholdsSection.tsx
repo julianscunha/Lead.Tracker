@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  getAgingSlaConfig, getGeoPromotionConfig, updateAgingSlaConfig, updateGeoPromotionConfig,
+  getAgingSlaConfig, getGeoPromotionConfig, getRepCategoryMinSampleConfig, updateAgingSlaConfig,
+  updateGeoPromotionConfig, updateRepCategoryMinSampleConfig,
 } from '../api'
 import { InfoHint } from '../InfoHint'
 
@@ -9,17 +10,19 @@ import { InfoHint } from '../InfoHint'
 // ajustar pela interface.
 export function ThresholdsSection() {
   const [slaDays, setSlaDays] = useState('')
+  const [minSample, setMinSample] = useState('')
   const [minScore, setMinScore] = useState('')
   const [dailyCap, setDailyCap] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [saving, setSaving] = useState<'sla' | 'geo' | null>(null)
+  const [saving, setSaving] = useState<'sla' | 'sample' | 'geo' | null>(null)
 
   useEffect(() => {
-    Promise.all([getAgingSlaConfig(), getGeoPromotionConfig()])
-      .then(([sla, geo]) => {
+    Promise.all([getAgingSlaConfig(), getRepCategoryMinSampleConfig(), getGeoPromotionConfig()])
+      .then(([sla, sample, geo]) => {
         setSlaDays(String(sla.days))
+        setMinSample(String(sample.min_sample))
         setMinScore(String(geo.min_score))
         setDailyCap(String(geo.daily_cap))
         setLoaded(true)
@@ -37,6 +40,21 @@ export function ThresholdsSection() {
       setMessage('Prazo de triagem salvo.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao salvar o prazo de triagem.')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveSample = async () => {
+    setSaving('sample')
+    setError(null)
+    setMessage(null)
+    try {
+      const updated = await updateRepCategoryMinSampleConfig(Number(minSample))
+      setMinSample(String(updated.min_sample))
+      setMessage('Mínimo de oportunidades por par salvo.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao salvar o mínimo de oportunidades por par.')
     } finally {
       setSaving(null)
     }
@@ -84,6 +102,22 @@ export function ThresholdsSection() {
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={saveSla} disabled={saving === 'sla'}>
             {saving === 'sla' ? 'Salvando…' : 'Salvar prazo de triagem'}
+          </button>
+        </div>
+
+        <label className="lt-field">
+          <span>Mínimo de oportunidades por representante e categoria</span>
+          <input
+            type="number" min={1} value={minSample}
+            onChange={e => setMinSample(e.target.value)}
+          />
+          <span className="lt-hint">
+            Abaixo disso, o par aparece como "dado insuficiente" no dashboard — nunca como 0%.
+          </span>
+        </label>
+        <div className="lt-detail-actions">
+          <button type="button" className="lt-btn" onClick={saveSample} disabled={saving === 'sample'}>
+            {saving === 'sample' ? 'Salvando…' : 'Salvar mínimo por par'}
           </button>
         </div>
 

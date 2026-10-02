@@ -274,6 +274,7 @@ class RepCategoryReach:
     insufficient: bool  # n < min_sample — razões ficam None, contagens brutas continuam (tooltip)
     reach_counts: dict[str, int]
     reach_ratios: dict[str, float | None]  # reach_counts[s] / n; None quando insufficient, nunca 0%
+    opportunity_ids: list[str]  # evidência por trás da célula: a UI lista esses deals ao clicar
 
 
 @dataclass
@@ -301,6 +302,7 @@ def rep_category_reach(
     stage_index = {stage: i for i, stage in enumerate(FUNNEL_REACH_ORDER)}
     n_by_pair: dict[tuple[str, str], int] = {}
     reach_by_pair: dict[tuple[str, str], list[int]] = {}
+    ids_by_pair: dict[tuple[str, str], list[str]] = {}
     unassigned = 0
     for s in snapshot:
         idx = stage_index.get(s.stage.value)
@@ -311,6 +313,7 @@ def rep_category_reach(
             continue
         pair = (s.rep_id, category_by_opportunity.get(s.opportunity_id) or NO_CATEGORY_LABEL)
         n_by_pair[pair] = n_by_pair.get(pair, 0) + 1
+        ids_by_pair.setdefault(pair, []).append(s.opportunity_id)
         reach = reach_by_pair.setdefault(pair, [0] * len(FUNNEL_REACH_ORDER))
         for i in range(idx + 1):
             reach[i] += 1
@@ -323,6 +326,7 @@ def rep_category_reach(
         ratios = {stage: (None if insufficient else count / n) for stage, count in counts.items()}
         cells.append(RepCategoryReach(
             rep_id=pair[0], category=pair[1], n=n, insufficient=insufficient, reach_counts=counts, reach_ratios=ratios,
+            opportunity_ids=sorted(ids_by_pair[pair]),
         ))
 
     team_median: dict[str, dict[str, float | None]] = {}

@@ -881,7 +881,7 @@ async def get_rep_category_reach() -> dict:
         "cells": [
             {
                 "rep_id": c.rep_id, "category": c.category, "n": c.n, "insufficient": c.insufficient,
-                "reach_counts": c.reach_counts, "reach_ratios": c.reach_ratios,
+                "reach_counts": c.reach_counts, "reach_ratios": c.reach_ratios, "opportunity_ids": c.opportunity_ids,
             }
             for c in result.cells
         ],

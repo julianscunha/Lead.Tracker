@@ -12,7 +12,7 @@ export const styles = `
 .lt-header h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .lt-header p { font-size: 11px; color: hsl(var(--text-muted)); margin: 0; }
 .lt-header-row { display: flex; align-items: center; gap: 6px; }
-.lt-header-row h2, .lt-header-row h3 { margin: 0; }
+.lt-header-row h2, .lt-header-row h3, .lt-header-row h4 { margin: 0; }
 
 /* Achado do usuário: card com explicação sempre visível vira um botão
    "(i)" no canto — clicável (funciona por teclado/toque, não só hover). */
@@ -115,12 +115,64 @@ export const styles = `
 .lt-stat-tile { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 12px; background: hsl(var(--bg-elevated)); }
 .lt-stat-tile__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
 .lt-stat-tile__value { font-size: 18px; font-weight: 600; color: hsl(var(--text)); }
-.lt-stat-tile__label { font-size: 10px; color: hsl(var(--text-muted)); margin-top: 2px; }
+.lt-stat-tile__label { font-size: 12px; color: hsl(var(--text-muted)); margin-top: 2px; }
+.lt-stat-tile--attention { border-left: 3px solid hsl(var(--warning)); }
+.lt-stat-tile__action { font-size: 11px; color: hsl(var(--text)); margin-top: 6px; }
 
 .lt-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .lt-chart-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }
-.lt-chart-card h3 { font-size: 12px; font-weight: 600; margin: 0 0 12px; color: hsl(var(--text)); }
+.lt-chart-card h3, .lt-chart-card h4 { font-size: 14px; font-weight: 600; margin: 0 0 12px; color: hsl(var(--text)); }
 .lt-chart-card--wide { grid-column: 1 / -1; }
+
+/* Dashboard por pergunta: blocos nomeados, ação em destaque, resto colapsado. */
+.lt-dash-section { margin-bottom: 32px; }
+.lt-dash-section__header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.lt-dash-section__header h3 { font-size: 14px; font-weight: 600; margin: 0; }
+.lt-dash-section__header .lt-hint { margin-top: 2px; }
+.lt-dash-section__period { min-width: 140px; }
+.lt-dash-more summary { cursor: pointer; padding: 8px 0; font-size: 12px; font-weight: 600; color: hsl(var(--text-muted)); }
+.lt-dash-more summary:focus-visible, .lt-matrix__filter summary:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+
+/* Matriz rep×categoria: luminosidade é o único canal de cor (cor vem inline,
+   calculada em repCategory.ts); "dado insuficiente" é hachura neutra + texto,
+   nunca a rampa; 0% real tem borda; amostra pequena tem borda tracejada. */
+.lt-matrix__toolbar { justify-content: flex-start; flex-wrap: wrap; align-items: flex-end; }
+.lt-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.lt-matrix__filter summary { cursor: pointer; font-size: 12px; font-weight: 600; color: hsl(var(--text-muted)); min-height: 24px; line-height: 24px; }
+.lt-matrix__filter ul { list-style: none; margin: 4px 0 0; padding: 0; max-height: 160px; overflow: auto; font-size: 12px; }
+.lt-matrix__filter label { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.lt-matrix__scroll { overflow-x: auto; max-width: 100%; scroll-padding-left: 160px; }
+.lt-matrix__scroll:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-matrix__table { width: auto; min-width: 100%; }
+.lt-matrix__table tbody th[scope="row"], .lt-matrix__table tfoot th[scope="row"] {
+  position: sticky; left: 0; z-index: 1; background: hsl(var(--bg-elevated)); text-align: left; white-space: nowrap;
+}
+.lt-matrix__caption { text-align: left; font-size: 11px; color: hsl(var(--text-muted)); padding: 0 0 8px; }
+.lt-matrix__cell { padding: 2px; text-align: center; min-width: 52px; }
+.lt-matrix__cell--none, .lt-matrix__ref { text-align: center; color: hsl(var(--text)); }
+.lt-matrix__mark { margin-left: 2px; font-weight: 700; }
+.lt-matrix__btn {
+  all: unset; box-sizing: border-box; display: block; width: 100%; min-width: 44px; min-height: 32px; line-height: 30px;
+  text-align: center; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;
+  font-variant-numeric: tabular-nums; border: 1px solid transparent;
+}
+.lt-matrix__btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-matrix__btn--zero { border-color: hsl(var(--border)); }
+.lt-matrix__btn--insufficient, .lt-matrix__swatch--insufficient {
+  background: repeating-linear-gradient(135deg, hsl(var(--bg-subtle)) 0 5px, hsl(var(--border-subtle)) 5px 6px);
+  color: hsl(var(--text)); border: 1px solid hsl(var(--border)); font-weight: 500;
+}
+.lt-matrix__legend { display: flex; flex-wrap: wrap; gap: 12px; list-style: none; padding: 0; margin: 8px 0; font-size: 11px; color: hsl(var(--text-muted)); }
+.lt-matrix__legend li { display: flex; align-items: center; gap: 6px; }
+.lt-matrix__swatch { display: inline-block; width: 22px; height: 14px; border-radius: 3px; box-sizing: border-box; }
+.lt-matrix__swatch--ramp { background: linear-gradient(90deg, rgb(236,242,251), rgb(11,61,130)); }
+.lt-matrix__swatch--zero { background: rgb(236,242,251); border: 1px solid hsl(var(--border)); }
+.theme-dark .lt-matrix__swatch--ramp { background: linear-gradient(90deg, rgb(38,50,66), rgb(122,182,255)); }
+.theme-dark .lt-matrix__swatch--zero { background: rgb(38,50,66); }
+.lt-matrix__deals { margin-top: 12px; padding: 12px; border: 1px solid hsl(var(--border-subtle)); border-radius: 6px; background: hsl(var(--bg)); }
+.lt-chart-card .lt-matrix__deals h5 { font-size: 12px; font-weight: 600; margin: 0; }
+.lt-matrix__deals h5:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-matrix__deals .lt-header-row .lt-btn { margin-left: auto; }
 
 .lt-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .lt-source-card { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; padding: 16px; background: hsl(var(--bg-elevated)); }

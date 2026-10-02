@@ -223,6 +223,7 @@ def test_rep_category_reach_is_cumulative_per_pair_and_excludes_dismissed():
     assert (cell.rep_id, cell.category, cell.n, cell.insufficient) == ("rep-1", "Backup", 5, False)  # dismissed fora
     assert cell.reach_counts == {"detected": 5, "qualified": 4, "reviewed": 3, "contacted": 3, "opportunity": 1}
     assert cell.reach_ratios["contacted"] == 3 / 5
+    assert cell.opportunity_ids == [f"rep-1-{i}" for i in range(5)]  # só os vivos; o dismissed (rep-1-5) fica de fora
 
 
 def test_rep_category_reach_below_min_sample_is_insufficient_never_zero_percent():

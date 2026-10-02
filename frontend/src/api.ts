@@ -240,6 +240,26 @@ export async function updateAgingSlaConfig(days: number): Promise<AgingSlaConfig
   return resp.json()
 }
 
+export interface RepCategoryMinSampleConfig {
+  min_sample: number
+}
+
+export async function getRepCategoryMinSampleConfig(): Promise<RepCategoryMinSampleConfig> {
+  const resp = await fetch(`${BASE}/settings/config/rep-category-min-sample`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function updateRepCategoryMinSampleConfig(minSample: number): Promise<RepCategoryMinSampleConfig> {
+  const resp = await fetch(`${BASE}/settings/config/rep-category-min-sample`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ min_sample: minSample }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export interface GeoPromotionConfig {
   min_score: number
   daily_cap: number
@@ -496,6 +516,41 @@ export async function getDashboardMetrics(periodType: PeriodType = 'monthly'): P
     })),
     coveragePeriodType: d.coverage_period_type,
     coveragePeriodKey: d.coverage_period_key,
+  }
+}
+
+export interface RepCategoryCell {
+  repId: string
+  category: string
+  n: number
+  insufficient: boolean
+  reachCounts: Record<string, number>
+  reachRatios: Record<string, number | null>
+  opportunityIds: string[]
+}
+
+export interface RepCategoryReach {
+  minSample: number
+  unassignedCount: number
+  cells: RepCategoryCell[]
+  teamMedian: Record<string, Record<string, number | null>>
+}
+
+export async function getRepCategoryReach(): Promise<RepCategoryReach> {
+  const resp = await fetch(`${BASE}/dashboard-metrics/rep-category-reach`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const d = await resp.json()
+  return {
+    minSample: d.min_sample,
+    unassignedCount: d.unassigned_count,
+    cells: d.cells.map((c: {
+      rep_id: string; category: string; n: number; insufficient: boolean
+      reach_counts: Record<string, number>; reach_ratios: Record<string, number | null>; opportunity_ids: string[]
+    }) => ({
+      repId: c.rep_id, category: c.category, n: c.n, insufficient: c.insufficient,
+      reachCounts: c.reach_counts, reachRatios: c.reach_ratios, opportunityIds: c.opportunity_ids,
+    })),
+    teamMedian: d.team_median,
   }
 }
 

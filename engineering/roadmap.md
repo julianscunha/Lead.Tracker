@@ -416,7 +416,9 @@ houver espaço/prioridade):**
   conversão real por estágio/segmento em vez de probabilidade estática,
   cruzada com velocidade no estágio, pra Commit/Best Case/Upside baseado em
   dado, não em achismo de estágio do CRM.
-- **Funil de conversão por rep×categoria pra coaching** (Sales Coach):
+- **Funil de conversão por rep×categoria pra coaching** (Sales Coach) —
+  **entregue como "visão atual", não conversão histórica** (spec:
+  `engineering/specs/fase-i-funil-rep-categoria.md`):
   isola se um rep converte mal numa categoria específica (cross-sell vs.
   modernização, etc.) vs. na média geral — diferencia skill gap de will gap
   com dado, não anedota de call review.

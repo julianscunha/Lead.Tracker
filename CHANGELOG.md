@@ -4,6 +4,16 @@
 
 ### Adicionado
 
+- **Onde as oportunidades estão hoje, por representante e categoria** — nova
+  seção no dashboard (bloco "Representantes") com uma matriz que mostra, para
+  cada representante e categoria do portfólio, quantas oportunidades já
+  chegaram a cada estágio. É um retrato de hoje, nunca uma taxa de conversão: o
+  sistema ainda não guarda quando cada oportunidade mudou de estágio. Pares com
+  poucas oportunidades aparecem como "dado insuficiente" (nunca como 0%); o
+  mínimo é 5 e pode ser ajustado em Configurações. Compara cada representante
+  com a mediana do time na mesma categoria, só quando há pelo menos 3
+  representantes com amostra suficiente. Sem ranking: a ordem é alfabética.
+  Clicar numa célula lista as oportunidades por trás do número.
 - **Business case por oportunidade** — novo botão "Exportar business case" no
   detalhe de cada oportunidade gera um PDF de 1 página para o vendedor levar a
   uma conversa: situação, gap, custo de não agir e estado futuro, com os 4
@@ -17,6 +27,16 @@
   padrão) só reescreve a prosa, nunca altera números nem inventa produto, e
   qualquer falha ou resposta fora das regras volta ao texto padrão. A
   pergunta em aberto do vendedor aparece só na tela, nunca no PDF.
+
+### Alterado
+
+- **Dashboard reorganizado por pergunta** — em vez de uma grade única de cards,
+  a tela agora tem três blocos: "Hoje: o que fazer?" (triagem atrasada e
+  oportunidades zumbi em destaque, com uma frase de decisão), "Pipeline: como
+  está?" e "Representantes: como está cada um?" (com o seletor de período no
+  próprio bloco). Detalhes menos usados ficam recolhidos. Textos maiores,
+  títulos e regiões nomeados para leitor de tela, mensagem de carregamento e
+  botão "Tentar de novo" quando uma consulta falha.
 
 ### Corrigido
 
