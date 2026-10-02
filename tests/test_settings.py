@@ -152,13 +152,14 @@ def test_test_connection_salesforce_without_credentials_fails_friendly():
         assert "incompleta" in body["message"]
 
 
-def test_test_connection_not_implemented_source_never_500():
+def test_test_connection_website_without_url_is_a_friendly_failure_never_500():
+    """Fase P: a fonte "website" deixou de ser "em breve"; sem COMPANY_WEBSITE a falha é amigável."""
     with _TempEnv():
         resp = client.post("/modules/lead_tracker/settings/website/test")
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "failed"
-        assert "não está disponível" in body["message"]
+        assert "endereço do site" in body["message"]
 
 
 def test_get_aging_sla_days_defaults_to_7_when_not_configured():

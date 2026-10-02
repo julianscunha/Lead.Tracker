@@ -15,6 +15,7 @@ from typing import Callable
 from providers.base import DataProvider
 from providers.google_maps import GoogleMapsProvider
 from providers.salesforce import SalesforceProvider
+from providers.website import WebsiteProvider
 
 
 @dataclass
@@ -76,14 +77,18 @@ SOURCES: list[SourceDescriptor] = [
         id="website",
         label="Website da empresa",
         enabled_key="WEBSITE_ENABLED",
-        implemented=False,
+        implemented=True,
         fields=[
             SourceField(
                 key="COMPANY_WEBSITE",
                 label="Endereço do site da sua empresa",
-                help_text="Usado para montar o portfólio automaticamente.",
+                help_text=(
+                    "Usado para sugerir o portfólio a partir do seu site (você revisa antes de valer). "
+                    "Só lemos este endereço; informe o site completo, ex.: https://minhaempresa.com.br."
+                ),
             ),
         ],
+        build=lambda env: WebsiteProvider(env.get("COMPANY_WEBSITE", "")),
     ),
     SourceDescriptor(
         id="google_maps",
