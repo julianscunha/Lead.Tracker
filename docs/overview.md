@@ -1,4 +1,4 @@
-# Lead.Tracker
+# Lead.Tracker — Visão geral
 
 Módulo de Opportunity Intelligence para o Tech.Forge. Transforma dados de
 clientes, prospects, portfólio tecnológico, produtos e serviços em

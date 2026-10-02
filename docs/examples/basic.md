@@ -1,4 +1,4 @@
-# Exemplo básico — detectar uma oportunidade
+# Lead.Tracker — Exemplo básico: detectar uma oportunidade
 
 Fluxo mínimo, sem IA e sem provider externo: monta um portfólio, roda o
 motor de regras determinístico, recebe uma oportunidade com evidência.

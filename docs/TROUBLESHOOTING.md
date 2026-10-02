@@ -1,4 +1,4 @@
-# Troubleshooting
+# Lead.Tracker — Troubleshooting
 
 Guia rápido pra quem está desenvolvendo/testando o Lead.Tracker localmente.
 Erros de usuário final (não-técnico) já viram mensagem amigável — ver

@@ -9,6 +9,11 @@
   API (New), credenciais), e o campo de categoria do Google Places aponta para
   a referência oficial de tipos.
 
+- **Títulos dos documentos no Developer Center** — os documentos do módulo
+  (visão geral, troubleshooting, critérios de qualificação e exemplo básico)
+  agora trazem "Lead.Tracker —" no título. Antes, títulos genéricos como
+  "Troubleshooting" se misturavam com os de outros módulos instalados.
+
 ## [1.0.0] - 2026-09-08
 
 Primeiro release estável.
