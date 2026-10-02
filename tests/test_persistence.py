@@ -19,12 +19,13 @@ from core.opportunity_engine import CorrelationRule, evaluate_rules, field_mappi
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, delete_field_mapping, get_company, get_icp_profile,
     get_opportunity, get_portfolio_by_company, list_active_rules, list_companies, list_company_signals,
-    list_contacts, list_field_mappings, list_latest_snapshot, list_opportunities, list_opportunity_status_changes,
-    list_outreach_touches, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company,
-    save_company_signal, save_contact, save_field_mapping, save_icp_profile, save_opportunity,
-    save_opportunity_status_change, save_outreach_touch, save_portfolio, save_rep_target, save_rule, save_vendor,
+    list_contacts, list_field_mappings, list_latest_snapshot, list_opportunities, list_outreach_touches, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company,
+    save_contact, save_field_mapping, save_icp_profile, save_opportunity,
+    save_outreach_touch, save_portfolio, save_rep_target, save_rule, save_vendor,
     update_company_renewal_date, update_contact_stance, update_opportunity_qualification,
 )
+from tests.helpers import list_opportunity_status_changes, save_company_signal, save_opportunity_status_change
+
 from core.repository import update_opportunity_status as _update_opportunity_status_real
 
 
@@ -957,23 +958,6 @@ def test_company_signal_round_trip():
             assert len(loaded) == 1
             assert loaded[0].signal_type == "renewal_upcoming"
             assert loaded[0].status == "open"
-
-    asyncio.run(run())
-
-
-def test_opportunity_status_change_round_trip():
-    async def run():
-        with tempfile.TemporaryDirectory() as tmp:
-            session_factory = await _fresh_session_factory(tmp)
-            change = OpportunityStatusChange(opportunity_id="o1", status=OpportunityStatus.QUALIFIED)
-
-            async with session_factory() as session:
-                await save_opportunity_status_change(session, change)
-            async with session_factory() as session:
-                loaded = await list_opportunity_status_changes(session, "o1")
-
-            assert len(loaded) == 1
-            assert loaded[0].status == OpportunityStatus.QUALIFIED
 
     asyncio.run(run())
 

@@ -815,11 +815,6 @@ export async function createVendor(name: string): Promise<Vendor> {
   return resp.json()
 }
 
-export async function deleteVendor(id: string): Promise<void> {
-  const resp = await fetch(`${BASE}/vendors/${id}`, { method: 'DELETE' })
-  if (!resp.ok) throw new Error(await friendlyError(resp))
-}
-
 export async function listProducts(): Promise<Product[]> {
   const resp = await fetch(`${BASE}/products`)
   if (!resp.ok) throw new Error(await friendlyError(resp))

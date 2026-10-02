@@ -468,46 +468,12 @@ async def get_portfolio_by_company(session: AsyncSession, company_id: str) -> Po
 
 # ── CompanySignal ────────────────────────────────────────────────────────────
 
-async def save_company_signal(session: AsyncSession, signal: CompanySignal) -> None:
-    await _upsert(session, CompanySignalORM(
-        id=signal.id, company_id=signal.company_id, signal_type=signal.signal_type,
-        evidence=signal.evidence, source=signal.source.model_dump(),
-        confidence=signal.confidence, detected_at=signal.detected_at, status=signal.status,
-    ))
-
-
 async def list_company_signals(session: AsyncSession, company_id: str) -> list[CompanySignal]:
     rows = (await session.execute(select(CompanySignalORM).where(CompanySignalORM.company_id == company_id))).scalars().all()
     return [CompanySignal(
         id=r.id, company_id=r.company_id, signal_type=r.signal_type, evidence=r.evidence,
         source=SourceRef(**r.source), confidence=r.confidence,
         detected_at=_ensure_utc(r.detected_at), status=r.status,
-    ) for r in rows]
-
-
-# ── OpportunityStatusChange ──────────────────────────────────────────────────
-
-async def save_opportunity_status_change(session: AsyncSession, change: OpportunityStatusChange) -> None:
-    """Helper de teste/setup direto de fixture — NUNCA chamar a partir de
-    código de aplicação para registrar uma transição real de status: o
-    commit fica separado da escrita de `Opportunity.status`, reabrindo o
-    TOCTOU que `update_opportunity_status` fecha ao gravar as duas coisas
-    na mesma transação. Toda transição real usa `update_opportunity_status`."""
-    await _upsert(session, OpportunityStatusChangeORM(
-        id=change.id, opportunity_id=change.opportunity_id,
-        status=change.status.value, entered_at=change.entered_at, note=change.note,
-        dismissal_reason=change.dismissal_reason.value if change.dismissal_reason else None,
-    ))
-
-
-async def list_opportunity_status_changes(session: AsyncSession, opportunity_id: str) -> list[OpportunityStatusChange]:
-    rows = (await session.execute(
-        select(OpportunityStatusChangeORM).where(OpportunityStatusChangeORM.opportunity_id == opportunity_id)
-    )).scalars().all()
-    return [OpportunityStatusChange(
-        id=r.id, opportunity_id=r.opportunity_id,
-        status=OpportunityStatus(r.status), entered_at=_ensure_utc(r.entered_at), note=r.note,
-        dismissal_reason=DismissalReason(r.dismissal_reason) if r.dismissal_reason else None,
     ) for r in rows]
 
 

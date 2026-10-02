@@ -16,8 +16,10 @@ from core.models import (
 from core.opportunity_engine import field_mapping_id
 from core.repository import (
     get_company, list_companies, list_contacts, list_latest_snapshot, list_opportunities, save_company,
-    save_company_signal, save_field_mapping, save_portfolio, save_rule,
+    save_field_mapping, save_portfolio, save_rule,
 )
+from tests.helpers import save_company_signal
+
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 
