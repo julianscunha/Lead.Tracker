@@ -22,6 +22,15 @@ Registrar *quem* editou a discovery (hoje só *quando*). Depende de o produto te
 ### 4. Novos conectores de fonte
 HubSpot, Pipedrive e LinkedIn (no radar). O provider "Website" (coleta de texto do site) aparece como "em breve" nas Configurações e ainda não existe.
 
+### 5. Registro de auditoria geral
+Hoje só a mudança de status tem histórico (`OpportunityStatusChange`). Falta registrar edições de qualificação, discovery, data de renovação e postura do contato: entidade, campo, valor anterior e novo, quando (e quem, quando houver autenticação — item 3). É também a base de dado para o forecast (item 2). Ideia vinda da leitura do Mautic (`LeadEventLog`), adaptada ao nosso modelo; sem código copiado (Mautic é GPL).
+
+### 6. Visões salvas na lista de oportunidades
+O vendedor guarda combinações de filtro com nome ("renovação em 60 dias + severidade alta") e reabre com um clique; opcionalmente exporta pelo PDF/Excel que já existe. Ideia dos segmentos do Mautic. Só leitura e filtro: nada dispara sozinho.
+
+### 7. Lista de "não contatar"
+Hoje não existe esse conceito. Registro por contato ou empresa e por canal, com motivo (pedido do contato, e-mail inválido, decisão do vendedor), comentário e data, mantendo o histórico (insert-only, como no Mautic: `DoNotContact` tem `reason` unsubscribed/bounced/manual, `channel`, `comments`, `dateAdded`). Quando ativo, as sugestões de outreach daquele contato/canal são bloqueadas e a tela explica o porquê. Reforça o limite diário por rep e ajuda na conformidade com a LGPD.
+
 ## Fora de escopo (mencionado pelas personas, descartado por ora)
 
 - Scraping de LinkedIn/job postings, sentiment analysis de e-mail — alto
@@ -45,3 +54,5 @@ HubSpot, Pipedrive e LinkedIn (no radar). O provider "Website" (coleta de texto 
 - Sequenciador automático de e-mail/disparo em lote — o produto é
   explicitamente "sugestão + confirmação humana", nunca "fila de
   outreach automatizada" (Fase G).
+- Sincronização bidirecional (escrever de volta no Salesforce ou em outra fonte) — os providers só coletam, nunca alteram a fonte (ideia do Mautic descartada por conflitar com esta regra).
+- Relatórios agendados enviados por e-mail e automação de campanha/pontuação automática — disparo automático contraria "sugestão + confirmação humana".
