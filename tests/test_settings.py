@@ -489,3 +489,20 @@ if __name__ == "__main__":
     test_get_field_catalog_flags_mapping_whose_field_disappeared()
     test_get_field_catalog_without_credentials_returns_friendly_error()
     print("OK — todos os testes de configurações de fontes passaram")
+
+
+def test_upgrade_runs_env_sync_and_db_init_like_enable(monkeypatch):
+    """Regressão: upgrade() sobre instalação antiga precisa criar colunas/chaves
+    novas na hora (antes só enable() fazia, e as rotas davam 500 até lá)."""
+    import asyncio
+    import backend.main as main_mod
+
+    calls = []
+
+    async def fake_init_db(engine):
+        calls.append("init_db")
+
+    monkeypatch.setattr(main_mod, "init_db", fake_init_db)
+    monkeypatch.setattr(main_mod, "sync_env", lambda *a, **k: calls.append("sync_env") or [])
+    asyncio.run(main_mod.module.upgrade("1.0.0"))
+    assert calls == ["sync_env", "init_db"]

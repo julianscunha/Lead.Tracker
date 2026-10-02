@@ -4,6 +4,12 @@
 
 ## [1.1.0] - 2026-10-02
 
+### Corrigido
+
+- **Atualização sobre uma instalação antiga** — ao atualizar o módulo, as
+  colunas e chaves de configuração novas agora são criadas na hora. Antes,
+  só apareciam depois de reativar o módulo, e as telas davam erro até lá.
+
 ### Adicionado
 
 - **Discovery antes de qualificar** — para sair de "detectada" (ou reabrir uma

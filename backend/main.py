@@ -123,6 +123,9 @@ class LeadTrackerModule(ModuleContract):
 
     async def upgrade(self, from_version: str) -> None:
         sdk.logger.info("lead_tracker upgrade() from %s", from_version)
+        # Núcleo atualizado sobre banco/.env antigos: sem isso, colunas e chaves novas só
+        # apareceriam no próximo enable(), e as rotas dariam 500 até lá.
+        await self.enable()
 
     async def health_check(self) -> HealthResult:
         try:
