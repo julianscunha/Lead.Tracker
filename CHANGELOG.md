@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-02
+
 ### Adicionado
 
 - **Sugerir regras com IA** — em Configurações > Regras, o botão opcional "Sugerir regras
