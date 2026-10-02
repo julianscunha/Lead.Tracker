@@ -1,6 +1,12 @@
+---
+title: "Spec: Fase C — Motor de regras ampliado"
+order: 23
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Spec: Fase C — Motor de regras ampliado
 
-Ver `engineering/roadmap.md` (Fase C) pro contexto completo. Esta spec cobre a
+Ver `docs/implementacao/fases.md` (Fase C) pro contexto completo. Esta spec cobre a
 **primeira fatia vertical** — persistência de regra + regra por categoria/
 relação + ligação no fluxo de sync + editor mínimo na UI. As fatias
 seguintes (sinais de expansão no motor, formato de evidência rico,

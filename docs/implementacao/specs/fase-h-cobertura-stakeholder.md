@@ -1,8 +1,14 @@
+---
+title: "Fase H — Cobertura de stakeholder e risco de single-thread"
+order: 28
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase H — Cobertura de stakeholder e risco de single-thread
 
 Depende só da Fase A (`Contact` já existe, com `seniority_tier` inferido de
 `role` desde a Fase C). Pode rodar em paralelo às demais fases, não depende
-delas. Ver `engineering/roadmap.md` pro texto original dos requisitos e a
+delas. Ver `docs/implementacao/fases.md` pro texto original dos requisitos e a
 origem da escolha (convergência de Deal Strategist + Account Strategist).
 
 ## Mapa de capacidades (confirmado pelo usuário)

@@ -1,7 +1,13 @@
+---
+title: "Fase D — Dashboard acionável"
+order: 24
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase D — Dashboard acionável
 
 Spec viva desta fase (`spec-driven-development`) — atualizada a cada módulo
-entregue, não escrita de uma vez no início. Ver `engineering/roadmap.md` pro texto
+entregue, não escrita de uma vez no início. Ver `docs/implementacao/fases.md` pro texto
 original dos requisitos; este documento registra as decisões de como
 implementar cada um, o porquê, e o que cada módulo entrega.
 
@@ -401,7 +407,7 @@ dessincronizar do relógio). `aging_count`/`aging_sla_days` entram no
 `dismissed` sem motivo categorizado era um beco sem saída pra qualquer
 relatório futuro de "por que perdemos oportunidades" — decisão consultada
 com o agente `Pipeline Analyst` (ver histórico da sessão): taxonomia de 8
-valores proposta, mas o roadmap (`engineering/roadmap.md`, linha ~273) já
+valores proposta, mas o roadmap (`docs/implementacao/fases.md`, linha ~273) já
 especificava 4 categorias explícitas de uma rodada de persona anterior
 ("sem evidência / sem fit / cliente não qualificado / falso positivo de
 regra") — priorizei o roadmap já vetado por cima da sugestão nova do

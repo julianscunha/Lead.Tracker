@@ -1,3 +1,9 @@
+---
+title: "Fase I — Funil por rep×categoria e reorganização do dashboard"
+order: 29
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase I — Funil por rep×categoria e reorganização do dashboard
 
 Origem: item do backlog do roadmap ("Funil de conversão por rep×categoria

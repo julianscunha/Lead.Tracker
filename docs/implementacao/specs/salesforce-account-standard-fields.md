@@ -1,3 +1,9 @@
+---
+title: "Spec: Campos padrão adicionais de Account (Fase A)"
+order: 32
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Spec: Campos padrão adicionais de Account (Fase A)
 
 ## Objetivo

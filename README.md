@@ -155,6 +155,10 @@ O Lead.Tracker é um módulo do ecossistema Tech.Forge e deve respeitar seu cont
 
 Este repositório é o desenvolvimento do módulo — a distribuição pro catálogo oficial acontece a partir do `.mod` publicado em cada [release](https://github.com/julianscunha/Lead.Tracker/releases).
 
+## Documentação
+
+Tudo em [`docs/`](docs/overview.md): visão geral e critérios de qualificação (uso do produto), [princípios](docs/principios.md), o que já foi construído ([`docs/implementacao/`](docs/implementacao/README.md)) e o que ainda falta ([`docs/roadmap.md`](docs/roadmap.md)).
+
 ## Contribuindo
 
 Contribuições são bem-vindas. Veja [`CONTRIBUTING.md`](CONTRIBUTING.md) para as regras de domínio que todo PR precisa respeitar, como rodar o projeto localmente e o fluxo de contribuição.

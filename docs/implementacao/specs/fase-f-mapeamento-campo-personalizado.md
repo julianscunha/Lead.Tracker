@@ -1,3 +1,9 @@
+---
+title: "Fase F — Mapeamento configurável de campo personalizado"
+order: 26
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase F — Mapeamento configurável de campo personalizado
 
 Depende da Fase A (contexto bruto do Salesforce já chegando via

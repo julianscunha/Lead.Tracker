@@ -1,6 +1,12 @@
+---
+title: "Spec: Fase B.1 — Ligação real (ingestão → banco → API → frontend)"
+order: 22
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Spec: Fase B.1 — Ligação real (ingestão → banco → API → frontend)
 
-Ver `engineering/roadmap.md` (Fase B.1) — é a lacuna mais antiga identificada nesta
+Ver `docs/implementacao/fases.md` (Fase B.1) — é a lacuna mais antiga identificada nesta
 sessão: hoje `backend/main.py` só tem `/ping` e rotas de export; o frontend
 roda inteiro sobre `sampleData.ts`/`sampleMetrics.ts`.
 

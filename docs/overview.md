@@ -100,6 +100,6 @@ esse (recência de atividade, nível hierárquico do contato, severidade de
 gap). Ver `docs/TROUBLESHOOTING.md` para problemas comuns de instalação/
 configuração.
 
-Histórico de decisões técnicas e planejamento de evolução (uso interno de
-desenvolvimento, não é guia de uso do produto) vive em `engineering/roadmap.md` e
-`engineering/specs/`.
+Para quem desenvolve (não é guia de uso do produto): o que já foi
+construído está em `docs/implementacao/`, o que ainda falta em `docs/roadmap.md`
+e as regras do produto em `docs/principios.md`.

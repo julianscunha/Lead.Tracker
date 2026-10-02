@@ -1,79 +1,12 @@
-# Roadmap — Lead.Tracker
+---
+title: "Lead.Tracker — Fases implementadas"
+order: 8
+tags: [lead-tracker, implementacao, historico]
+---
 
-Documento de decisões e faseamento, pra qualquer pessoa (ou agente) continuar
-o desenvolvimento sem quebrar a arquitetura já validada. Cada fase depende da
-anterior; não pular fase só porque parece mais interessante.
+# Fases implementadas
 
-Origem: sessão de planejamento com 10 personas especializadas (Salesforce
-Architect, Pipeline Analyst, Deal Strategist, Account Strategist, Outbound
-Strategist, Sales Engineer, Data Consolidation Agent, Discovery Coach,
-Proposal Strategist, Sales Outreach) revisando o domínio atual do
-Lead.Tracker. Convergência entre elas nos princípios abaixo — não é opinião
-de uma só.
-
-## Princípios que atravessam todas as fases
-
-Isso vale mais que qualquer item de fase individual — se uma decisão de
-implementação violar um destes, pare e repense a implementação, não o
-princípio.
-
-1. **Núcleo sempre genérico.** Nenhuma fase pode hardcodar nome de campo,
-   fabricante, produto ou categoria específica de um cliente do Lead.Tracker.
-   Tudo que varia entre instalações vira dado de configuração (papel
-   semântico, categoria, `relation_type`, `signal_type` como enum aberto) —
-   nunca lógica de código. Já é regra do `CLAUDE.md`; as 6 personas
-   reforçaram isso de ângulos diferentes sem eu pedir.
-
-2. **Evidência é fato + implicação de negócio + fonte + data**, sempre.
-   Nunca um log técnico cru ("Produto X ausente"). Formato de referência:
-   `"[FATO] ... → [RISCO/OPORTUNIDADE] ... → [FONTE] ..., sincronizado em ..."`.
-   Vale para toda oportunidade nova daqui pra frente, incluindo as geradas
-   por sinais de expansão (Fase C) e prospecção geográfica (Fase E).
-
-3. **Os 4 números da oportunidade nunca colapsam em um só.**
-   `opportunity_score`, `financial_potential`, `strategic_score`,
-   `confidence_score` continuam distintos no modelo de dados. Onde for
-   preciso desempatar/ordenar (dashboard, fila do vendedor), o critério
-   é: `confidence_score` desempata antes de `financial_potential` bruto —
-   mas isso é regra de **exibição/ordenação**, nunca um campo novo persistido
-   tipo "deal score" agregado.
-
-4. **Interface pensada pra operador não-técnico.** Este é um requisito
-   explícito do usuário do projeto, vale para todas as fases com tela nova
-   (D, E, F):
-   - Nunca expor nome de campo de API (`Segmento_Cliente__c`) na UI — sempre
-     rótulo em português, escolhido de uma lista/dropdown, nunca digitado.
-   - Nunca pedir pro usuário entender o que é SOQL, OAuth, `signal_type` ou
-     qualquer termo técnico interno — esses termos existem só no código.
-   - Assistente guiado (passo a passo com confirmação) em vez de tela de
-     configuração com muitos campos soltos — mesmo padrão que a tela de
-     portfólio já usa (Adicionar/Sobrescrever, revisão antes de aplicar).
-   - Todo número/score na tela precisa de uma explicação inline (tooltip ou
-     texto de apoio) do que ele significa e de onde veio — nunca um número
-     sozinho sem contexto.
-   - Estado vazio/erro sempre em linguagem de negócio ("Não consegui
-     confirmar os dados dessa conta no Salesforce — verifique o acesso nas
-     Configurações"), nunca a mensagem técnica crua (já é regra do
-     `CLAUDE.md`, reforçando aqui pro contexto de UI).
-
-5. **Resultado visual, chamativo, sempre exportável.** Outro requisito
-   explícito do usuário: quem opera é o time comercial, público muito
-   visual — número solto em tabela cinza não é aceitável onde já existe
-   alternativa gráfica.
-   - Toda tela que mostra resultado de análise (Dashboard, Oportunidades,
-     e as novas de ICP/Prospecção) usa gráfico onde fizer sentido (já é o
-     padrão do Dashboard atual — donut por fabricante, barras de potencial),
-     não só linha de tabela.
-   - **Gerar relatório é obrigatório em toda tela de resultado, não só um
-     "nice to have"**: Dashboard e Oportunidades já têm isso
-     (`executive_pdf`, `opportunities_pdf`/`opportunities_excel` em
-     `exports/`) — qualquer tela nova que mostre resultado de análise (ICP/
-     Prospecção na Fase E, por exemplo) precisa nascer com exportação
-     equivalente, seguindo o mesmo padrão, não como pendência posterior.
-   - Isso não conflita com o princípio 4 — "visual e chamativo" e "número
-     sempre explicado" andam juntos, não são opostos.
-
-## Fases
+Histórico do que **já foi entregue**, fase a fase, com as decisões tomadas e o que foi corrigido na revisão. O que ainda falta fazer está em [`../roadmap.md`](../roadmap.md); os princípios que valem para tudo estão em [`../principios.md`](../principios.md). Cada fase tem a sua spec em [`specs/`](specs/).
 
 ### Fase 0 — Configurações de Fontes
 **Pré-requisito de tudo.** Sem essa tela, ligar o Salesforce hoje exige
@@ -117,8 +50,8 @@ virar item formal — corrigindo aqui.
   nunca aparece em log/erro/export" aplicada aqui).
 
 ### Fase A — Ingestão ampliada do Salesforce
-**Status:** concluída (specs: `engineering/specs/salesforce-custom-fields-context.md`,
-`engineering/specs/salesforce-account-standard-fields.md`).
+**Status:** concluída (specs: `docs/implementacao/specs/salesforce-custom-fields-context.md`,
+`docs/implementacao/specs/salesforce-account-standard-fields.md`).
 **Depende da Fase 0** pra ter como configurar credenciais sem editar `.env`
 na mão — mas o provider em si já foi implementado e testado antes dessa
 lacuna ser percebida; a spec/código de ingestão não muda, só a forma como o
@@ -128,7 +61,7 @@ usuário final liga isso.
   — sem `BillingStreet` por ora, custo de PII sem ganho de precisão de geocoding),
   `Industry`, `AnnualRevenue`, `NumberOfEmployees`, `LastActivityDate`. `Type`/`CreatedDate`
   conscientemente fora de escopo (redundante com `is_customer`/sem consumidor ainda —
-  ver `engineering/specs/salesforce-account-standard-fields.md`).
+  ver `docs/implementacao/specs/salesforce-account-standard-fields.md`).
 - [x] Campos personalizados (`__c`) como contexto bruto via `FIELDS(CUSTOM)` —
   guardado, não interpretado.
 - **Adiado para depois da Fase B, não desta fase:** dados de `Opportunity`/
@@ -182,7 +115,7 @@ mudou de status" se não foi guardado desde o início.
 - **Sem tela nova nesta fase** — é só schema/modelo, preparação silenciosa.
 
 ### Fase B.1 — Ligação real (ingestão → banco → API → frontend)
-**Status:** concluída (spec: `engineering/specs/fase-b1-ligacao-real.md`). Rodou
+**Status:** concluída (spec: `docs/implementacao/specs/fase-b1-ligacao-real.md`). Rodou
 sem gerar oportunidade por regra de propósito — não existe ainda
 persistência de regra (isso é a Fase C, próxima). Achado real ao validar
 em ambiente com banco de instalação anterior à Fase B: `create_all` não
@@ -216,7 +149,7 @@ final sem esta — é o fio que liga tudo que já existe isolado e testado.
   de prontas — por isso vem antes de qualquer uma delas, não depois.
 
 ### Fase C — Motor de regras ampliado
-**Status:** concluída (spec: `engineering/specs/fase-c-motor-de-regras.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-c-motor-de-regras.md`).
 Depende da Fase B e da Fase B.1 (precisa de dado real fluindo pelo pipeline
 pra uma regra nova ter o que avaliar).
 
@@ -265,7 +198,7 @@ pra uma regra nova ter o que avaliar).
   descoberta de verdade, não só uma lista de pistas técnicas.
 
 ### Fase D — Dashboard acionável
-**Status:** concluída (spec: `engineering/specs/fase-d-dashboard-acionavel.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-d-dashboard-acionavel.md`).
 Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
 
 - Funil com taxa de conversão por etapa (não só contagem).
@@ -301,7 +234,7 @@ Depende da Fase B (sem histórico de status, aging/velocity são impossíveis).
   dados.
 
 ### Fase E — Prospecção geográfica (Google Maps)
-**Status:** concluída (spec: `engineering/specs/fase-e-prospeccao-geografica.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-e-prospeccao-geografica.md`).
 Depende do endereço já vindo na Fase A.
 
 - Tela de ICP: critérios guardados como dado de configuração por instalação
@@ -326,7 +259,7 @@ Depende do endereço já vindo na Fase A.
   pra uma reunião sem precisar pedir print pra alguém técnico.
 
 ### Fase F — Mapeamento configurável de campo personalizado
-**Status:** concluída (spec: `engineering/specs/fase-f-mapeamento-campo-personalizado.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-f-mapeamento-campo-personalizado.md`).
 Depende da Fase A (contexto bruto já chegando) e reaproveita a mesma tela de
 configuração de fontes já cogitada antes desta sessão de planejamento.
 
@@ -345,7 +278,7 @@ configuração de fontes já cogitada antes desta sessão de planejamento.
   API name.
 
 ### Fase G — Outreach assistido (e-mail mais persuasivo + cadência sugerida)
-**Status:** concluída (spec: `engineering/specs/fase-g-outreach-assistido.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-g-outreach-assistido.md`).
 Depende só da Fase C (qualidade de evidência/`primary_reason`) — pode rodar
 em paralelo às Fases D/E/F, não depende delas.
 
@@ -380,7 +313,7 @@ em paralelo às Fases D/E/F, não depende delas.
   ao envio de e-mail.
 
 ### Fase H — Cobertura de stakeholder e risco de single-thread
-**Status:** concluída (spec: `engineering/specs/fase-h-cobertura-stakeholder.md`).
+**Status:** concluída (spec: `docs/implementacao/specs/fase-h-cobertura-stakeholder.md`).
 Depende só da Fase A (`Contact` já existe, com `seniority_tier` inferido de
 `role` desde a Fase C — decisor/influenciador_tecnico/operacional). Pode
 rodar em paralelo às demais fases, não depende delas.
@@ -412,21 +345,17 @@ da conta o rep realmente falou.
 
 **Backlog priorizado (não escolhido para a Fase H, registrado pra quando
 houver espaço/prioridade):**
-- **Forecast calibrado por conversão histórica** (Pipeline Analyst): taxa de
-  conversão real por estágio/segmento em vez de probabilidade estática,
-  cruzada com velocidade no estágio, pra Commit/Best Case/Upside baseado em
-  dado, não em achismo de estágio do CRM.
 - **Funil de conversão por rep×categoria pra coaching** (Sales Coach) —
   **entregue como "visão atual", não conversão histórica** (spec:
-  `engineering/specs/fase-i-funil-rep-categoria.md`):
+  `docs/implementacao/specs/fase-i-funil-rep-categoria.md`):
   isola se um rep converte mal numa categoria específica (cross-sell vs.
   modernização, etc.) vs. na média geral — diferencia skill gap de will gap
   com dado, não anedota de call review.
-- **Gerador de business case por oportunidade** (Proposal Strategist) — **entregue** (spec: `engineering/specs/business-case-por-oportunidade.md`):
+- **Gerador de business case por oportunidade** (Proposal Strategist) — **entregue** (spec: `docs/implementacao/specs/business-case-por-oportunidade.md`):
   documento de 1 página (situação → gap → custo de não agir → estado
   futuro) compondo os campos que o motor já calcula — sem lógica de score
   nova, IA só preenche prosa numa estrutura fixa.
-- **Gate de "discovery completa"** (Discovery Coach) — **entregue** (spec: `engineering/specs/fase-j-gate-discovery.md`): três campos de texto
+- **Gate de "discovery completa"** (Discovery Coach) — **entregue** (spec: `docs/implementacao/specs/fase-j-gate-discovery.md`): três campos de texto
   livre (`root_cause_stated`, `trigger_event`, `champion_stake`)
   preenchidos só por humano; bloqueia a transição `detected`→`qualified`
   até os três estarem preenchidos — distingue "motor inferiu um gap" de
@@ -467,35 +396,3 @@ permanentemente (achado real de revisão de código antes de mergear).
 `alembic/versions/README.md`): coluna nova continua automática, sem
 migração; renomear/remover/mudar tipo pede `alembic revision` com
 `upgrade()` defensivo/idempotente, mesmo padrão do Tech.Forge Core.
-
-## Fora de escopo (mencionado pelas personas, descartado por ora)
-
-- Scraping de LinkedIn/job postings, sentiment analysis de e-mail — alto
-  esforço, baixo ROI enquanto os sinais estruturados (CRM, Maps) ainda nem
-  estão implementados.
-- "Regra builder" livre (AND/OR arbitrário) — as 6 personas convergem em
-  evitar isso; 3 tipos fixos de regra bastam.
-- Pontuação combinada única ("deal score" agregado) — o domínio proíbe
-  colapsar os 4 números; fica só como ordenação de exibição.
-- Campos personalizados de `Contact` (só `Account` por ora) — mudaria o
-  contrato `DataProvider` inteiro; se necessário, é spec própria.
-- **Custo de inação em R$ calculado pelo sistema** — permanentemente fora de
-  escopo, não só "por ora". O valor exato sempre fica como pergunta em
-  aberto na justificativa (Fase C), nunca um número que a IA ou uma regra
-  determinística calcula sozinha — é a mesma linha vermelha de "nunca
-  inventar fato", só que fácil de escorregar porque parece útil.
-- Pipeline de streaming/CDC pra atualizar o dashboard em tempo real — o
-  motor de regras já roda em lote/sob demanda; snapshot diário (Fase D)
-  resolve sem essa complexidade. Reconsiderar só se surgir requisito de
-  dashboard "ao vivo" com o motor rodando continuamente.
-- Sequenciador automático de e-mail/disparo em lote — o produto é
-  explicitamente "sugestão + confirmação humana", nunca "fila de
-  outreach automatizada" (Fase G).
-
-## Como usar este documento
-
-Cada fase, quando for a vez de implementá-la, ganha sua própria spec em
-`engineering/specs/` (como já existe para parte da Fase A) antes de qualquer código
-— seguindo `spec-driven-development`. Este roadmap não substitui a spec por
-fase, só garante que a ordem e as decisões de fundo não se percam entre
-sessões.

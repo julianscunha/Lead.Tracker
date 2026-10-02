@@ -1,3 +1,9 @@
+---
+title: "Fase G — Outreach assistido (e-mail mais persuasivo + cadência sugerida)"
+order: 27
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase G — Outreach assistido (e-mail mais persuasivo + cadência sugerida)
 
 Depende só da Fase C (evidência/`justification` determinística já

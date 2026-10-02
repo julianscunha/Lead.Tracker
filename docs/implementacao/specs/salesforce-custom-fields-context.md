@@ -1,3 +1,9 @@
+---
+title: "Spec: Campos personalizados do Salesforce como contexto bruto"
+order: 33
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Spec: Campos personalizados do Salesforce como contexto bruto
 
 ## Objetivo

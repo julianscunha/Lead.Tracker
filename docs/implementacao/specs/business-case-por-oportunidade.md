@@ -1,6 +1,12 @@
+---
+title: "Business case por oportunidade (backlog do roadmap, item \"Gerador de business case\")"
+order: 20
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Business case por oportunidade (backlog do roadmap, item "Gerador de business case")
 
-Origem: backlog priorizado do `engineering/roadmap.md` (sugestão do Proposal
+Origem: backlog priorizado do `docs/implementacao/fases.md` (sugestão do Proposal
 Strategist). Não depende de dado histórico novo — só compõe o que o motor já
 calcula (`core/models.py::Opportunity`).
 

@@ -1,6 +1,12 @@
+---
+title: "Fase J — Gate de \"discovery completa\""
+order: 30
+tags: [lead-tracker, implementacao, spec]
+---
+
 # Fase J — Gate de "discovery completa"
 
-Origem: backlog do `engineering/roadmap.md` (Discovery Coach). Consulta ao
+Origem: backlog do `docs/implementacao/fases.md` (Discovery Coach). Consulta ao
 Discovery Coach feita antes desta spec; decisões abaixo incorporam a resposta.
 
 ## Mapa de capacidades (proposto, aguardando confirmação do usuário)
