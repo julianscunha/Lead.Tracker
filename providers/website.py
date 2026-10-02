@@ -93,7 +93,7 @@ class WebsiteProvider(DataProvider):
         if not (site_url or "").strip():
             raise ProviderError(
                 "Informe o endereço do site da sua empresa.",
-                recommended_action="Preencha o campo em Configurações > Website da empresa.",
+                recommended_action="Preencha o campo em Entrada de dados > Website da empresa.",
             )
         try:
             self._root = validate_url(site_url.strip())  # revalida SEMPRE na hora de usar, não confia no valor salvo

@@ -61,7 +61,7 @@ export function WebsiteSuggestions({ onApplied }: { onApplied: () => void }) {
     <div className="lt-panel">
       <div className="lt-header lt-header-row">
         <h3>Sugerir pelo meu site</h3>
-        <InfoHint text="Lê o site da sua empresa (endereço em Configurações > Website da empresa) e a IA sugere fabricantes, produtos e serviços. Só entram sugestões cujo nome aparece no texto do site, e nada vai para o portfólio sem você marcar e adicionar. Requer IA configurada." />
+        <InfoHint text="Lê o site da sua empresa (endereço em Entrada de dados > Website da empresa) e a IA sugere fabricantes, produtos e serviços. Só entram sugestões cujo nome aparece no texto do site, e nada vai para o portfólio sem você marcar e adicionar. Requer IA configurada." />
       </div>
       <div className="lt-toolbar">
         <button type="button" className="lt-btn" onClick={read} disabled={loading} aria-busy={loading}>

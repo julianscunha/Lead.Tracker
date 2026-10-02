@@ -57,7 +57,7 @@ class SafeFetchError(DomainError):
         super().__init__(
             ErrorCategory.CONNECTIVITY,
             "Não foi possível ler o site informado.",
-            "Verifique o endereço em Configurações.",
+            "Verifique o endereço em Entrada de dados.",
         )
 
 

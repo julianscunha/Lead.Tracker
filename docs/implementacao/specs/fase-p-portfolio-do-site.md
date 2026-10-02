@@ -14,7 +14,7 @@ A documentação promete o portfólio "construído automaticamente a partir do s
 
 ## O que é (e o que não é)
 
-- **É:** ler o site da **própria** empresa (URL informada pelo operador em Configurações) e **sugerir** itens do catálogo (fabricantes, produtos, serviços). Nada entra sem o operador marcar e aplicar.
+- **É:** ler o site da **própria** empresa (URL informada pelo operador em Entrada de dados) e **sugerir** itens do catálogo (fabricantes, produtos, serviços). Nada entra sem o operador marcar e aplicar.
 - **Catálogo, não "base instalada":** o alvo é `Vendor`/`Product`/`Service`. O `Portfolio` por empresa (base instalada do cliente, que o CSV faz merge/replace) é outra coisa.
 - **Não é:** raspar sites de prospects, de clientes ou do Maps/CRM (isso continua proibido: nunca buscamos essas URLs). A decisão da Fase K de "nunca buscamos a URL" ganha **uma única exceção**: o `COMPANY_WEBSITE` do operador.
 
@@ -54,12 +54,12 @@ Recomendações do `ecc:security-reviewer`, todas testáveis:
 - **HTML:** só texto visível; `script`, `style`, `noscript`, `iframe`, `template` e comentários removidos; nenhum JavaScript é executado; texto total truncado (~30 KB) antes da IA.
 - **Prompt injection:** o texto do site entra no prompt **delimitado como dado não confiável**; a saída é JSON com esquema estrito e validada em código (guardrail acima). A IA nunca grava nada.
 - **Vazamento:** a chave de IA só vai no cabeçalho (como já é); nunca no prompt, em erro ou em log; log só com domínio, status e contagens, nunca o texto do site. Evidência guardada truncada (~300 caracteres); nada de HTML bruto.
-- **Erros:** mensagem de domínio em pt-br ("Não foi possível ler o site informado. Verifique o endereço em Configurações."), sem expor IP resolvido nem o detalhe do bloqueio.
-- **`COMPANY_WEBSITE`:** revalidado no momento da coleta (não se confia no valor salvo), editável só em Configurações.
+- **Erros:** mensagem de domínio em pt-br ("Não foi possível ler o site informado. Verifique o endereço em Entrada de dados."), sem expor IP resolvido nem o detalhe do bloqueio.
+- **`COMPANY_WEBSITE`:** revalidado no momento da coleta (não se confia no valor salvo), editável só em Entrada de dados.
 
 ## UI
 
-Em Configurações, o card "Website da empresa" sai do estado "em breve". Em Portfólio, o botão "Ler meu site" abre a revisão: lista com checkbox, tipo (fabricante/produto/serviço) editável, a evidência (trecho e página) e o selo "já no catálogo". Todo texto vindo do site ou da IA é renderizado como texto (nunca como HTML).
+Em Entrada de dados, o card "Website da empresa" sai do estado "em breve". Em Portfólio, o botão "Ler meu site" abre a revisão: lista com checkbox, tipo (fabricante/produto/serviço) editável, a evidência (trecho e página) e o selo "já no catálogo". Todo texto vindo do site ou da IA é renderizado como texto (nunca como HTML).
 
 ## Fora de escopo da v1
 

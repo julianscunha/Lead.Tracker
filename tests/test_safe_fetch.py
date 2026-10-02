@@ -67,7 +67,7 @@ def test_user_never_sees_the_technical_reason_and_message_is_friendly():
     with pytest.raises(SafeFetchError) as exc:
         validate_url("http://10.0.0.5")
     assert exc.value.message == "Não foi possível ler o site informado."
-    assert "Configurações" in str(exc.value)
+    assert "Entrada de dados" in str(exc.value)
 
 
 @pytest.mark.parametrize("ip", [
