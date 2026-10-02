@@ -28,6 +28,7 @@ import httpx
 
 from core.errors import ErrorCategory
 from core.models import Company, Contact
+from core.normalization import normalize_website
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
@@ -48,6 +49,8 @@ class PlaceSignal:
     rating: float | None
     review_count: int
     formatted_address: str | None
+    # Já sanitizado por `normalize_website` (None se ausente ou inseguro).
+    website: str | None = None
 
 
 class GoogleMapsProvider(DataProvider):
@@ -188,7 +191,7 @@ class GoogleMapsProvider(DataProvider):
             headers={
                 "X-Goog-Api-Key": self._api_key,
                 "X-Goog-FieldMask": "places.id,places.displayName,places.types,places.businessStatus,"
-                                     "places.rating,places.userRatingCount,places.formattedAddress",
+                                     "places.rating,places.userRatingCount,places.formattedAddress,places.websiteUri",
                 "Content-Type": "application/json",
             },
         )
@@ -226,6 +229,7 @@ class GoogleMapsProvider(DataProvider):
                     rating=place.get("rating"),
                     review_count=place.get("userRatingCount", 0),
                     formatted_address=place.get("formattedAddress"),
+                    website=normalize_website(place.get("websiteUri")),
                 ))
         except (KeyError, TypeError) as exc:
             # Mesmo motivo do try/except em _geocode: um "place" sem "id"

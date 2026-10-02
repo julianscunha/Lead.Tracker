@@ -127,6 +127,7 @@ def test_discover_geocodes_origin_then_searches_nearby_and_normalizes_signals():
                 "id": "place-1", "displayName": {"text": "Concessionária Exemplo"},
                 "types": ["car_dealer", "point_of_interest"], "businessStatus": "OPERATIONAL",
                 "rating": 4.5, "userRatingCount": 120, "formattedAddress": "Rua Exemplo, 123",
+                "websiteUri": "www.exemplo.com.br",
             }],
         })
 
@@ -142,6 +143,7 @@ def test_discover_geocodes_origin_then_searches_nearby_and_normalizes_signals():
         assert s.rating == 4.5
         assert s.review_count == 120
         assert s.formatted_address == "Rua Exemplo, 123"
+        assert s.website == "https://www.exemplo.com.br"
 
     asyncio.run(run())
     assert calls["count"] == 2
@@ -288,3 +290,25 @@ if __name__ == "__main__":
     test_search_nearby_place_without_id_raises_friendly_integration_error()
     test_search_nearby_403_raises_authentication_error()
     print("OK — todos os testes do provider Google Maps passaram")
+
+
+def test_discover_requests_website_field_and_drops_unsafe_website():
+    import json
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "geocode" in str(request.url):
+            return httpx.Response(200, json=_GEOCODE_OK_BODY)
+        seen["mask"] = request.headers["X-Goog-FieldMask"]
+        return httpx.Response(200, json={"places": [
+            {"id": "p1", "displayName": {"text": "A"}, "websiteUri": "javascript:alert(1)"},
+            {"id": "p2", "displayName": {"text": "B"}},
+        ]})
+
+    async def run():
+        return await _provider(handler).discover("Av. Paulista, São Paulo", 5.0, None)
+
+    signals = asyncio.run(run())
+    assert "places.websiteUri" in seen["mask"]
+    assert [s.website for s in signals] == [None, None]

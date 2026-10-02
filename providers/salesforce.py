@@ -19,6 +19,7 @@ import httpx
 
 from core.errors import ErrorCategory
 from core.models import Address, Company, Contact, SourceRef
+from core.normalization import normalize_website
 from providers.base import ConnectionTestResult, DataProvider, ProviderContext, ProviderError
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
@@ -250,7 +251,7 @@ class SalesforceProvider(DataProvider):
             Company(
                 id=record["Id"],
                 name=record["Name"],
-                website=record.get("Website"),
+                website=normalize_website(record.get("Website")),
                 sources=[SourceRef(type="salesforce")],
                 last_activity_at=_parse_salesforce_date(record.get("LastActivityDate")),
                 industry=record.get("Industry"),

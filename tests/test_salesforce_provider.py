@@ -55,7 +55,7 @@ def test_fetch_companies_authenticates_then_queries():
         assert len(companies) == 1
         assert companies[0].id == _VALID_ACCOUNT_ID
         assert companies[0].name == "Acme"
-        assert companies[0].website == "acme.com"
+        assert companies[0].website == "https://acme.com"
         assert companies[0].sources[0].type == "salesforce"
 
     asyncio.run(run())
@@ -658,3 +658,16 @@ if __name__ == "__main__":
     test_describe_custom_account_fields_treats_missing_flags_as_false()
     test_describe_custom_account_fields_malformed_response_raises_integration_error()
     print("OK — todos os testes do provider Salesforce passaram")
+
+
+def test_fetch_companies_drops_unsafe_website_from_free_text_field():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/services/oauth2/token":
+            return httpx.Response(200, json=_TOKEN_BODY)
+        return httpx.Response(200, json={
+            "totalSize": 1, "done": True,
+            "records": [{"Id": _VALID_ACCOUNT_ID, "Name": "Acme", "Website": "javascript:alert(1)"}],
+        })
+
+    companies = asyncio.run(_provider(handler).fetch_companies())
+    assert companies[0].website is None
