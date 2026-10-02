@@ -96,3 +96,30 @@ describe('formatConflictValue', () => {
     expect(formatConflictValue('')).toBe('vazio')
   })
 })
+
+describe('filtros de status, saúde e triagem atrasada (fluxo Dashboard → Oportunidades)', () => {
+  it('filtra por status', () => {
+    const result = applyFilters(sampleOpportunities, { ...defaultFilters, status: 'detected' })
+    expect(result.length).toBeGreaterThan(0)
+    expect(result.every(r => r.status === 'detected')).toBe(true)
+  })
+
+  it('filtra por saúde da conta', () => {
+    const health = sampleOpportunities[0].accountHealth
+    const result = applyFilters(sampleOpportunities, { ...defaultFilters, health })
+    expect(result.every(r => r.accountHealth === health)).toBe(true)
+  })
+
+  it('"triagem atrasada" só deixa passar as marcadas como atrasadas', () => {
+    const rows = sampleOpportunities.map((r, i) => ({ ...r, isAging: i === 0 }))
+    const result = applyFilters(rows, { ...defaultFilters, onlyAging: true })
+    expect(result.map(r => r.id)).toEqual([rows[0].id])
+    expect(applyFilters(rows, defaultFilters).length).toBe(rows.length)
+  })
+
+  it('o resumo do PDF descreve os filtros novos em linguagem de negócio', () => {
+    expect(summarizeFilters({ ...defaultFilters, status: 'detected', onlyAging: true }))
+      .toBe('status: detectada, triagem atrasada')
+    expect(summarizeFilters({ ...defaultFilters, health: 'vermelha' })).toBe('saúde da conta: crítica')
+  })
+})

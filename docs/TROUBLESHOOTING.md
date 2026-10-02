@@ -88,7 +88,7 @@ precisa dizer a qual contato se refere.
 ## Apareceram "Conflitos de dados" depois de sincronizar ou importar
 
 Duas fontes trouxeram valores diferentes para o mesmo campo de uma empresa. O
-valor atual foi mantido. Abra Configurações > Conflitos de dados e escolha qual
+valor atual foi mantido. Abra Oportunidades > Conflitos de dados (aparece no topo, só quando há conflito) e escolha qual
 manter; a escolha fica no histórico de alterações. Conflito de representante ou
 segmento costuma vir de planilha que difere do que outra fonte já gravou.
 
@@ -97,6 +97,16 @@ segmento costuma vir de planilha que difere do que outra fonte já gravou.
 A importação de planilha não sobrescreve o que outra fonte gravou: o valor
 atual foi mantido e o conflito foi para a seção "Conflitos de dados". Para a
 planilha passar a valer, escolha o valor dela no conflito.
+
+## "Ler meu site" diz que não foi possível ler o site
+
+Confira em Entrada de dados > Website da empresa: o endereço precisa ser o site
+completo (ex.: `https://minhaempresa.com.br`), com um nome de domínio (não vale
+número de IP nem endereço interno da sua rede) e as portas padrão. O site pode
+estar bloqueando robôs (`robots.txt`), responder devagar, ou ser feito só de
+JavaScript (não executamos JavaScript). Se pedir "configure um provedor de IA",
+a sugestão exige a chave de IA em Configurações. Se a lista vier vazia, o site
+não traz o nome dos produtos em texto; cadastre manualmente.
 
 ## Atualizei o módulo e as telas dão erro (500)
 

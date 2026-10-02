@@ -54,13 +54,16 @@ function DiscoveryCard({ item, group }: { item: GeoDiscoveryItem; group: Discove
 // origem inválida).
 type Step = 1 | 2 | 3 | 4
 
-export function GeoDiscoveryWizard() {
+export function GeoDiscoveryWizard({ repId: defaultRepId = '' }: { repId?: string }) {
   const [step, setStep] = useState<Step>(1)
   const [products, setProducts] = useState<Product[]>([])
   const [suggestion, setSuggestion] = useState<ICPSuggestion | null | undefined>(undefined)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [repId, setRepId] = useState('')
+  // Começa com o representante do topo do App; editável porque dá para prospectar PARA outro representante.
+  const [repIdOverride, setRepIdOverride] = useState<string | null>(null)
+  const repId = repIdOverride ?? defaultRepId
+  const setRepId = (value: string) => setRepIdOverride(value)
   const [referenceProductId, setReferenceProductId] = useState('')
   const [searchOriginAddress, setSearchOriginAddress] = useState('')
   const [radiusKm, setRadiusKm] = useState(15)

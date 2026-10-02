@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Alterado
+
+- **Interface reorganizada no fluxo de trabalho** — as abas agora são Dashboard
+  → Entrada de dados → Oportunidades → Configurações. A nova aba **Entrada de
+  dados** reúne atualizar dados, fontes (Salesforce, Google Maps, site), planilha
+  CSV e prospecção geográfica (a antiga aba Prospecção). **Oportunidades** ganha
+  filtro e coluna de status e de saúde da conta, mostra os conflitos de dados no
+  topo (só quando existem) e, em cada linha, a ação vem primeiro: status,
+  próxima ação e "não contatar"; evidências, discovery, qualificação e histórico
+  ficam recolhidos. O **Dashboard** passou a ser acionável: "Triagem atrasada"
+  abre a lista já filtrada, e os indicadores secundários ficam recolhidos.
+  **Configurações** ficou só com a calibragem, em seções recolhíveis.
+- O id de representante é digitado **uma vez só**, em "Você é", no topo, e
+  lembrado entre sessões. Na lista, as colunas Prioridade e Fontes (que
+  repetiam o mesmo valor) deram lugar a Status e Saúde da conta.
+
+### Adicionado
+
+- **Portfólio a partir do seu site** — em Configurações, o card "Website da
+  empresa" agora funciona. Na seção Portfólio, "Ler meu site" lê até 5 páginas do
+  endereço que você informou (respeitando o robots.txt e sem nunca acessar
+  endereços internos) e a IA sugere fabricantes, produtos e serviços. Cada
+  sugestão mostra o trecho do site que a comprova, e o que a IA não consegue
+  provar com o texto é descartado. Nada entra no portfólio sem você marcar e
+  adicionar, e o que já existe aparece como "já no portfólio". Requer IA
+  configurada.
+
+### Corrigido
+
+- **Importação de planilha e portfólio** — nomes de fabricante, produto e
+  serviço agora são comparados ignorando caixa, acento e pontuação, e a
+  planilha também reconhece os apelidos de um produto.
+
 ## [1.2.0] - 2026-10-02
 
 ### Corrigido

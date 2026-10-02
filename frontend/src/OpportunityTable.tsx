@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { HEALTH_LABEL as FILTER_HEALTH_LABEL, STATUS_LABEL } from './Filters'
 import { InfoHint } from './InfoHint'
 import {
   createDoNotContact, exportBusinessCase, listOpportunityAudit, generateEmailDraft, getAiConfig, liftDoNotContact, listDoNotContact, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
@@ -475,7 +476,7 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
   }, [row.companyId])
 
   if (!repId.trim()) {
-    return <p className="lt-hint">Informe seu id de representante acima para ver a próxima ação sugerida.</p>
+    return <p className="lt-hint">Informe seu nome em “Você é”, no topo, para ver a próxima ação sugerida.</p>
   }
   if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!suggestion) return <p className="lt-hint">Calculando próxima ação…</p>
@@ -746,7 +747,7 @@ function DoNotContactPanel({ row, repId }: { row: OpportunityRow; repId: string 
   return (
     <div className="lt-panel">
       <strong>Não contatar</strong>
-      {!repId.trim() && <p className="lt-hint">Informe seu id de representante acima para marcar ou reativar.</p>}
+      {!repId.trim() && <p className="lt-hint">Informe seu nome em “Você é”, no topo, para marcar ou reativar.</p>}
       {active.length === 0 && <p className="lt-hint">Nenhum bloqueio ativo nesta empresa.</p>}
       {active.map(e => (
         <div key={e.id} className="lt-panel-row">
@@ -866,46 +867,13 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
 
   return (
     <tr>
-      <td colSpan={8} className="lt-detail">
-        <dl>
-          <dt>Status de cliente</dt>
-          <dd>{row.isCustomer ? 'Cliente' : 'Prospect'}</dd>
-          <dt>Fontes</dt>
-          <dd>{row.sources.map(s => `${s.type} (${Math.round(s.confidence * 100)}%)`).join(', ') || '—'}</dd>
-          <dt>Produtos atuais</dt>
-          <dd>{row.currentProducts.join(', ') || '—'}</dd>
-          <dt>Produtos recomendados</dt>
-          <dd>{row.recommendedProducts.join(', ') || '—'}</dd>
-          <dt>Serviços recomendados</dt>
-          <dd>{row.recommendedServices.join(', ') || '—'}</dd>
-          <dt>Potencial financeiro</dt>
-          <dd>{formatCurrency(row.financialPotential)}</dd>
-          <dt>Scores</dt>
-          <dd>
-            oportunidade {formatScore(row.opportunityScore)} · estratégico {formatScore(null)} · confiança {formatScore(row.confidenceScore)}
-          </dd>
-          <dt>Evidências</dt>
-          <dd>{row.evidence.join(', ') || '—'}</dd>
-          <dt>Insight</dt>
-          <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
-          {safeHttpUrl(row.companyWebsite) && (
-            <>
-              <dt>Site</dt>
-              <dd><a href={safeHttpUrl(row.companyWebsite) as string} target="_blank" rel="noopener noreferrer">{websiteLabel(row.companyWebsite as string)}</a></dd>
-            </>
-          )}
-          {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
-        </dl>
-        <DiscoveryFields row={row} repId={repId} onUpdated={onRowUpdated} />
-        <DoNotContactPanel row={row} repId={repId} />
+      <td colSpan={7} className="lt-detail">
         <StatusTransition row={row} onUpdated={onRowUpdated} />
-        <AccountHealthPanel row={row} repId={repId} onRenewalDateUpdated={onRenewalDateUpdated} />
-        <SeverityQualification row={row} repId={repId} onUpdated={onRowUpdated} />
-        <AuditHistory row={row} />
         <div className="lt-panel">
           <strong>Próxima ação sugerida</strong>
           <NextActionSuggestion row={row} repId={repId} suggestionCache={suggestionCache} contactsCache={contactsCache} />
         </div>
+        <DoNotContactPanel row={row} repId={repId} />
         <div className="lt-detail-actions">
           <button type="button" className="lt-btn" onClick={copySummary}>Copiar resumo</button>
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
@@ -943,6 +911,48 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           </div>
         )}
         </div>
+        <details className="lt-dash-more">
+          <summary>Por que esta oportunidade apareceu (evidências, scores e fontes)</summary>
+        <dl>
+          <dt>Status de cliente</dt>
+          <dd>{row.isCustomer ? 'Cliente' : 'Prospect'}</dd>
+          <dt>Fontes</dt>
+          <dd>{row.sources.map(s => `${s.type} (${Math.round(s.confidence * 100)}%)`).join(', ') || '—'}</dd>
+          <dt>Produtos atuais</dt>
+          <dd>{row.currentProducts.join(', ') || '—'}</dd>
+          <dt>Produtos recomendados</dt>
+          <dd>{row.recommendedProducts.join(', ') || '—'}</dd>
+          <dt>Serviços recomendados</dt>
+          <dd>{row.recommendedServices.join(', ') || '—'}</dd>
+          <dt>Potencial financeiro</dt>
+          <dd>{formatCurrency(row.financialPotential)}</dd>
+          <dt>Scores</dt>
+          <dd>
+            oportunidade {formatScore(row.opportunityScore)} · estratégico {formatScore(null)} · confiança {formatScore(row.confidenceScore)}
+          </dd>
+          <dt>Evidências</dt>
+          <dd>{row.evidence.join(', ') || '—'}</dd>
+          <dt>Insight</dt>
+          <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
+          {safeHttpUrl(row.companyWebsite) && (
+            <>
+              <dt>Site</dt>
+              <dd><a href={safeHttpUrl(row.companyWebsite) as string} target="_blank" rel="noopener noreferrer">{websiteLabel(row.companyWebsite as string)}</a></dd>
+            </>
+          )}
+          {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
+        </dl>
+        </details>
+        <details className="lt-dash-more" open={row.status === 'detected'}>
+          <summary>Discovery{row.discoveryPending ? ' (pendente)' : ''} — perguntas para o cliente antes de qualificar</summary>
+          <DiscoveryFields row={row} repId={repId} onUpdated={onRowUpdated} />
+        </details>
+        <details className="lt-dash-more">
+          <summary>Qualificação do gap e saúde da conta</summary>
+          <AccountHealthPanel row={row} repId={repId} onRenewalDateUpdated={onRenewalDateUpdated} />
+          <SeverityQualification row={row} repId={repId} onUpdated={onRowUpdated} />
+        </details>
+        <AuditHistory row={row} />
       </td>
     </tr>
   )
@@ -991,12 +1001,11 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
         <tr>
           <th>Empresa</th>
           <th>Cliente</th>
+          <th>Status</th>
           <SortHeader label="Score" sortKey="score" current={sortKey} direction={direction} onSort={handleSort} />
           <SortHeader label="Potencial $" sortKey="potencial" current={sortKey} direction={direction} onSort={handleSort} />
-          <th>Produto</th>
-          <th>Serviço</th>
-          <SortHeader label="Prioridade" sortKey="prioridade" current={sortKey} direction={direction} onSort={handleSort} />
-          <th>Fontes</th>
+          <th>Produto / Serviço</th>
+          <th>Saúde da conta</th>
         </tr>
       </thead>
       <tbody>
@@ -1013,18 +1022,21 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
                 >
                   {expandedId === row.id ? '▾' : '▸'} {row.companyName}
                 </button>
+                {row.isAging && <span className="lt-badge lt-badge--attention" title="Detectada há mais tempo que o prazo de triagem">triagem atrasada</span>}
+                {row.discoveryPending && <span className="lt-badge" title="Avançou sem preencher a discovery">discovery pendente</span>}
               </td>
               <td>
                 <span className={`lt-badge ${row.isCustomer ? 'lt-badge--customer' : 'lt-badge--prospect'}`}>
                   {row.isCustomer ? 'Cliente' : 'Prospect'}
                 </span>
               </td>
+              <td>{STATUS_LABEL[row.status]}</td>
               <td>{formatScore(row.opportunityScore)}</td>
               <td>{formatCurrency(row.financialPotential)}</td>
-              <td>{row.product ?? '—'}</td>
-              <td>{row.service ?? '—'}</td>
-              <td>{row.priority}</td>
-              <td>{row.sources.map(s => s.type).join(', ')}</td>
+              <td>{[row.product, row.service].filter(Boolean).join(' · ') || '—'}</td>
+              <td>
+                <span className={`lt-badge lt-badge--health-${row.accountHealth}`}>{FILTER_HEALTH_LABEL[row.accountHealth]}</span>
+              </td>
             </tr>
             {expandedId === row.id && (
               <RowDetail

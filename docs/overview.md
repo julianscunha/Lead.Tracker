@@ -43,6 +43,10 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
   passo por oportunidade (canal, motivo, cadência) — sempre uma sugestão
   que você confirma copiando e marcando como enviado, nunca um disparo
   automático.
+- **Monta o portfólio a partir do seu site** — a IA sugere fabricantes, produtos
+  e serviços lendo o site da sua empresa (endereço informado em Configurações),
+  cada sugestão com o trecho do site que a comprova; só entra no portfólio o que
+  você marcar e adicionar. Sem IA configurada o cadastro continua manual.
 - **Respeita quem não quer ser contatado** — lista de "não contatar" por
   empresa ou contato, por canal ou em todos; bloqueia a sugestão de toque e o
   rascunho de e-mail, e exige confirmação explícita para registrar um
@@ -67,21 +71,29 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
 
 ## Como o módulo se organiza (telas)
 
-- **Dashboard** — visão executiva agregada: KPIs, gráficos, oportunidades
-  paradas, cobertura de meta por representante, exportação executiva em
-  PDF.
-- **Oportunidades** — a lista viva de tudo que o motor encontrou: filtra
-  por cliente/prospect, produto/serviço, score; expande qualquer linha
-  pra ver evidências, mudar status, qualificar severidade, gerar rascunho
-  de e-mail, ver a próxima ação sugerida, preencher a discovery, marcar
-  "não contatar" e consultar o histórico de alterações.
-- **Prospecção** — assistente guiado (produto de referência → raio →
-  revisão do critério sugerido → confirmar) pra descoberta geográfica via
-  Google Maps.
-- **Configurações** — fontes de dado, portfólio (fabricantes/produtos/
-  serviços, cadastrados à mão ou por planilha; a leitura automática do seu
-  site, com revisão antes de valer, está em desenvolvimento), mapeamento de campo personalizado do Salesforce, IA,
-  metas por representante, e conflitos de dados entre fontes.
+O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → calibrar.
+
+- **Dashboard** — visão executiva: o que pede decisão hoje (cada número leva à
+  lista de oportunidades já filtrada), valor do pipeline e funil; cobertura de
+  meta por representante e demais indicadores ficam recolhidos; exportação
+  executiva em PDF.
+- **Entrada de dados** — porta de entrada única: atualizar dados das fontes,
+  conectar Salesforce, Google Maps e o site da empresa, importar planilha CSV e
+  fazer a prospecção geográfica (assistente guiado: produto de referência →
+  raio → revisão do critério sugerido → confirmar).
+- **Oportunidades** — lapidar e agir: a lista viva de tudo que o motor
+  encontrou, com status e saúde da conta; filtra por status, saúde, cliente/
+  prospect, produto/serviço, fonte e score; mostra os conflitos de dados entre
+  fontes quando existem; cada linha expande para mudar status, ver a próxima
+  ação sugerida, marcar "não contatar", gerar rascunho de e-mail e business
+  case, preencher a discovery, qualificar o gap e consultar o histórico de
+  alterações. Exporta PDF e Excel.
+- **Configurações** — calibragem de uso mais raro, em seções recolhíveis:
+  portfólio (inclui sugestão pelo site), regras, mapeamento de campo
+  personalizado do Salesforce, IA, limites e prazos, metas por representante.
+
+O campo **Você é**, no topo, informa o representante uma única vez para todas as
+abas.
 
 ## Arquitetura
 

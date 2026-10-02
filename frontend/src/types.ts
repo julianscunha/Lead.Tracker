@@ -49,6 +49,7 @@ export interface OpportunityRow {
   discoverySkipReason?: string | null
   discoveryPending?: boolean
   companyWebsite?: string | null
+  isAging?: boolean
 }
 
 export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'

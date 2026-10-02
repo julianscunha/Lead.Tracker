@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { listFieldConflicts, resolveFieldConflict, type FieldConflictRow } from '../api'
-import { InfoHint } from '../InfoHint'
 
 // Rótulos de negócio (nunca o nome do campo) e das fontes.
 const FIELD_LABEL: Record<string, string> = {
@@ -21,10 +20,9 @@ export function formatConflictValue(value: unknown): string {
   return String(value)
 }
 
-export function ConflictsSection() {
+export function ConflictsSection({ repId, onResolved }: { repId: string; onResolved?: () => void }) {
   const [conflicts, setConflicts] = useState<FieldConflictRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [repId, setRepId] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const reload = () => listFieldConflicts().then(setConflicts)
@@ -39,6 +37,7 @@ export function ConflictsSection() {
     try {
       await resolveFieldConflict(id, source, repId.trim() || null)
       await reload()
+      onResolved?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao resolver o conflito.')
     } finally {
@@ -46,37 +45,36 @@ export function ConflictsSection() {
     }
   }
 
-  if (conflicts === null && !error) return <p className="lt-hint">Carregando conflitos…</p>
+  if (error) return <p className="lt-alert" role="alert">{error}</p>
+  // Sem conflito não ocupa tela: o bloco só aparece quando há algo para decidir.
+  if (!conflicts || conflicts.length === 0) return null
 
   return (
-    <section className="lt-panel" aria-labelledby="lt-conflicts-title">
-      <div className="lt-header lt-header-row">
-        <h3 id="lt-conflicts-title">Conflitos de dados</h3>
-        <InfoHint text="Quando duas fontes trazem valores diferentes para o mesmo campo de uma empresa, o valor atual continua valendo até você escolher qual manter. A escolha fica registrada no histórico de alterações e não é perguntada de novo." />
-      </div>
-      {error && <p className="lt-alert" role="alert">{error}</p>}
-      {conflicts && conflicts.length === 0 && <p className="lt-hint">Nenhum conflito: as fontes concordam.</p>}
-      {conflicts && conflicts.length > 0 && (
-        <label className="lt-field">
-          <span>Seu id de representante (opcional) <InfoHint text="Aparece no histórico de alterações como quem escolheu." /></span>
-          <input value={repId} onChange={e => setRepId(e.target.value)} maxLength={64} />
-        </label>
-      )}
-      {conflicts?.map(c => (
-        <div key={c.id} className="lt-panel">
-          <strong>{c.company_name} — {FIELD_LABEL[c.field] ?? c.field}</strong>
-          <div className="lt-panel-row">
-            {c.candidates.map(cand => (
-              <button
-                key={cand.source} type="button" className="lt-btn" disabled={busyId === c.id}
-                onClick={() => choose(c.id, cand.source)}
-              >
-                Manter "{formatConflictValue(cand.value)}" ({SOURCE_LABEL[cand.source] ?? cand.source})
-              </button>
-            ))}
+    <details className="lt-fold lt-fold--attention" open>
+      <summary>
+        Conflitos de dados ({conflicts.length}) — fontes que discordam, escolha qual manter
+      </summary>
+      <div className="lt-fold__body">
+        <p className="lt-hint">
+          O valor atual continua valendo até você escolher. A escolha fica no histórico de alterações e não é perguntada de novo.
+          {repId.trim() ? '' : ' Dica: informe seu nome em "Você é" no topo para ele aparecer no histórico.'}
+        </p>
+        {conflicts.map(c => (
+          <div key={c.id} className="lt-panel">
+            <strong>{c.company_name} — {FIELD_LABEL[c.field] ?? c.field}</strong>
+            <div className="lt-panel-row">
+              {c.candidates.map(cand => (
+                <button
+                  key={cand.source} type="button" className="lt-btn" disabled={busyId === c.id}
+                  onClick={() => choose(c.id, cand.source)}
+                >
+                  Manter "{formatConflictValue(cand.value)}" ({SOURCE_LABEL[cand.source] ?? cand.source})
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
-    </section>
+        ))}
+      </div>
+    </details>
   )
 }

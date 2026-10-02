@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getDashboardMetrics, type DashboardMetrics, type PeriodType } from '../api'
 import { BarChart } from './BarChart'
 import { DashSection } from './DashSection'
@@ -7,15 +7,25 @@ import { formatCount, formatCurrency, formatPercent } from './format'
 import { FunnelChart } from './FunnelChart'
 import { RepCategoryMatrix } from './RepCategoryMatrix'
 import { StatTile } from './StatTile'
+import type { FilterState } from '../Filters'
 import { InfoHint } from '../InfoHint'
 import { FUNNEL_REACH_LABELS, FUNNEL_STAGES } from './types'
 
-export function Dashboard() {
+export function Dashboard({ onNavigate, active = true }: {
+  onNavigate?: (tab: 'oportunidades', filters?: Partial<FilterState>) => void
+  /** A aba fica montada ao trocar; ao voltar para ela os números são recarregados. */
+  active?: boolean
+} = {}) {
   const [periodType, setPeriodType] = useState<PeriodType>('monthly')
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [reloadKey, setReloadKey] = useState(0)
+  const wasActive = useRef(active)
+  useEffect(() => {
+    if (active && !wasActive.current) setReloadKey(k => k + 1)
+    wasActive.current = active
+  }, [active])
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +64,8 @@ export function Dashboard() {
         <div className="lt-stat-grid">
           <StatTile label="Triagem atrasada" value={formatCount(metrics.agingCount)}
             tone={metrics.agingCount > 0 ? 'attention' : undefined}
+            onClick={onNavigate ? () => onNavigate('oportunidades', { status: 'detected', onlyAging: true }) : undefined}
+            linkLabel="Ver as detectadas →"
             action={`Vale qualificar ou descartar as detectadas há mais de ${metrics.agingSlaDays} dia(s).`}
             hint={`Detectadas há mais de ${metrics.agingSlaDays} dia(s) sem virar qualificada nem descartada (SLA configurável em Configurações).`} />
           <StatTile label="Oportunidades zumbi" value={formatCount(metrics.zombieCount)}
@@ -61,6 +73,7 @@ export function Dashboard() {
             action="Vale decidir: retomar o contato ou descartar."
             hint="Paradas há mais de 30 dias no mesmo estágio — excluídas do potencial ponderado e dos cortes por rep/segmento/fonte." />
           <StatTile label="Oportunidades identificadas" value={formatCount(kpis.opportunitiesIdentified)}
+            onClick={onNavigate ? () => onNavigate('oportunidades', {}) : undefined}
             hint="Total de oportunidades já detectadas pelo motor, em qualquer estágio." />
         </div>
       </DashSection>
@@ -73,14 +86,6 @@ export function Dashboard() {
             hint="Só oportunidades com confiança real avaliada, multiplicada pelo potencial — nunca substitui o bruto, complementa." />
           <StatTile label="Potencial ponderado (estimado)" value={formatCurrency(metrics.weightedPotential.weightedEstimatedTotal)}
             hint="Inclui também as sem confiança avaliada, usando uma estimativa conservadora — visão mais otimista que o avaliado." />
-          <StatTile label="Clientes analisados" value={formatCount(kpis.customersAnalyzed)}
-            hint="Empresas marcadas como cliente atual em pelo menos uma fonte." />
-          <StatTile label="Prospects analisados" value={formatCount(kpis.prospectsAnalyzed)}
-            hint="Empresas sem relação de cliente ainda, mas já mapeadas." />
-          <StatTile label="Oportunidades de produto" value={formatCount(kpis.productOpportunities)}
-            hint="Oportunidades associadas a um produto específico do portfólio." />
-          <StatTile label="Oportunidades de serviço" value={formatCount(kpis.serviceOpportunities)}
-            hint="Oportunidades associadas a um serviço específico do portfólio." />
         </div>
 
         <div className="lt-chart-grid">
@@ -96,7 +101,21 @@ export function Dashboard() {
             </div>
             <FunnelChart stages={reachStages} counts={reachCounts} />
           </div>
+        </div>
 
+        <details className="lt-dash-more">
+          <summary>Mais indicadores do pipeline (clientes, prospects, produto, serviço, por fabricante, segmento e fonte)</summary>
+          <div className="lt-stat-grid">
+            <StatTile label="Clientes analisados" value={formatCount(kpis.customersAnalyzed)}
+              hint="Empresas marcadas como cliente atual em pelo menos uma fonte." />
+            <StatTile label="Prospects analisados" value={formatCount(kpis.prospectsAnalyzed)}
+              hint="Empresas sem relação de cliente ainda, mas já mapeadas." />
+            <StatTile label="Oportunidades de produto" value={formatCount(kpis.productOpportunities)}
+              hint="Oportunidades associadas a um produto específico do portfólio." />
+            <StatTile label="Oportunidades de serviço" value={formatCount(kpis.serviceOpportunities)}
+              hint="Oportunidades associadas a um serviço específico do portfólio." />
+          </div>
+          <div className="lt-chart-grid">
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-vendor-money">
             <h4 id="lt-chart-vendor-money">Potencial financeiro por fabricante</h4>
             <BarChart data={metrics.financialByVendor} formatValue={formatCurrency} emptyMessage="Sem potencial financeiro registrado." />
@@ -121,7 +140,8 @@ export function Dashboard() {
             <h4 id="lt-chart-customer">Clientes × Prospects</h4>
             <BarChart data={metrics.customerVsProspect} formatValue={formatCount} emptyMessage="Sem empresas analisadas." />
           </div>
-        </div>
+          </div>
+        </details>
       </DashSection>
 
       <DashSection

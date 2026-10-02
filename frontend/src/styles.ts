@@ -12,6 +12,7 @@ export const styles = `
 .lt-header h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
 .lt-header p { font-size: 11px; color: hsl(var(--text-muted)); margin: 0; }
 .lt-header-row { display: flex; align-items: center; gap: 6px; }
+.lt-header h3 { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
 .lt-header-row h2, .lt-header-row h3, .lt-header-row h4 { margin: 0; }
 
 /* Achado do usuário: card com explicação sempre visível vira um botão
@@ -103,6 +104,10 @@ export const styles = `
 
 .lt-empty { text-align: center; padding: 48px 16px; color: hsl(var(--text-muted)); font-size: 12px; }
 
+.lt-topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; border-bottom: 1px solid hsl(var(--border)); }
+.lt-topbar .lt-tabs { margin-bottom: 0; border-bottom: none; }
+.lt-who { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; font-size: 11px; font-weight: 600; color: hsl(var(--text-muted)); }
+.lt-who input { width: 170px; font-size: 12px; font-weight: 400; padding: 6px 8px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text)); }
 .lt-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid hsl(var(--border)); }
 .lt-tab {
   all: unset; cursor: pointer; padding: 8px 12px; font-size: 12px; color: hsl(var(--text-muted));
@@ -207,4 +212,20 @@ export const styles = `
   border: 1px solid hsl(var(--border)); background: hsl(var(--bg)); color: hsl(var(--text));
 }
 .lt-field textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+
+/* Seções recolhíveis (Configurações, conflitos, detalhe da oportunidade): <details> nativo, acessível. */
+.lt-fold { border: 1px solid hsl(var(--border-subtle)); border-radius: 8px; margin-bottom: 12px; background: hsl(var(--bg-elevated)); }
+.lt-fold > summary { cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 600; list-style-position: inside; }
+.lt-fold > summary:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-fold__body { padding: 4px 14px 14px; }
+.lt-fold--attention { border-left: 3px solid hsl(var(--warning)); }
+.lt-badge--attention { background: hsl(var(--warning) / 0.2); color: hsl(var(--text)); border: 1px solid hsl(var(--warning)); margin-left: 6px; }
+.lt-stat-tile--link { position: relative; cursor: pointer; }
+.lt-stat-tile--link:hover { border-color: hsl(var(--accent)); }
+.lt-stat-tile--link:focus-within { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.lt-stat-tile--link .lt-info-hint { position: relative; z-index: 1; }
+/* "stretched link": o cartão inteiro clica pelo botão, sem aninhar interativo dentro de interativo */
+.lt-stat-tile__go { all: unset; cursor: pointer; margin-top: 6px; font-size: 11px; color: hsl(var(--accent)); }
+.lt-stat-tile__go::after { content: ''; position: absolute; inset: 0; }
+.lt-stat-tile__go:focus-visible { text-decoration: underline; }
 `

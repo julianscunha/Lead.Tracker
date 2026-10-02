@@ -61,6 +61,11 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
   ativo, aparece a sugestão de abrir um segundo.
 - **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
   vindo de dado real.
+- **Monta o portfólio a partir do seu site** — informe o endereço do site da sua
+  empresa em Configurações e clique em "Ler meu site": a IA sugere fabricantes,
+  produtos e serviços, cada um com o trecho do site que o comprova. Você marca o
+  que vale e só então eles entram no portfólio. Só lemos o endereço que você
+  informou, e só com IA configurada.
 - **Respeita quem não quer ser contatado** — marque uma empresa inteira, ou só
   um contato, como "não contatar" (por canal ou em todos, com motivo). Enquanto
   estiver ativo, o sistema não sugere o próximo toque nem gera rascunho de
@@ -82,12 +87,16 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 
 ## Telas
 
+O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → calibrar.
+
 | Aba | O que você faz ali |
 |---|---|
-| **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante e onde as oportunidades estão hoje por representante e categoria. |
-| **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, preenche a discovery, marca "não contatar", gera rascunho de e-mail, vê a próxima ação sugerida e o histórico de alterações de cada oportunidade. |
-| **Prospecção** | Assistente guiado de descoberta geográfica (Google Maps) — define raio/produto de referência e recebe uma lista de prospects pontuados. |
-| **Configurações** | Fontes de dado (Salesforce, Google Maps), importação de empresas + portfólio por CSV em lote, cadastro de fabricante/produto/serviço/regra (com remoção), mapeamento de campo personalizado, conflitos de dados entre fontes, IA, metas por representante. |
+| **Dashboard** | Visão executiva: o que pede decisão hoje (cada número leva à lista já filtrada), valor do pipeline e funil. Cobertura de meta por representante, matriz por categoria e demais indicadores ficam recolhidos. |
+| **Entrada de dados** | A porta de entrada única: atualizar os dados das fontes, conectar Salesforce, Google Maps e o site da sua empresa, importar planilha CSV e fazer a prospecção geográfica (assistente guiado). |
+| **Oportunidades** | Lapidar e agir: a lista viva do que o motor encontrou, com status e saúde da conta, filtros, conflitos de dados entre fontes (quando houver), e em cada linha o status, a próxima ação sugerida, "não contatar", rascunho de e-mail, business case, discovery, qualificação e histórico de alterações. Exporta PDF e Excel do que está na tela. |
+| **Configurações** | Calibragem de uso mais raro, em seções recolhíveis: portfólio (inclui "Ler meu site"), regras, mapeamento de campos do Salesforce, IA, limites e prazos e metas por representante. |
+
+O campo **Você é**, no topo, vale para todas as abas (próxima ação, prospecção, escolhas em conflitos e histórico).
 
 ## Arquitetura
 

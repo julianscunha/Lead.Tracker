@@ -381,6 +381,7 @@ interface OpportunityApiRow {
   discovery_skip_reason?: string | null
   discovery_pending?: boolean
   company_website?: string | null
+  is_aging?: boolean
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -431,6 +432,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     discoverySkipReason: r.discovery_skip_reason ?? null,
     discoveryPending: r.discovery_pending ?? false,
     companyWebsite: r.company_website ?? null,
+    isAging: r.is_aging ?? false,
   }
 }
 
