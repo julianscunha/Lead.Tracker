@@ -23,8 +23,16 @@ from core.repository import (
     list_outreach_touches, list_rep_targets, list_rules, list_vendors, recompute_daily_snapshot, save_company,
     save_company_signal, save_contact, save_field_mapping, save_icp_profile, save_opportunity,
     save_opportunity_status_change, save_outreach_touch, save_portfolio, save_rep_target, save_rule, save_vendor,
-    update_company_renewal_date, update_contact_stance, update_opportunity_qualification, update_opportunity_status,
+    update_company_renewal_date, update_contact_stance, update_opportunity_qualification,
 )
+from core.repository import update_opportunity_status as _update_opportunity_status_real
+
+
+def update_opportunity_status(*args, **kwargs):
+    """Testes legados de status não tratam de discovery: gate desligado por padrão aqui.
+    Os testes do gate chamam `_update_opportunity_status_real` (padrão de produção: ligado)."""
+    kwargs.setdefault("discovery_gate_enabled", False)
+    return _update_opportunity_status_real(*args, **kwargs)
 
 
 async def _fresh_session_factory(tmp_dir: str):
@@ -1656,3 +1664,19 @@ if __name__ == "__main__":
     test_init_db_runs_alembic_and_tracks_it_in_alembic_version_table()
     test_init_db_runs_alembic_before_add_missing_columns()
     print("OK — todos os testes de persistência passaram")
+
+
+def test_update_opportunity_status_gate_is_on_by_default_in_the_service_layer():
+    from core.models import DiscoveryRequiredError
+    with tempfile.TemporaryDirectory() as tmp:
+        async def run():
+            session_factory = await _fresh_session_factory(tmp)
+            opportunity = Opportunity(company_id="c1", type="cross-sell", sources=[SourceRef(type="rule_engine")])
+            async with session_factory() as session:
+                await save_opportunity(session, opportunity)
+                try:
+                    await _update_opportunity_status_real(session, opportunity.id, OpportunityStatus.QUALIFIED)
+                except DiscoveryRequiredError:
+                    return True
+                return False
+        assert asyncio.run(run()) is True

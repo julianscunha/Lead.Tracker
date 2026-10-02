@@ -555,9 +555,7 @@ async def count_outreach_touches_today(session: AsyncSession, rep_id: str, today
 async def update_opportunity_status(
     session: AsyncSession, opportunity_id: str, new_status: OpportunityStatus, note: str | None = None,
     dismissal_reason: DismissalReason | None = None,
-    # Gate off por padrão aqui: o único chamador de produção (a rota) sempre passa o valor
-    # de Configurações (padrão ligado). Evita acoplar o repositório a `.env`.
-    skip_discovery_reason: str | None = None, discovery_gate_enabled: bool = False,
+    skip_discovery_reason: str | None = None, discovery_gate_enabled: bool = True,
 ) -> Opportunity | None:
     """Único caminho de escrita de `status` após a criação — o motor
     (`save_opportunity`) nunca mais toca essa coluna depois do INSERT
