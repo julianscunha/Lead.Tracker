@@ -44,13 +44,13 @@ def test_sem_evidencia_levanta_erro_de_dominio_em_linguagem_de_negocio():
     with pytest.raises(DomainError) as exc:
         _bc(_opp(evidence=[]))
     assert "faltam evidências para esta oportunidade" in exc.value.message
-    assert exc.value.category == ErrorCategory.EXPORT
+    assert exc.value.category == ErrorCategory.INVALID_DATA
 
 
-def test_evidencia_so_com_espacos_levanta_erro_export():
+def test_evidencia_so_com_espacos_levanta_erro_invalid_data():
     with pytest.raises(DomainError) as exc:
         _bc(_opp(evidence=["  ", "\t"]))
-    assert exc.value.category == ErrorCategory.EXPORT
+    assert exc.value.category == ErrorCategory.INVALID_DATA
 
 
 def test_cabecalho_traz_empresa_item_e_data():
@@ -232,30 +232,34 @@ def test_rodape_traz_fontes_solidez_e_marca_de_rascunho():
     assert "rascunho para revisão do vendedor; não enviado" in r
 
 
-def test_justificativa_minuscula_com_sigla_preservada():
-    """Justificativa lowercase com sigla no meio ('DR') preserva maiúsculas."""
-    bc = _bc(_opp(justification="Há uma lacuna de DR na nuvem."))
-    assert "Os dados indicam que há uma lacuna de DR na nuvem." in bc.gap
-    assert "DR" in bc.gap
+@pytest.mark.parametrize("just,esperado", [
+    ("Descoberta por prospecção geográfica (Google Maps).", "Motivo principal: Descoberta por prospecção geográfica (Google Maps)."),
+    ("Descoberta por prospecção geográfica (Google Maps)", "Motivo principal: Descoberta por prospecção geográfica (Google Maps)."),
+    ("VDC365 ausente", "Motivo principal: VDC365 ausente."),
+    ("Cliente já usa backup Veeam, mas não tem monitoramento", "Motivo principal: Cliente já usa backup Veeam, mas não tem monitoramento."),
+])
+def test_gap_usa_rotulo_com_justificativa_original(just, esperado):
+    gap = _bc(_opp(justification=just)).gap
+    assert esperado in gap
+    assert "Os dados" not in gap and ".." not in gap
 
 
-def test_justificativa_comeca_com_sigla_preserva_maiucula():
-    """Justificativa começando com sigla ('VDC365') mantém sigla maiúscula."""
-    bc = _bc(_opp(justification="VDC365 ausente em produção."))
-    assert "Os dados indicam que VDC365 ausente em produção." in bc.gap
-    assert "VDC365" in bc.gap
+def test_confianca_baixa_usa_rotulo_possivel_motivo():
+    gap = _bc(_opp(confidence_score=0.2, justification="VDC365 ausente.")).gap
+    assert "Possível motivo (confiança baixa): VDC365 ausente." in gap
+    assert "Motivo principal" not in gap
 
 
-def test_confianca_baixa_usa_sugere_na_justificativa():
-    """Confiança baixa → 'sugere' em vez de 'indica' na justificativa."""
-    bc = _bc(_opp(confidence_score=0.2, justification="Há uma lacuna."))
-    assert "Os dados sugerem que há uma lacuna." in bc.gap
-    assert "indicam" not in bc.gap
+def test_evidencia_terminada_em_ponto_nao_gera_ponto_duplo():
+    bc = _bc(_opp(evidence=["avaliações=80.", "nota=4;"]))
+    assert ".." not in bc.situacao and ".." not in bc.gap
+    assert "avaliações=80; nota=4." in bc.situacao
+    assert "Fatos: avaliações=80; nota=4." in bc.gap
 
 
 def test_gap_traz_motivo_e_ate_tres_evidencias():
     bc = _bc(_opp(evidence=["e1", "e2", "e3", "e4", "e5"]))
-    assert "há uma lacuna de proteção em nuvem." in bc.gap
+    assert "Motivo principal: Há uma lacuna de proteção em nuvem." in bc.gap
     assert "e3" in bc.gap and "e4" not in bc.gap
 
 

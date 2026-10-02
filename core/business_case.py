@@ -94,12 +94,9 @@ def fit(body: str, fixed_tail: str, max_words: int) -> str:
     return f"{truncate(body, budget)} {fixed_tail}".strip()
 
 
-def _normalize_justification(text: str) -> str:
-    """Remove ponto final, passa primeira letra para minúscula se segunda não for maiúscula (preserva siglas)."""
-    text = text.strip().rstrip(".")
-    if text and len(text) > 1 and text[0].isupper() and not text[1].isupper():
-        text = text[0].lower() + text[1:]
-    return text
+def _clean(text: str) -> str:
+    """Remove pontuação final (`.`/`;`) e espaços, para montar listas e rótulos com um único ponto."""
+    return text.strip().rstrip(".; ").strip()
 
 
 def aging_text(synced: date, today: date) -> str:
@@ -113,10 +110,10 @@ def aging_text(synced: date, today: date) -> str:
 
 
 def assemble_business_case(opp: Opportunity, company: Company, item: Product | Service, today: date) -> BusinessCase:
-    evidence = [e.strip() for e in opp.evidence if e and e.strip()]
+    evidence = [c for c in (_clean(e) for e in opp.evidence if e) if c]
     if not evidence:
         raise DomainError(
-            ErrorCategory.EXPORT,
+            ErrorCategory.INVALID_DATA,
             "Não foi possível gerar o business case: faltam evidências para esta oportunidade.",
             "Sincronize os dados ou revise a oportunidade antes de exportar.",
         )
@@ -128,12 +125,9 @@ def assemble_business_case(opp: Opportunity, company: Company, item: Product | S
     name = f"{company.name} (cliente)" if company.is_customer else company.name
     situacao = fit(f"{name}. Evidências: {'; '.join(evidence)}.", aging_text(opp.synced_at.date(), today), MAX_WORDS_SITUACAO)
 
-    verbo = "sugerem" if tom_condicional else "indicam"
-    if opp.justification and opp.justification.strip():
-        just = _normalize_justification(opp.justification)
-        motivo = f"Os dados {verbo} que {just}."
-    else:
-        motivo = ""
+    rotulo = "Possível motivo (confiança baixa)" if tom_condicional else "Motivo principal"
+    just = _clean(opp.justification or "")
+    motivo = f"{rotulo}: {just}." if just else ""
     gap = truncate(f"{motivo} Fatos: {'; '.join(evidence[:MAX_GAP_EVIDENCES])}.".strip(), MAX_WORDS_GAP)
 
     severidade = compute_severity_band(opp.scope_note, opp.criticality)

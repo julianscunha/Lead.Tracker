@@ -52,13 +52,13 @@ e push por etapa.
 - [x] Teste de 1 página passa (critério 3 da spec)
 
 ## T5 — rota + botão (M)
-- [ ] `POST /exports/business-case` + `exportBusinessCase` em `api.ts` + botão em `OpportunityTable.tsx`
+- [x] `POST /exports/business-case` + `exportBusinessCase` em `api.ts` + botão em `OpportunityTable.tsx`
   - Acceptance: devolve `%PDF`; sem evidência → 4xx com mensagem de negócio; sem IA ainda gera; não muda status nem envia nada; pergunta em aberto só na tela
   - Verify: `python -m pytest tests/test_routes_exports.py -q` e `cd frontend && npm run build && npm run test`
   - Files: `backend/routes_exports.py`, `tests/test_routes_exports.py`, `frontend/src/api.ts`, `frontend/src/OpportunityTable.tsx`, `frontend/src/logic.test.ts`
   - Depende de: T4
 
 ### Checkpoint final
-- [ ] `python -m pytest -q` e `npm run build && npm run test` verdes
-- [ ] Smoke manual com empresa fictícia; PDF sai com a IA desligada (critério 2)
-- [ ] CHANGELOG em `[Unreleased]`; revisão final com especialista
+- [ ] `python -m pytest -q` (suíte completa no estado final) e `npm run build && npm run test` verdes — frontend 44/44 e 293 testes focados de backend verdes; suíte completa rodando
+- [x] Smoke manual no navegador com dado real: PDF baixado com a IA desligada (critério 2); botão bloqueado com motivo para oportunidade sem produto
+- [x] CHANGELOG em `[Unreleased]`; revisão com especialista em cada fatia (T3a, T3b, T4, T5)

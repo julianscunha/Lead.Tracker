@@ -41,6 +41,7 @@ export interface OpportunityRow {
   qbrSuggestedDays: number
   qbrReason: string
   dismissalReason: DismissalReason | null
+  discoveryPrompt?: string | null
 }
 
 export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'

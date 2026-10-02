@@ -96,6 +96,7 @@ class OpportunityOut(BaseModel):
     qbr_reason: str
     is_aging: bool
     dismissal_reason: str | None
+    discovery_prompt: str | None = None
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -307,6 +308,7 @@ def _to_opportunity_out(
         account_health=health, qbr_suggested_days=qbr_days, qbr_reason=qbr_reason,
         is_aging=is_aging_opportunity(o.status.value, o.first_detected_at, datetime.now(timezone.utc), aging_sla_days),
         dismissal_reason=o.dismissal_reason.value if o.dismissal_reason else None,
+        discovery_prompt=o.discovery_prompt,
     )
 
 

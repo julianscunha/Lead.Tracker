@@ -1,3 +1,4 @@
+import { businessCaseFileName, parseProseSource, type ProseSource } from './businessCase'
 import type { OpportunityRow } from './types'
 
 const BASE = '/api/v1/modules/lead_tracker'
@@ -51,6 +52,25 @@ export async function exportOpportunitiesExcel(rows: OpportunityRow[]): Promise<
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   downloadBlob(await resp.blob(), 'oportunidades.xlsx')
+}
+
+export async function exportBusinessCase(
+  opportunityId: string, usarIa: boolean, companyName: string,
+): Promise<{ fonte: ProseSource }> {
+  let resp: Response
+  try {
+    resp = await fetch(`${BASE}/exports/business-case`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ opportunity_id: opportunityId, usar_ia: usarIa }),
+    })
+  } catch (err) {
+    if (err instanceof TypeError) throw new Error('Não foi possível conectar ao módulo. Tente novamente.')
+    throw err
+  }
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  downloadBlob(await resp.blob(), businessCaseFileName(companyName, new Date()))
+  return { fonte: parseProseSource(resp.headers.get('X-Prosa-Fonte')) }
 }
 
 export interface EmailDraft {
@@ -278,6 +298,7 @@ interface OpportunityApiRow {
   qbr_suggested_days: number
   qbr_reason: string
   dismissal_reason: OpportunityRow['dismissalReason']
+  discovery_prompt?: string | null
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -320,6 +341,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     qbrSuggestedDays: r.qbr_suggested_days,
     qbrReason: r.qbr_reason,
     dismissalReason: r.dismissal_reason,
+    discoveryPrompt: r.discovery_prompt ?? null,
   }
 }
 

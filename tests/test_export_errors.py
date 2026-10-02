@@ -25,6 +25,8 @@ def test_wrap_export_errors_converts_unexpected_exception():
     except ExportError as exc:
         assert exc.category == ErrorCategory.EXPORT
         assert "detalhe técnico interno da lib" not in str(exc)
+        assert "_boom" not in str(exc)
+        assert str(exc) == "Não foi possível gerar o arquivo. Tente novamente ou contate o suporte."
 
 
 def test_wrap_export_errors_does_not_double_wrap_domain_error():

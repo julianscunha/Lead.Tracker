@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Business case por oportunidade** — novo botão "Exportar business case" no
+  detalhe de cada oportunidade gera um PDF de 1 página para o vendedor levar a
+  uma conversa: situação, gap, custo de não agir e estado futuro, com os 4
+  números da oportunidade (aderência, porte, relevância estratégica e solidez
+  das evidências) em faixas separadas, nunca somados. É um rascunho para
+  revisão do vendedor: nada é enviado, o status da oportunidade não muda e o
+  sistema nunca calcula valor em R$ (o custo de não agir é uma banda avaliada
+  pelo vendedor). Só monta com evidência e com um produto ou serviço do
+  portfólio ligado à oportunidade; sem isso o botão explica o motivo. O texto
+  é montado por regra; a opção "Melhorar o texto com IA" (desligada por
+  padrão) só reescreve a prosa, nunca altera números nem inventa produto, e
+  qualquer falha ou resposta fora das regras volta ao texto padrão. A
+  pergunta em aberto do vendedor aparece só na tela, nunca no PDF.
+
 ### Corrigido
 
 - **Rascunho de e-mail falhava com "não devolveu o rascunho no formato
@@ -12,6 +28,9 @@
   (```json) ou com texto em volta é lida, e um envelope simples
   (`structured`/`email`/`rascunho`) também. A leitura é linear: entradas
   patológicas não travam o servidor.
+- **Logs do módulo sumiam depois do início** — a atualização do banco na
+  partida desligava os logs já criados. Agora eles continuam ativos.
+
 - **Resposta de provider fora do formato** (200 com corpo vazio, não-JSON ou
   sem `choices`) agora vira erro amigável em vez de exceção crua, nos 4
   providers.

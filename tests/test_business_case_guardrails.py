@@ -220,3 +220,8 @@ def test_documento_real_passa(dias):
     bc = assemble_business_case(_opp(synced_at=sync), EMPRESA, ITEM, hoje)
     t = bc.texto_completo()
     assert validate_section(t, t, max_words=400, original=t) is None
+
+
+@pytest.mark.parametrize("rotulo", ["Motivo principal", "Possível motivo (confiança baixa)"])
+def test_rotulo_do_gap_nao_e_falso_positivo(rotulo):
+    assert _v(f"{rotulo}: VDC365 ausente. Fatos: Veeam VBR e M365 presentes.") is None

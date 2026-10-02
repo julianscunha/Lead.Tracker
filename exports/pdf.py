@@ -165,8 +165,8 @@ def executive_pdf(
 
 
 # --- Business case (A4 retrato, exatamente 1 página) ---------------------------------
-# ponytail: rota síncrona e CPU-bound (medição de linhas do fpdf2); a T5 deve chamar
-# `business_case_pdf` via `run_in_threadpool` para não bloquear o event loop.
+# Síncrona e CPU-bound (medição de linhas do fpdf2): a rota chama via `run_in_threadpool`
+# (backend/routes_exports.py) para não bloquear o event loop.
 _M, _W = 15, 180            # margem e largura útil (mm)
 _BODY_LIMIT = 297 - 40      # os 40 mm finais ficam reservados ao rodapé
 _FOOTER_Y = 270

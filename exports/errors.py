@@ -24,5 +24,5 @@ def wrap_export_errors(fn: Callable[..., T]) -> Callable[..., T]:
         except ExportError:
             raise
         except Exception as exc:
-            raise ExportError(f"Não foi possível gerar o arquivo de exportação ({fn.__name__}).") from exc
+            raise ExportError("Não foi possível gerar o arquivo. Tente novamente ou contate o suporte.") from exc
     return wrapper

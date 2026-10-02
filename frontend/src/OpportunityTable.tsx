@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
-  generateEmailDraft, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
+  exportBusinessCase, generateEmailDraft, getAiConfig, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
   updateOpportunityQualification, updateOpportunityStatus,
   type CompanyContact, type EmailDraft, type NextSuggestedTouch,
 } from './api'
+import { canExportBusinessCase, proseSourceMessage } from './businessCase'
+import { InfoHint } from './InfoHint'
 import type { AccountHealth, Criticality, DismissalReason, OpportunityRow, ScopeNote, SeverityBand, SortKey } from './types'
 
 const SCOPE_OPTIONS: { value: ScopeNote; label: string }[] = [
@@ -556,14 +558,20 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
   )
 }
 
-function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionCache, contactsCache }: {
+function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionCache, contactsCache, aiHasKey }: {
   row: OpportunityRow
   repId: string
   onRowUpdated: (updated: OpportunityRow) => void
   onRenewalDateUpdated: () => void
   suggestionCache: RefObject<SuggestionCache>
   contactsCache: RefObject<ContactsCache>
+  aiHasKey: boolean
 }) {
+  const [bcState, setBcState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [bcError, setBcError] = useState<string | null>(null)
+  const [bcMessage, setBcMessage] = useState<string | null>(null)
+  const [bcUseAi, setBcUseAi] = useState(false)
+  const bcCheck = canExportBusinessCase(row)
   const [draftState, setDraftState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [draftError, setDraftError] = useState<string | null>(null)
   const [draft, setDraft] = useState<EmailDraft | null>(null)
@@ -578,6 +586,22 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
     } catch (err) {
       setDraftError(err instanceof Error ? err.message : 'Falha ao gerar rascunho.')
       setDraftState('error')
+    }
+  }
+
+  const handleExportBusinessCase = async () => {
+    if (!bcCheck.enabled || bcState === 'loading') return
+    const usarIa = aiHasKey && bcUseAi
+    setBcState('loading')
+    setBcError(null)
+    setBcMessage(null)
+    try {
+      const { fonte } = await exportBusinessCase(row.id, usarIa, row.companyName)
+      setBcMessage(proseSourceMessage(fonte, usarIa))
+      setBcState('idle')
+    } catch (err) {
+      setBcError(err instanceof Error ? err.message : 'Falha ao gerar o business case.')
+      setBcState('error')
     }
   }
 
@@ -621,6 +645,7 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           <dd>{row.evidence.join(', ') || '—'}</dd>
           <dt>Insight</dt>
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
+          {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
         </dl>
         <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
@@ -634,10 +659,29 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           <button type="button" className="lt-btn" onClick={handleGenerateDraft} disabled={draftState === 'loading'}>
             {draftState === 'loading' ? 'Gerando…' : 'Gerar rascunho'}
           </button>
+          <button
+            type="button" className="lt-btn" onClick={handleExportBusinessCase}
+            aria-disabled={!bcCheck.enabled || bcState === 'loading'} aria-busy={bcState === 'loading'}
+            aria-describedby={bcCheck.enabled ? undefined : `bc-reason-${row.id}`}
+          >
+            {bcState === 'loading' ? 'Gerando business case…' : 'Exportar business case'}
+          </button>
+          <label>
+            <input
+              type="checkbox" checked={aiHasKey && bcUseAi} disabled={!aiHasKey}
+              onChange={e => { setBcUseAi(e.target.checked); setBcMessage(null); setBcError(null); setBcState('idle') }}
+            />{' '}Melhorar o texto com IA
+          </label>
+          <InfoHint text="Envia os dados desta oportunidade (empresa, evidências, produto) ao provedor de IA configurado para reescrever o texto. Sem isso, usamos o texto padrão. Os números nunca são alterados." />
         </div>
+        {!bcCheck.enabled && <p className="lt-hint" id={`bc-reason-${row.id}`}>{bcCheck.reason}</p>}
+        {!aiHasKey && <p className="lt-hint">Configure a IA em Configurações</p>}
+        {bcState === 'error' && <p className="lt-alert" role="alert">{bcError}</p>}
         {draftState === 'error' && <p className="lt-alert" role="alert">{draftError}</p>}
+        <div role="status">
+        {bcMessage && <p className="lt-hint">{bcMessage}</p>}
         {draft && (
-          <div className="lt-draft" role="status">
+          <div className="lt-draft">
             <p><strong>Assunto:</strong> {draft.subject}</p>
             <p>{draft.greeting}</p>
             <p>{draft.body}</p>
@@ -646,6 +690,7 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
             <p className="lt-hint">Revise antes de enviar — o rascunho nunca é enviado automaticamente.</p>
           </div>
         )}
+        </div>
       </td>
     </tr>
   )
@@ -665,6 +710,11 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
   // refetch desnecessário (achado da auditoria de performance).
   const suggestionCache = useRef<SuggestionCache>(new Map())
   const contactsCache = useRef<ContactsCache>(new Map())
+  // Carregado uma vez; falha = sem IA (checkbox desabilitado).
+  const [aiHasKey, setAiHasKey] = useState(false)
+  useEffect(() => {
+    getAiConfig().then(c => setAiHasKey(c.has_key)).catch(() => setAiHasKey(false))
+  }, [])
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -727,7 +777,7 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
             {expandedId === row.id && (
               <RowDetail
                 row={row} repId={repId} onRowUpdated={onRowUpdated} onRenewalDateUpdated={onRenewalDateUpdated}
-                suggestionCache={suggestionCache} contactsCache={contactsCache}
+                suggestionCache={suggestionCache} contactsCache={contactsCache} aiHasKey={aiHasKey}
               />
             )}
           </Fragment>

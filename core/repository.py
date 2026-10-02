@@ -112,13 +112,22 @@ async def save_product(session: AsyncSession, product: Product) -> None:
     ))
 
 
-async def list_products(session: AsyncSession) -> list[Product]:
-    rows = (await session.execute(select(ProductORM))).scalars().all()
-    return [Product(
+def _product_from_row(r: ProductORM) -> Product:
+    return Product(
         id=r.id, vendor_id=r.vendor_id, name=r.name, aliases=r.aliases,
         description=r.description, status=r.status, category=r.category,
         related_services=_relations_from_json(r.related_services),
-    ) for r in rows]
+    )
+
+
+async def list_products(session: AsyncSession) -> list[Product]:
+    rows = (await session.execute(select(ProductORM))).scalars().all()
+    return [_product_from_row(r) for r in rows]
+
+
+async def get_product(session: AsyncSession, product_id: str) -> Product | None:
+    row = await session.get(ProductORM, product_id)
+    return _product_from_row(row) if row else None
 
 
 async def delete_product(session: AsyncSession, product_id: str) -> bool:
@@ -139,11 +148,18 @@ async def save_service(session: AsyncSession, service: Service) -> None:
     ))
 
 
+def _service_from_row(r: ServiceORM) -> Service:
+    return Service(id=r.id, name=r.name, description=r.description, status=r.status, category=r.category)
+
+
 async def list_services(session: AsyncSession) -> list[Service]:
     rows = (await session.execute(select(ServiceORM))).scalars().all()
-    return [Service(
-        id=r.id, name=r.name, description=r.description, status=r.status, category=r.category,
-    ) for r in rows]
+    return [_service_from_row(r) for r in rows]
+
+
+async def get_service(session: AsyncSession, service_id: str) -> Service | None:
+    row = await session.get(ServiceORM, service_id)
+    return _service_from_row(row) if row else None
 
 
 async def delete_service(session: AsyncSession, service_id: str) -> bool:
