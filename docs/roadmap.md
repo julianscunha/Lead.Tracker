@@ -28,6 +28,8 @@ Dependências: `R1 → R5`; `R3 → R7`; `R3 + autenticação → R8`; `R4 → R
 ## Agora
 
 ### R1. URL da empresa
+Spec em proposta: [`fase-k-url-da-empresa.md`](implementacao/specs/fase-k-url-da-empresa.md).
+
 `Company.website` existe no modelo e no banco, mas só o Salesforce o preenche. Lacunas: a busca do Google Maps não pede `websiteUri` (prospects ficam sem URL e não deduplicam por domínio); o site não vai da descoberta para a `Company` na promoção; a API de oportunidades não o devolve e a tela não o mostra. Módulos: captura no Maps (só preenche se vazio, nunca sobrescreve o Salesforce) → `company_website` na API → link seguro na UI (`http(s)` apenas, `rel="noopener noreferrer"`). Atenção: `websiteUri` na busca por proximidade muda a faixa de preço da Places API.
 
 ### R2. Lista de "não contatar"
