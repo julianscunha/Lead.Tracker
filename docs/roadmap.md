@@ -26,6 +26,8 @@ Dependências: `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomend
 ## Agora
 
 ### R3. Registro de auditoria geral
+Spec em proposta: [`fase-m-auditoria-geral.md`](implementacao/specs/fase-m-auditoria-geral.md).
+
 Só a mudança de status tem histórico (`OpportunityStatusChange`). Falta registrar edições de qualificação, discovery, data de renovação e postura do contato: entidade, campo, valor anterior e novo, quando (e quem, após R8). Base de dado para R7. Ideia do `LeadEventLog` do Mautic; sem código copiado (Mautic é GPL).
 
 ## Depois
