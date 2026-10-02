@@ -34,5 +34,5 @@ class OpenRouterProvider(HTTPChatProvider, AIProvider):
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
         data = await self._post_json(_URL, headers, payload)
-        raw_text = data["choices"][0]["message"]["content"]
+        raw_text = self._dig(data, "choices", 0, "message", "content")
         return parse_structured_response(raw_text)

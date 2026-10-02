@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import httpx
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -56,6 +57,14 @@ def test_parse_structured_response_degrades_gracefully_on_non_json():
     assert resp.content == "texto solto sem json"
     assert resp.evidence == []
     assert resp.confidence == 0.0
+
+
+def test_parse_structured_response_json_non_dict_is_invalid_response():
+    for raw in ('[1, 2]', '"texto"', '42', 'null'):
+        resp = parse_structured_response(raw)
+        assert resp.content == raw
+        assert resp.structured == {}
+        assert resp.evidence == [] and resp.confidence == 0.0
 
 
 def test_openrouter_generate_parses_openai_shaped_response():
@@ -151,6 +160,7 @@ if __name__ == "__main__":
     test_build_structured_prompt_never_invents_outside_portfolio_instruction()
     test_parse_structured_response_valid_json()
     test_parse_structured_response_degrades_gracefully_on_non_json()
+    test_parse_structured_response_json_non_dict_is_invalid_response()
     test_openrouter_generate_parses_openai_shaped_response()
     test_openai_generate_parses_response()
     test_gemini_generate_parses_response()
@@ -161,3 +171,56 @@ if __name__ == "__main__":
     test_factory_resolves_each_supported_provider()
     test_factory_rejects_unknown_provider()
     print("OK — todos os testes de IA passaram")
+
+
+def test_build_structured_prompt_output_format_replaces_default_json_instruction():
+    from ai.base import _JSON_INSTRUCTION
+    fmt = '{"secoes": {"situacao": string}}'
+    base = build_structured_prompt(AIRequest(instruction="x"))
+    assert base.startswith(_JSON_INSTRUCTION)
+    prompt = build_structured_prompt(AIRequest(instruction="x", output_format=fmt))
+    assert _JSON_INSTRUCTION not in prompt and fmt in prompt
+    assert "Nunca invente" in prompt and "Instrução: x" in prompt
+
+
+_PROVIDERS = [OpenAIProvider, OpenRouterProvider, GeminiProvider, ClaudeProvider]
+_BAD_200 = [
+    httpx.Response(200, json={}),
+    httpx.Response(200, content=b"<html>nao eh json</html>"),
+    httpx.Response(200, json=[1, 2]),
+    httpx.Response(200, json={"choices": [], "candidates": [], "content": []}),
+]
+
+
+@pytest.mark.parametrize("cls", _PROVIDERS)
+@pytest.mark.parametrize("bad", _BAD_200, ids=["vazio", "nao_json", "lista", "listas_vazias"])
+def test_payload_malformado_vira_ai_provider_error(cls, bad):
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: bad))
+    with pytest.raises(AIProviderError) as ei:
+        asyncio.run(cls(api_key="k", client=client).generate(AIRequest(instruction="x")))
+    assert "nao eh json" not in str(ei.value)
+
+
+def test_generate_email_draft_payload_malformado_devolve_erro_amigavel():
+    from ai.email_draft import generate_email_draft
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda req: httpx.Response(200, json={})))
+    with pytest.raises(AIProviderError):
+        asyncio.run(generate_email_draft(OpenAIProvider(api_key="k", client=client), "Aurora", "cross-sell", ["x"], "j", {}))
+
+
+_PROMPT_ANTERIOR = (
+    'Responda SOMENTE com um JSON válido no formato {"content": string, "evidence": [string], '
+    '"confidence": number entre 0 e 1}. Nunca invente produto, serviço ou fabricante fora do '
+    "portfólio fornecido. Baseie 'evidence' apenas nos dados do contexto abaixo."
+    "\n\nInstrução: x\n\nContexto: "
+)
+
+
+def test_prompt_sem_output_format_identico_ao_anterior():
+    prompt = build_structured_prompt(AIRequest(instruction="x"))
+    assert prompt == _PROMPT_ANTERIOR + '{"empresa": {}, "portfolio": {}, "regras_de_correlacao": [], "dados_providers": {}}'
+
+
+def test_prompt_com_output_format_nao_menciona_evidence():
+    prompt = build_structured_prompt(AIRequest(instruction="x", output_format='{"secoes": {}}. '))
+    assert "evidence" not in prompt and "Nunca invente" in prompt

@@ -32,14 +32,14 @@ e push por etapa.
   - Depende de: T1, T2
 
 ## T3b — prosa por IA com degradação (M)
-- [ ] `ai/business_case_prose.py`: `apply_ai_prose(case, provider|None)` — whitelist de campos enviados, texto de fonte delimitado como dado, 1 chamada com `asyncio.wait_for`, validação por seção (seção ruim → determinística; ≥2 ruins, JSON não-dict ou injeção detectada → tudo determinístico), `fonte_prosa`, captura só `DomainError`/`httpx.HTTPError`/timeout
+- [x] `ai/business_case_prose.py`: `apply_ai_prose(case, provider|None)` — whitelist de campos enviados, texto de fonte delimitado como dado, 1 chamada com `asyncio.wait_for`, validação por seção (seção ruim → determinística; ≥2 ruins, JSON não-dict ou injeção detectada → tudo determinístico), `fonte_prosa`, captura só `DomainError`/`httpx.HTTPError`/timeout
   - Acceptance: os 8 testes do parecer (injeção via evidência, produto/número inventado, termos proibidos, boa resposta, parcial, degradação, vazamento no corpo da requisição, erro de programação não engolido); `custo` e `rodape` nunca reescritos
   - Verify: `python -m pytest tests/test_business_case_prose.py tests/test_business_case.py -q`
   - Files: `ai/business_case_prose.py`, `tests/test_business_case_prose.py`, `ai/base.py` (+ teste de regressão: `parse_structured_response` quebra com JSON que não é dict)
   - Depende de: T3a
 
 ### Checkpoint após T3a+T3b
-- [ ] Teste de injeção de produto e valor passa (critério 1 da spec); degradação sem IA passa (critério 2)
+- [x] Teste de injeção de produto e valor passa (critério 1 da spec); degradação sem IA passa (critério 2)
 
 ## T4 — `business-case-pdf` (S)
 - [ ] `business_case_pdf(doc, generated_at)` em `exports/pdf.py`

@@ -81,17 +81,17 @@ def score_band(value: float | None) -> str:
     return "Média" if value <= SCORE_MID_MAX else "Alta"
 
 
-def _truncate(text: str, max_words: int) -> str:
+def truncate(text: str, max_words: int) -> str:
     words = text.split()
     if len(words) <= max_words:
         return " ".join(words)
     return " ".join(words[:max_words]) + "…"
 
 
-def _fit(body: str, fixed_tail: str, max_words: int) -> str:
+def fit(body: str, fixed_tail: str, max_words: int) -> str:
     """Trunca só `body`, preservando `fixed_tail` (avisos que não podem ser cortados)."""
     budget = max(max_words - len(fixed_tail.split()), 1)
-    return f"{_truncate(body, budget)} {fixed_tail}".strip()
+    return f"{truncate(body, budget)} {fixed_tail}".strip()
 
 
 def _normalize_justification(text: str) -> str:
@@ -102,7 +102,7 @@ def _normalize_justification(text: str) -> str:
     return text
 
 
-def _aging_text(synced: date, today: date) -> str:
+def aging_text(synced: date, today: date) -> str:
     days = (today - synced).days
     text = f"Dado sincronizado em {synced:%d/%m/%Y} (a data do fato no CRM pode ser anterior)."
     if days > AGING_STALE_DAYS:
@@ -126,7 +126,7 @@ def assemble_business_case(opp: Opportunity, company: Company, item: Product | S
     tom_condicional = solidez == "Baixa"
 
     name = f"{company.name} (cliente)" if company.is_customer else company.name
-    situacao = _fit(f"{name}. Evidências: {'; '.join(evidence)}.", _aging_text(opp.synced_at.date(), today), MAX_WORDS_SITUACAO)
+    situacao = fit(f"{name}. Evidências: {'; '.join(evidence)}.", aging_text(opp.synced_at.date(), today), MAX_WORDS_SITUACAO)
 
     verbo = "sugerem" if tom_condicional else "indicam"
     if opp.justification and opp.justification.strip():
@@ -134,21 +134,21 @@ def assemble_business_case(opp: Opportunity, company: Company, item: Product | S
         motivo = f"Os dados {verbo} que {just}."
     else:
         motivo = ""
-    gap = _truncate(f"{motivo} Fatos: {'; '.join(evidence[:MAX_GAP_EVIDENCES])}.".strip(), MAX_WORDS_GAP)
+    gap = truncate(f"{motivo} Fatos: {'; '.join(evidence[:MAX_GAP_EVIDENCES])}.".strip(), MAX_WORDS_GAP)
 
     severidade = compute_severity_band(opp.scope_note, opp.criticality)
-    custo = _truncate(
+    custo = truncate(
         f"Severidade de não agir: {SEVERITY_LABELS[severidade]}. "
         "Banda qualitativa avaliada pelo vendedor (abrangência e criticidade), não um valor financeiro.",
         MAX_WORDS_CUSTO,
     )
 
     desc = (item.description or "").strip()
-    estado_futuro = _truncate(desc, MAX_WORDS_ESTADO_FUTURO) if desc else item.name
+    estado_futuro = truncate(desc, MAX_WORDS_ESTADO_FUTURO) if desc else item.name
 
     fontes = ", ".join(dict.fromkeys(s.type for s in opp.sources)) or "não informadas"
     cauda = f"Solidez das evidências: {solidez}. Gerado em {today:%d/%m/%Y}; {DRAFT_MARK}."
-    rodape = _fit(f"Fontes: {fontes}.", cauda, MAX_WORDS_RODAPE)
+    rodape = fit(f"Fontes: {fontes}.", cauda, MAX_WORDS_RODAPE)
 
     return BusinessCase(
         empresa=company.name, item=item.name, data=today, scores=scores, legenda_scores=SCORES_LEGEND,

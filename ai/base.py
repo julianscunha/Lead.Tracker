@@ -37,6 +37,7 @@ class AIRequest:
     portfolio: dict[str, Any] = field(default_factory=dict)
     correlation_rules: list[dict[str, Any]] = field(default_factory=list)
     provider_data: dict[str, Any] = field(default_factory=dict)
+    output_format: str | None = None  # None = formato padrão (_JSON_INSTRUCTION)
 
 
 @dataclass
@@ -68,9 +69,11 @@ class AIProvider(ABC):
 _JSON_INSTRUCTION = (
     "Responda SOMENTE com um JSON válido no formato "
     '{"content": string, "evidence": [string], "confidence": number entre 0 e 1}. '
-    "Nunca invente produto, serviço ou fabricante fora do portfólio fornecido. "
-    "Baseie 'evidence' apenas nos dados do contexto abaixo."
 )
+_GROUNDING_INSTRUCTION = (
+    "Nunca invente produto, serviço ou fabricante fora do portfólio fornecido. "
+)
+_EVIDENCE_GROUNDING = "Baseie 'evidence' apenas nos dados do contexto abaixo."  # só no formato padrão
 
 
 _SECRET_KEY_PATTERN = ("key", "token", "secret", "password", "credential")
@@ -102,7 +105,8 @@ def build_structured_prompt(request: AIRequest) -> str:
         "dados_providers": request.provider_data,
     })
     return (
-        f"{_JSON_INSTRUCTION}\n\n"
+        f"{request.output_format or _JSON_INSTRUCTION}{_GROUNDING_INSTRUCTION}"
+        f"{'' if request.output_format else _EVIDENCE_GROUNDING}\n\n"
         f"Instrução: {request.instruction}\n\n"
         f"Contexto: {json.dumps(context, ensure_ascii=False)}"
     )
@@ -113,6 +117,8 @@ def parse_structured_response(raw_text: str) -> AIResponse:
     modelo não devolver JSON válido — nunca propaga erro de parsing pro chamador."""
     try:
         data = json.loads(raw_text)
+        if not isinstance(data, dict):  # lista/string/número: JSON válido, mas não é o formato pedido
+            raise ValueError("JSON não é um objeto")
         return AIResponse(
             content=str(data.get("content", raw_text)),
             evidence=list(data.get("evidence", [])),

@@ -30,5 +30,5 @@ class GeminiProvider(HTTPChatProvider, AIProvider):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:generateContent?key={self._api_key}"
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         data = await self._post_json(url, headers={}, payload=payload)
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        raw_text = self._dig(data, "candidates", 0, "content", "parts", 0, "text")
         return parse_structured_response(raw_text)

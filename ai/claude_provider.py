@@ -39,5 +39,5 @@ class ClaudeProvider(HTTPChatProvider, AIProvider):
             "anthropic-version": _ANTHROPIC_VERSION,
         }
         data = await self._post_json(_URL, headers, payload)
-        raw_text = data["content"][0]["text"]
+        raw_text = self._dig(data, "content", 0, "text")
         return parse_structured_response(raw_text)

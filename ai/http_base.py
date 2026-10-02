@@ -20,6 +20,14 @@ _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _TRANSIENT_STATUS = {429, 500, 502, 503, 504}
 
 
+def _invalid_payload() -> AIProviderError:
+    return AIProviderError(
+        "O provider de IA devolveu uma resposta em formato inesperado.",
+        category=ErrorCategory.INVALID_DATA,
+        recommended_action="Tente novamente; se persistir, verifique o modelo configurado.",
+    )
+
+
 class HTTPChatProvider:
 
     def __init__(self, api_key: str, client: httpx.AsyncClient | None = None) -> None:
@@ -31,6 +39,18 @@ class HTTPChatProvider:
             )
         self._api_key = api_key
         self._client = client or httpx.AsyncClient(timeout=_TIMEOUT)
+
+    @staticmethod
+    def _dig(data, *path):
+        """Extrai o texto da resposta; payload fora do formato vira AIProviderError amigável."""
+        try:
+            for key in path:
+                data = data[key]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise _invalid_payload() from exc
+        if not isinstance(data, str):
+            raise _invalid_payload()
+        return data
 
     async def _post_json(self, url: str, headers: dict, payload: dict, max_retries: int = 1) -> dict:
         attempt = 0
@@ -51,7 +71,10 @@ class HTTPChatProvider:
                 ) from exc
 
             if response.status_code == 200:
-                return response.json()
+                try:
+                    return response.json()
+                except ValueError as exc:
+                    raise _invalid_payload() from exc
 
             if response.status_code in _TRANSIENT_STATUS and attempt < max_retries:
                 attempt += 1
