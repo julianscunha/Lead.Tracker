@@ -12,6 +12,7 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
+| R12 | Valor típico informado na regra | Alto: acende totais e ordenação por valor | P | — | Agora |
 | R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
 | R7 | Forecast por conversão histórica | Alto, mas só com dado | G | volume de histórico (R3, auditoria, já entregue) | Condicionado |
@@ -24,6 +25,9 @@ Sem dependências abertas entre os itens: todos podem andar em paralelo.
 ## Agora
 
 ## Depois
+
+### R12. Valor típico informado na regra (preenche o "potencial financeiro")
+Spec em proposta: [`fase-o-valor-tipico-da-regra.md`](implementacao/specs/fase-o-valor-tipico-da-regra.md). Hoje `financial_potential` nunca é preenchido, então totais e ordenações por valor ficam zerados. Proposta: o usuário informa um valor típico (R$) em cada regra e o sistema só o copia, nunca calcula. Multiplicar por porte da empresa fica fora (seria o sistema calculando).
 
 ### R5. Provider de enriquecimento
 Completar a empresa a partir do domínio (porte, setor, site) por API externa, como os plugins Clearbit e FullContact do Mautic. Provider só coleta e normaliza, como os demais.
