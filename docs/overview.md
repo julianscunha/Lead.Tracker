@@ -43,6 +43,16 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
   passo por oportunidade (canal, motivo, cadência) — sempre uma sugestão
   que você confirma copiando e marcando como enviado, nunca um disparo
   automático.
+- **Respeita quem não quer ser contatado** — lista de "não contatar" por
+  empresa ou contato, por canal ou em todos; bloqueia a sugestão de toque e o
+  rascunho de e-mail, e exige confirmação explícita para registrar um
+  contato mesmo assim (fica marcado para auditoria).
+- **Mantém o dado confiável entre fontes** — valor atualizado pela mesma
+  fonte substitui o antigo e fica registrado; valores diferentes vindos de
+  fontes diferentes viram um conflito para o usuário escolher, nunca
+  sobrescrita silenciosa.
+- **Registra o que mudou** — histórico de alterações por oportunidade, com
+  antes e depois, quando e por quem; textos pessoais nunca são gravados.
 - **Avisa quando algo esfria** — sinaliza oportunidades em qualificação
   inicial que ficaram sem contato por tempo além do esperado, pra você
   decidir (nunca muda status sozinho).
@@ -63,14 +73,15 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
 - **Oportunidades** — a lista viva de tudo que o motor encontrou: filtra
   por cliente/prospect, produto/serviço, score; expande qualquer linha
   pra ver evidências, mudar status, qualificar severidade, gerar rascunho
-  de e-mail e ver a próxima ação sugerida.
+  de e-mail, ver a próxima ação sugerida, preencher a discovery, marcar
+  "não contatar" e consultar o histórico de alterações.
 - **Prospecção** — assistente guiado (produto de referência → raio →
   revisão do critério sugerido → confirmar) pra descoberta geográfica via
   Google Maps.
 - **Configurações** — fontes de dado, portfólio (fabricantes/produtos/
   serviços, construído automaticamente a partir do seu website e revisável
   antes de valer), mapeamento de campo personalizado do Salesforce, IA,
-  metas por representante.
+  metas por representante, e conflitos de dados entre fontes.
 
 ## Arquitetura
 

@@ -75,3 +75,31 @@ em qualquer texto dinâmico novo que for pra dentro de um PDF.
 `frontend/index.js` é build output (gitignored) — rode `npm run build`
 dentro de `frontend/` depois de qualquer mudança em `frontend/src/` antes de
 copiar o módulo pro Core.
+
+## "Esse contato está marcado como não contatar" ao gerar rascunho ou registrar contato
+
+O bloqueio funciona como previsto. Veja a seção "Não contatar" no detalhe da
+oportunidade: lá aparece quem está bloqueado, o canal e o motivo. Se a situação
+mudou, use "Reativar" (o histórico é mantido). Se o contato realmente aconteceu,
+confirme "Registrar mesmo assim": o toque fica marcado para auditoria. Se a
+mensagem pede para escolher o contato, há contato bloqueado na empresa e a ação
+precisa dizer a qual contato se refere.
+
+## Apareceram "Conflitos de dados" depois de sincronizar ou importar
+
+Duas fontes trouxeram valores diferentes para o mesmo campo de uma empresa. O
+valor atual foi mantido. Abra Configurações > Conflitos de dados e escolha qual
+manter; a escolha fica no histórico de alterações. Conflito de representante ou
+segmento costuma vir de planilha que difere do que outra fonte já gravou.
+
+## Aviso "valores da planilha diferem do que já estava na base"
+
+A importação de planilha não sobrescreve o que outra fonte gravou: o valor
+atual foi mantido e o conflito foi para a seção "Conflitos de dados". Para a
+planilha passar a valer, escolha o valor dela no conflito.
+
+## Atualizei o módulo e as telas dão erro (500)
+
+Colunas e tabelas novas são criadas quando o módulo é instalado, ativado ou
+atualizado. Se você copiou os arquivos à mão por cima de uma instalação antiga,
+reative o módulo (ou rode `init_db()` uma vez) e reinicie o host.

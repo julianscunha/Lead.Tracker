@@ -172,6 +172,46 @@ tela da oportunidade (nenhuma fonte automática traz isso ainda) — conta sem
 essa data preenchida simplesmente não usa a parte "alinhada à renovação" da
 lógica, cai só na combinação saúde + sinais abertos.
 
+## Discovery antes de qualificar
+
+Para sair de "detectada" (ou reabrir uma oportunidade descartada), o vendedor
+responde, com as palavras do cliente: **por que isso acontece hoje**, **por que
+agora** e **o que o contato ganha ou perde**. A regra só barra o óbvio:
+mínimo de 15 caracteres e 3 palavras, e recusa respostas como "n/a", "teste"
+ou o mesmo caractere repetido. Quem não consegue preencher usa "Qualificar
+sem discovery" com uma justificativa, que fica registrada e marca a
+oportunidade. Oportunidades que já estavam adiante não são bloqueadas; ficam
+com o aviso "discovery pendente". A regra pode ser desligada em Configurações.
+
+## Não contatar: o que bloqueia
+
+Um bloqueio vale para a **empresa inteira** (inclusive contatos que chegarem
+depois) ou para **um contato**, em **todos os canais** ou em um. O bloqueio de
+um contato também vale se ele for reimportado do CRM com outro identificador,
+porque o e-mail é comparado ignorando caixa, acento e sufixo `+tag`. O canal é
+comparado sem acento, hífen nem espaço ("E-mail" e "email" são o mesmo); nomes
+diferentes para o mesmo canal ("telefone" e "ligação") não são equivalentes,
+por isso o padrão é bloquear todos os canais. Com bloqueio ativo o sistema não
+sugere o próximo toque, não gera rascunho de e-mail e exige confirmação para
+registrar um contato. Quando a ação não indica o contato e existe algum
+contato bloqueado na empresa, o sistema pede para escolher o contato.
+
+## Conflitos entre fontes: quem decide
+
+- Campo vazio na base: é preenchido pela fonte.
+- **Mesma fonte** que gravou o campo traz valor diferente: atualiza, e a troca
+  vai para o histórico de alterações.
+- **Outra fonte** traz valor diferente: o valor atual continua e o conflito vai
+  para Configurações, onde você escolhe qual manter. O valor recusado não é
+  perguntado de novo, a menos que a fonte traga um valor novo.
+- Valor vazio da fonte nunca apaga o que está na base, e diferenças só de
+  formatação (caixa, acento, pontuação, `www.`) não contam como conflito.
+  Endereço menos detalhado não é conflito. Campo que você mapeou
+  explicitamente (mapeamento de campo) nunca é contestado pela busca padrão.
+- Vale para razão social, site, setor, endereço, receita, funcionários e
+  status do cliente (sincronização e prospecção) e para segmento, região e
+  representante (importação de planilha).
+
 ## Os números não são definitivos
 
 Todo threshold e toda fórmula deste documento é revisável — nada aqui é

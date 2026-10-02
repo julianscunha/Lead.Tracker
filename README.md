@@ -44,7 +44,7 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
   aleatório), alerta de oportunidade parada há tempo demais.
 - **Prospecta geograficamente** — a partir do seu Google Maps, encontra
   empresas parecidas com seus melhores clientes (ICP configurável ou
-  derivado automaticamente), com filtro anti-spam por representante/dia.
+  derivado automaticamente), com filtro anti-spam por representante/dia. Mostra o site de cada empresa e, rodando a busca de novo, não duplica o que já está na base.
 - **Se adapta ao seu CRM** — mapeia qualquer campo personalizado do
   Salesforce pra um papel de negócio (sem precisar saber o que é API name),
   e avisa em português quando um mapeamento quebra.
@@ -61,6 +61,19 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
   ativo, aparece a sugestão de abrir um segundo.
 - **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
   vindo de dado real.
+- **Respeita quem não quer ser contatado** — marque uma empresa inteira, ou só
+  um contato, como "não contatar" (por canal ou em todos, com motivo). Enquanto
+  estiver ativo, o sistema não sugere o próximo toque nem gera rascunho de
+  e-mail, e pede confirmação explícita pra registrar um contato mesmo assim.
+  Reativar nunca apaga o histórico.
+- **Mantém o dado confiável entre fontes** — se o Salesforce muda o setor de uma
+  empresa, o valor atualiza (e a troca fica registrada). Se duas fontes
+  discordam, nada é sobrescrito: o conflito aparece em Configurações pra você
+  escolher qual manter, e a escolha não é perguntada de novo.
+- **Registra o que mudou** — "histórico de alterações" em cada oportunidade:
+  o que mudou (alcance, criticidade, renovação, discovery e o que a
+  sincronização alterou), antes e depois, quando e por quem. Textos pessoais
+  nunca entram no histórico.
 - **Poupa seu tempo** — exporta PDF/Excel com um clique em toda tela de
   resultado.
 - **Funciona com ou sem IA** — o motor de oportunidades roda inteiro sem
@@ -72,9 +85,9 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 | Aba | O que você faz ali |
 |---|---|
 | **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante e onde as oportunidades estão hoje por representante e categoria. |
-| **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, gera rascunho de e-mail e vê a próxima ação sugerida por oportunidade. |
+| **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, preenche a discovery, marca "não contatar", gera rascunho de e-mail, vê a próxima ação sugerida e o histórico de alterações de cada oportunidade. |
 | **Prospecção** | Assistente guiado de descoberta geográfica (Google Maps) — define raio/produto de referência e recebe uma lista de prospects pontuados. |
-| **Configurações** | Fontes de dado (Salesforce, Google Maps), importação de empresas + portfólio por CSV em lote, cadastro de fabricante/produto/serviço/regra (com remoção), mapeamento de campo personalizado, IA, metas por representante. |
+| **Configurações** | Fontes de dado (Salesforce, Google Maps), importação de empresas + portfólio por CSV em lote, cadastro de fabricante/produto/serviço/regra (com remoção), mapeamento de campo personalizado, conflitos de dados entre fontes, IA, metas por representante. |
 
 ## Arquitetura
 
