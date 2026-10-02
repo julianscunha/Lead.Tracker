@@ -46,7 +46,7 @@ router.include_router(sync_router)
 @router.get("/ping")
 async def ping():
     sdk.logger.info("ping called")
-    return {"module": "lead_tracker", "status": "ok", "version": "1.1.0"}
+    return {"module": "lead_tracker", "status": "ok", "version": "1.2.0"}
 
 
 async def _check_field_mappings_health() -> list:
@@ -90,7 +90,7 @@ class LeadTrackerModule(ModuleContract):
         return ModuleMetadata(
             id="lead_tracker",
             name="Lead.Tracker",
-            version="1.1.0",
+            version="1.2.0",
             category="Sales",
             vendor="TechForge",
             author="TechForge Team",

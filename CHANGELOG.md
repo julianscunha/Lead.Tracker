@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-02
+
 ### Corrigido
 
 - **Importação de planilha descartava dados** — segmento, região e representante
