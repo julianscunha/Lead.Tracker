@@ -1030,11 +1030,11 @@ class _GeoDiscoveryStub:
         routes_sync.GoogleMapsProvider = self._original
 
 
-def _place_signal(place_id: str, category: str = "car_dealer", business_status: str = "OPERATIONAL", rating=None, review_count: int = 0):
+def _place_signal(place_id: str, category: str = "car_dealer", business_status: str = "OPERATIONAL", rating=None, review_count: int = 0, website=None):
     from providers.google_maps import PlaceSignal
     return PlaceSignal(
         place_id=place_id, name=f"Lugar {place_id}", category=category, business_status=business_status,
-        rating=rating, review_count=review_count, formatted_address=None,
+        rating=rating, review_count=review_count, formatted_address=None, website=website,
     )
 
 
@@ -1086,7 +1086,11 @@ def test_run_geo_discovery_defers_excess_over_daily_cap_never_blocks_search():
         async def seed():
             async with db.session_factory() as session:
                 for i in range(20):
-                    await save_company(session, Company(name=f"Já promovida {i}", rep_id="rep-1", sources=[SourceRef(type="google_maps")]))
+                    promoted = Company(name=f"Já promovida {i}", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
+                    await save_company(session, promoted)
+                    await save_opportunity(session, Opportunity(
+                        company_id=promoted.id, type="geo-discovery", sources=[SourceRef(type="google_maps")],
+                    ))
         asyncio.run(seed())
 
         _StubGoogleMapsProvider.signals = [_place_signal("a", rating=5.0, review_count=50)]
@@ -1731,3 +1735,53 @@ def test_discovery_gate_rejects_filler_skip_reason():
             json={"new_status": "qualified", "skip_discovery_reason": "n/a"},
         )
         assert resp.status_code == 422
+
+
+
+_GEO_BODY = {
+    "rep_id": "rep-1", "search_origin_address": "Av. Paulista, São Paulo", "radius_km": 5.0, "place_category": "car_dealer",
+}
+
+
+def _seed_company(db, company):
+    import asyncio
+
+    async def seed():
+        async with db.session_factory() as session:
+            await save_company(session, company)
+    asyncio.run(seed())
+
+
+def test_run_geo_discovery_twice_does_not_duplicate_company_or_opportunity():
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.signals = [_place_signal("a", rating=5.0, review_count=50, website="www.lugar-a.com.br")]
+        first = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert len(first["promoted"]) == 1
+        second = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert second["promoted"] == []
+        assert len(second["already_known"]) == 1
+        assert second["already_known"][0]["company_id"] == first["promoted"][0]["company_id"]
+        assert len(client.get("/modules/lead_tracker/opportunities").json()) == 1
+        assert client.get("/modules/lead_tracker/opportunities").json()[0]["company_website"] == "https://www.lugar-a.com.br"
+
+
+def test_run_geo_discovery_does_not_turn_existing_customer_into_prospect():
+    with _TempDb() as db, _GeoDiscoveryStub():
+        _seed_company(db, Company(name="Acme Ltda", website="acme.com", is_customer=True, sources=[SourceRef(type="salesforce")]))
+        _StubGoogleMapsProvider.signals = [_place_signal("a", rating=5.0, review_count=50, website="https://www.acme.com/contato")]
+        body = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert body["promoted"] == []
+        assert len(body["already_known"]) == 1
+        assert client.get("/modules/lead_tracker/opportunities").json() == []
+
+
+def test_run_geo_discovery_reuses_existing_noncustomer_company_and_keeps_its_website():
+    with _TempDb() as db, _GeoDiscoveryStub():
+        existing = Company(name="Beta Comércio", website="https://beta.com.br", sources=[SourceRef(type="salesforce")])
+        _seed_company(db, existing)
+        _StubGoogleMapsProvider.signals = [_place_signal("b", rating=5.0, review_count=50, website="www.beta.com.br")]
+        body = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert [i["company_id"] for i in body["promoted"]] == [existing.id]
+        opps = client.get("/modules/lead_tracker/opportunities").json()
+        assert len(opps) == 1 and opps[0]["company_id"] == existing.id
+        assert opps[0]["company_website"] == "https://beta.com.br"

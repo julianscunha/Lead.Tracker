@@ -1265,42 +1265,49 @@ def test_save_field_mapping_rejects_two_different_fields_for_same_role():
     asyncio.run(run())
 
 
-def test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep():
+def _geo_opportunity(company, detected_at=None):
+    kwargs = {"first_detected_at": detected_at} if detected_at else {}
+    return Opportunity(company_id=company.id, type="geo-discovery", sources=[SourceRef(type="google_maps")], **kwargs)
+
+
+def test_count_geo_discoveries_today_counts_geo_opportunities_for_that_rep_only():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
             session_factory = await _fresh_session_factory(tmp)
-            # UTC, nunca date.today() (local) -- Company.created_at é sempre
-            # UTC-aware; comparar contra data local é flaky perto da meia-noite
-            # em qualquer fuso não-UTC (bug real encontrado rodando a suíte
-            # à noite no fuso do Brasil, onde UTC já vira o dia seguinte).
+            # UTC, nunca date.today() (local): first_detected_at é sempre UTC-aware.
             today = datetime.now(timezone.utc).date()
-            geo_company = Company(name="Descoberta", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
-            manual_company = Company(name="Manual", rep_id="rep-1", sources=[SourceRef(type="manual")])
-            other_rep_company = Company(name="Outro rep", rep_id="rep-2", sources=[SourceRef(type="google_maps")])
-
+            rep1 = Company(name="Descoberta", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
+            rep2 = Company(name="Outro rep", rep_id="rep-2", sources=[SourceRef(type="google_maps")])
             async with session_factory() as session:
-                await save_company(session, geo_company)
-                await save_company(session, manual_company)
-                await save_company(session, other_rep_company)
+                for company in (rep1, rep2):
+                    await save_company(session, company)
+                    await save_opportunity(session, _geo_opportunity(company))
+                # oportunidade que não é geo no mesmo rep não conta
+                await save_opportunity(session, Opportunity(company_id=rep1.id, type="cross-sell", sources=[SourceRef(type="rule_engine")]))
                 count = await count_geo_discoveries_today(session, "rep-1", today)
-
-            assert count == 1  # só geo_company: mesmo rep, fonte google_maps, hoje
+            assert count == 1
 
     asyncio.run(run())
 
 
-def test_count_geo_discoveries_today_ignores_other_days():
+def test_count_geo_discoveries_today_counts_reused_company_but_ignores_other_days():
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
             session_factory = await _fresh_session_factory(tmp)
+            today = datetime.now(timezone.utc).date()
+            # empresa ANTIGA reaproveitada pela promoção (Fase K): conta pela oportunidade de hoje, não pela empresa
             old_company = Company(
                 name="Antiga", rep_id="rep-1", sources=[SourceRef(type="google_maps")],
                 created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
             )
             async with session_factory() as session:
                 await save_company(session, old_company)
-                count = await count_geo_discoveries_today(session, "rep-1", date.today())
-            assert count == 0
+                await save_opportunity(session, _geo_opportunity(old_company, datetime(2020, 1, 2, tzinfo=timezone.utc)))
+                assert await count_geo_discoveries_today(session, "rep-1", today) == 0
+                await save_opportunity(session, Opportunity(
+                    id="geo-hoje", company_id=old_company.id, type="geo-discovery", sources=[SourceRef(type="google_maps")],
+                ))
+                assert await count_geo_discoveries_today(session, "rep-1", today) == 1
 
     asyncio.run(run())
 
@@ -1309,21 +1316,18 @@ def test_count_geo_discoveries_today_compares_against_utc_date_not_local():
     """Regressão do achado da revisão de código: a rota chamava
     `date.today()` (data LOCAL do servidor) em vez de
     `datetime.now(timezone.utc).date()` — desalinhava a cota diária
-    perto da meia-noite em qualquer servidor fora de UTC. Este teste
-    trava o contrato da FUNÇÃO em si: `created_at` gravado logo após a
-    meia-noite UTC de hoje precisa contar como "hoje" quando comparado
-    contra a data UTC de hoje, não uma data local arbitrária."""
+    perto da meia-noite em qualquer servidor fora de UTC. Trava o contrato
+    da FUNÇÃO: uma oportunidade detectada logo após a meia-noite UTC de hoje
+    conta como "hoje" contra a data UTC de hoje."""
     async def run():
         with tempfile.TemporaryDirectory() as tmp:
             session_factory = await _fresh_session_factory(tmp)
             utc_today = datetime.now(timezone.utc).date()
             just_after_utc_midnight = datetime.combine(utc_today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(minutes=5)
-            company = Company(
-                name="Recém após meia-noite UTC", rep_id="rep-1", sources=[SourceRef(type="google_maps")],
-                created_at=just_after_utc_midnight,
-            )
+            company = Company(name="Recém após meia-noite UTC", rep_id="rep-1", sources=[SourceRef(type="google_maps")])
             async with session_factory() as session:
                 await save_company(session, company)
+                await save_opportunity(session, _geo_opportunity(company, just_after_utc_midnight))
                 count = await count_geo_discoveries_today(session, "rep-1", utc_today)
             assert count == 1
 
@@ -1606,8 +1610,8 @@ if __name__ == "__main__":
     test_delete_field_mapping_removes_it()
     test_delete_field_mapping_unknown_id_is_a_noop()
     test_save_field_mapping_rejects_two_different_fields_for_same_role()
-    test_count_geo_discoveries_today_counts_only_google_maps_companies_for_that_rep()
-    test_count_geo_discoveries_today_ignores_other_days()
+    test_count_geo_discoveries_today_counts_geo_opportunities_for_that_rep_only()
+    test_count_geo_discoveries_today_counts_reused_company_but_ignores_other_days()
     test_count_geo_discoveries_today_compares_against_utc_date_not_local()
     test_list_rep_targets_filters_by_period()
     test_opportunity_rich_evidence_fields_round_trip()

@@ -34,9 +34,10 @@ from core.errors import DomainError, ErrorCategory
 from core.models import (
     Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
-    StatusChangeRequiresJustificationError, Vendor,
+    SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
-from core.geo_discovery import build_discovery_records
+from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE, build_discovery_records, find_existing_match
+from core.normalization import merge_pair, normalize_website
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
@@ -103,6 +104,8 @@ class OpportunityOut(BaseModel):
     discovery_skipped: bool = False
     discovery_skip_reason: str | None = None
     discovery_pending: bool = False
+    # Sempre passa por `normalize_website`: cobre dado antigo no banco, CSV e fonte futura.
+    company_website: str | None = None
 
 
 class OpportunityDiscoveryIn(BaseModel):
@@ -322,6 +325,7 @@ def _to_opportunity_out(
         is_aging=is_aging_opportunity(o.status.value, o.first_detected_at, datetime.now(timezone.utc), aging_sla_days),
         dismissal_reason=o.dismissal_reason.value if o.dismissal_reason else None,
         discovery_prompt=o.discovery_prompt,
+        company_website=normalize_website(company.website) if company else None,
         root_cause_stated=o.root_cause_stated, trigger_event=o.trigger_event,
         champion_stake=o.champion_stake, discovery_skipped=o.discovery_skipped,
         discovery_skip_reason=o.discovery_skip_reason,
@@ -756,6 +760,9 @@ class GeoDiscoveryResultOut(BaseModel):
     promoted: list[GeoDiscoveryItemOut]
     deferred: list[GeoDiscoveryItemOut]
     rejected: list[GeoDiscoveryItemOut]
+    # Lugares que já estavam na base (cliente, ou empresa com oportunidade
+    # de descoberta ativa): não consomem cota nem duplicam.
+    already_known: list[GeoDiscoveryItemOut] = []
 
 
 @router.post("/geo-discovery/run")
@@ -798,6 +805,27 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
         already_promoted_today = await count_geo_discoveries_today(
             session, body.rep_id, datetime.now(timezone.utc).date(),
         )
+        # Fase K: reconcilia ANTES de `select_promotions`, pra empresa já conhecida não gastar vaga da cota.
+        existing_companies = await list_companies(session)
+        active_geo_by_company = {
+            o.company_id: o.id for o in await list_opportunities(session)
+            if o.type == GEO_DISCOVERY_OPPORTUNITY_TYPE and o.status != OpportunityStatus.DISMISSED
+        }
+        match_by_place_id: dict[str, Company] = {}
+        known: list[tuple[PlaceSignal, Company]] = []
+        fresh_scored = []
+        for signal, score in scored:
+            match = find_existing_match(
+                Company(name=signal.name, website=signal.website, sources=[SourceRef(type="google_maps")]),
+                existing_companies,
+            )
+            if match is not None and (match.is_customer or match.id in active_geo_by_company):
+                known.append((signal, match))
+                continue
+            if match is not None:
+                match_by_place_id[signal.place_id] = match
+            fresh_scored.append((signal, score))
+        scored = fresh_scored
         decision = select_promotions(scored, min_score, daily_cap, already_promoted_today)
 
         score_by_place_id = {signal.place_id: score for signal, score in scored if score is not None}
@@ -817,12 +845,20 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             company, opportunity = build_discovery_records(
                 signal, score, body.rep_id, body.company_size_hint, body.reference_product_id,
             )
+            match = match_by_place_id.get(signal.place_id)
+            if match is not None:
+                company = merge_pair(match, company)
+                opportunity = opportunity.model_copy(update={"company_id": match.id})
             await save_company(session, company)
             await save_opportunity(session, opportunity)
             promoted_out.append(_item(signal, company_id=company.id, opportunity_id=opportunity.id))
 
         deferred_out = [_item(signal) for signal in decision.deferred]
         rejected_out = [_item(signal) for signal in decision.rejected]
+        known_out = [
+            _item(signal, company_id=match.id, opportunity_id=active_geo_by_company.get(match.id))
+            for signal, match in known
+        ]
 
     # Ordenação padrão por score desc dentro de cada grupo (Sales Engineer) —
     # score None (descarte por business_status) sempre por último, nunca
@@ -834,7 +870,9 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
     deferred_out.sort(key=_sort_key, reverse=True)
     rejected_out.sort(key=_sort_key, reverse=True)
 
-    return GeoDiscoveryResultOut(promoted=promoted_out, deferred=deferred_out, rejected=rejected_out)
+    return GeoDiscoveryResultOut(
+        promoted=promoted_out, deferred=deferred_out, rejected=rejected_out, already_known=known_out,
+    )
 
 
 @router.get("/dashboard-metrics")

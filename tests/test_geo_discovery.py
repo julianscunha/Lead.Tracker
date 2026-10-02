@@ -72,3 +72,29 @@ if __name__ == "__main__":
     test_evidence_never_empty_carries_the_raw_signal()
     test_reference_product_id_can_be_none()
     print("OK — todos os testes de construção de descoberta geográfica passaram")
+
+
+def test_find_existing_match_by_domain_ignores_scheme_www_and_path():
+    from core.geo_discovery import find_existing_match
+    from core.models import Company
+    existing = [Company(name="Acme Ltda", website="acme.com.br")]
+    candidate = Company(name="ACME Comércio", website="https://www.acme.com.br/contato")
+    assert find_existing_match(candidate, existing) is existing[0]
+
+
+def test_find_existing_match_by_name_only_against_maps_companies():
+    from core.geo_discovery import find_existing_match
+    from core.models import Company, SourceRef
+    crm = Company(name="Padaria Central", sources=[SourceRef(type="salesforce")])
+    maps = Company(name="Padaria Central", sources=[SourceRef(type="google_maps")])
+    candidate = Company(name="Padaria Central", sources=[SourceRef(type="google_maps")])
+    assert find_existing_match(candidate, [crm]) is None
+    assert find_existing_match(candidate, [crm, maps]) is maps
+
+
+def test_find_existing_match_never_uses_platform_domain_as_key():
+    from core.geo_discovery import find_existing_match
+    from core.models import Company, SourceRef
+    other = Company(name="Mercado do Bairro", website="https://instagram.com/mercado", sources=[SourceRef(type="google_maps")])
+    candidate = Company(name="Padaria Central", website="https://instagram.com/padaria", sources=[SourceRef(type="google_maps")])
+    assert find_existing_match(candidate, [other]) is None

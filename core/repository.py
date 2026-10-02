@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE
 from core.db_models import (
     CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, OutreachTouchORM, PortfolioORM, ProductORM, RepTargetORM,
@@ -264,20 +265,20 @@ async def list_companies(session: AsyncSession) -> list[Company]:
 
 
 async def count_geo_discoveries_today(session: AsyncSession, rep_id: str, today: date) -> int:
-    """Fase E, módulo 6 — cota diária de `anti-spam-promotion-gate`
-    (módulo 5) é sobre PROMOÇÃO (`Company` nova criada via descoberta
-    geográfica), não sobre oportunidade em geral. `sources` é JSON — sem
-    índice pra filtrar por tipo de fonte no SQL, mas o volume por rep/dia
-    é sempre pequeno (cap default 20), então filtrar em Python depois de
-    já restringir por `rep_id` é barato o bastante."""
-    rows = (await session.execute(select(CompanyORM).where(CompanyORM.rep_id == rep_id))).scalars().all()
-    count = 0
-    for row in rows:
-        if _ensure_utc(row.created_at).date() != today:
-            continue
-        if any(s.get("type") == "google_maps" for s in (row.sources or [])):
-            count += 1
-    return count
+    """Cota diária de `anti-spam-promotion-gate` — conta OPORTUNIDADES
+    `geo-discovery` criadas hoje (UTC) em empresas do rep, não empresas novas:
+    desde a Fase K a promoção pode reaproveitar uma empresa existente, e
+    contar `Company` criada hoje deixaria esse caso fora da cota. ponytail:
+    a empresa reaproveitada mantém o rep original, então a cota é do rep dono
+    da empresa; o volume por rep/dia é pequeno (cap default 20), por isso o
+    filtro por data roda em Python."""
+    stmt = (
+        select(OpportunityORM.first_detected_at)
+        .join(CompanyORM, CompanyORM.id == OpportunityORM.company_id)
+        .where(CompanyORM.rep_id == rep_id, OpportunityORM.type == GEO_DISCOVERY_OPPORTUNITY_TYPE)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    return sum(1 for detected_at in rows if _ensure_utc(detected_at).date() == today)
 
 
 # ── Contact ──────────────────────────────────────────────────────────────────
