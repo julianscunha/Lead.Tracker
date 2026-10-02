@@ -1,4 +1,10 @@
-# Lead.Tracker — Troubleshooting
+---
+title: "Lead.Tracker — Troubleshooting"
+order: 4
+tags: [lead-tracker, troubleshooting, erros, configuracao, suporte]
+---
+
+# Troubleshooting
 
 Guia rápido pra quem está desenvolvendo/testando o Lead.Tracker localmente.
 Erros de usuário final (não-técnico) já viram mensagem amigável — ver

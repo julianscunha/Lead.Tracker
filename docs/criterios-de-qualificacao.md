@@ -1,4 +1,10 @@
-# Lead.Tracker — Critérios de qualificação de oportunidade
+---
+title: "Lead.Tracker — Critérios de qualificação de oportunidade"
+order: 2
+tags: [lead-tracker, qualificacao, criterios, score, evidencias]
+---
+
+# Critérios de qualificação de oportunidade
 
 Este documento explica **o que cada critério significa, de onde vem o
 dado e por que o número/corte é esse** — pra quem usa o Lead.Tracker

@@ -1,4 +1,10 @@
-# Lead.Tracker — Exemplo básico: detectar uma oportunidade
+---
+title: "Lead.Tracker — Exemplo básico: detectar uma oportunidade"
+order: 3
+tags: [lead-tracker, exemplo, oportunidade, passo-a-passo]
+---
+
+# Exemplo básico — detectar uma oportunidade
 
 Fluxo mínimo, sem IA e sem provider externo: monta um portfólio, roda o
 motor de regras determinístico, recebe uma oportunidade com evidência.
