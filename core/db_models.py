@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, Float, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, Float, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -156,6 +156,24 @@ class OutreachTouchORM(Base):
     reason_label: Mapped[str] = mapped_column(String)
     sent_at: Mapped[datetime] = mapped_column()
     block_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AuditLogORM(Base):
+    """Fase M — ver `core.models.AuditEntry`."""
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_entity", "entity_type", "entity_id", "changed_at"),
+        Index("ix_audit_company", "company_id", "changed_at"),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String)
+    entity_id: Mapped[str] = mapped_column(String)
+    company_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    field: Mapped[str] = mapped_column(String)
+    old_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    changed_at: Mapped[datetime] = mapped_column()
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class DoNotContactORM(Base):

@@ -363,6 +363,21 @@ class OutreachTouch(BaseModel):
     block_acknowledged: bool = False
 
 
+class AuditEntry(BaseModel):
+    """Registro de uma edição (Fase M). `old_value`/`new_value` são texto; campo de
+    texto livre pessoal NUNCA guarda o conteúdo — só `preenchido`/`alterado`/`removido`.
+    `actor` é autodeclarado (rep_id informado na tela) ou "sync"; None = não identificado."""
+    id: str = Field(default_factory=_new_id)
+    entity_type: str
+    entity_id: str
+    company_id: str | None = None
+    field: str
+    old_value: str | None = None
+    new_value: str | None = None
+    changed_at: datetime = Field(default_factory=_now)
+    actor: str | None = None
+
+
 class DoNotContact(BaseModel):
     """Bloqueio de contato (Fase L). Histórico mantido: nada é apagado; retirar
     grava `lifted_*` uma única vez. `contact_id`/`contact_email` ambos None =

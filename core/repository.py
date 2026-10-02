@@ -17,12 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE
 from core.db_models import (
-    CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, DoNotContactORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
+    AuditLogORM, CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, DoNotContactORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, OutreachTouchORM, PortfolioORM, ProductORM, RepTargetORM,
     ServiceORM, VendorORM,
 )
 from core.models import (
-    Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
+    Address, AuditEntry, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
     DiscoveryRequiredError, DismissalReasonRequiredError, DoNotContact, DoNotContactReason, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType, Portfolio, Product, ProductRelation,
     RepTarget, SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
@@ -224,8 +224,78 @@ async def get_company(session: AsyncSession, company_id: str) -> Company | None:
     return _company_from_row(row) if row else None
 
 
+# ── AuditLog (Fase M) ────────────────────────────────────────────────────────
+
+def _audit_text(value) -> str | None:
+    """Texto estável pra comparar/gravar: data em ISO UTC, enum pelo `.value`."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _ensure_utc(value).isoformat()
+    if hasattr(value, "value"):
+        return str(value.value)
+    return str(value)
+
+
+def _text_marker(old: str | None, new: str | None) -> tuple[str | None, str | None] | None:
+    """Campo de texto livre pessoal: nunca grava o conteúdo, só o tipo da mudança.
+    `None` quando nada mudou (sem entrada no log)."""
+    if (old or None) == (new or None):
+        return None
+    if not old:
+        return None, "preenchido"
+    if not new:
+        return "preenchido", "removido"
+    return "preenchido", "alterado"
+
+
+def _audit(
+    session: AsyncSession, entity_type: str, entity_id: str, company_id: str | None, field: str,
+    old, new, actor: str | None = None,
+) -> None:
+    """Adiciona a entrada à sessão SEM commit: quem chama commita junto com a mudança
+    (mesma transação). Valor igual = nenhuma entrada."""
+    old_text, new_text = _audit_text(old), _audit_text(new)
+    if old_text == new_text:
+        return
+    session.add(AuditLogORM(
+        id=AuditEntry(entity_type=entity_type, entity_id=entity_id, field=field).id,
+        entity_type=entity_type, entity_id=entity_id, company_id=company_id, field=field,
+        old_value=old_text, new_value=new_text, changed_at=datetime.now(timezone.utc), actor=actor,
+    ))
+
+
+def _audit_marker(
+    session: AsyncSession, entity_type: str, entity_id: str, company_id: str | None, field: str,
+    old: str | None, new: str | None, actor: str | None = None,
+) -> None:
+    marker = _text_marker(old, new)
+    if marker is not None:
+        _audit(session, entity_type, entity_id, company_id, field, marker[0], marker[1], actor)
+
+
+async def list_audit_entries(
+    session: AsyncSession, *, company_id: str | None = None, entity_type: str | None = None,
+    entity_id: str | None = None,
+) -> list[AuditEntry]:
+    """Mais recentes primeiro."""
+    stmt = select(AuditLogORM)
+    if company_id is not None:
+        stmt = stmt.where(AuditLogORM.company_id == company_id)
+    if entity_type is not None:
+        stmt = stmt.where(AuditLogORM.entity_type == entity_type)
+    if entity_id is not None:
+        stmt = stmt.where(AuditLogORM.entity_id == entity_id)
+    rows = (await session.execute(stmt)).scalars().all()
+    entries = [AuditEntry(
+        id=r.id, entity_type=r.entity_type, entity_id=r.entity_id, company_id=r.company_id, field=r.field,
+        old_value=r.old_value, new_value=r.new_value, changed_at=_ensure_utc(r.changed_at), actor=r.actor,
+    ) for r in rows]
+    return sorted(entries, key=lambda e: e.changed_at, reverse=True)
+
+
 async def update_company_renewal_date(
-    session: AsyncSession, company_id: str, renewal_date: datetime | None,
+    session: AsyncSession, company_id: str, renewal_date: datetime | None, actor: str | None = None,
 ) -> Company | None:
     """Único caminho de escrita de renewal_date (manual, cadência de QBR) —
     só essa coluna, nunca session.merge() da linha inteira. Sem o risco de
@@ -234,6 +304,7 @@ async def update_company_renewal_date(
     row = await session.get(CompanyORM, company_id)
     if row is None:
         return None
+    _audit(session, "company", company_id, company_id, "renewal_date", row.renewal_date, renewal_date, actor)
     row.renewal_date = renewal_date
     await session.commit()
     return _company_from_row(row)
@@ -255,6 +326,8 @@ async def apply_field_mapping_updates(session: AsyncSession, company_id: str, up
     if row is None:
         return
     for column, value in updates.items():
+        # Escrita automática do sync: sem isso o renewal_date mudaria sem rastro (Fase M).
+        _audit(session, "company", company_id, company_id, column, getattr(row, column, None), value, "sync")
         setattr(row, column, value)
     await session.commit()
 
@@ -309,13 +382,16 @@ async def save_contact(session: AsyncSession, contact: Contact) -> None:
     await session.commit()
 
 
-async def update_contact_stance(session: AsyncSession, contact_id: str, stance: str | None) -> Contact | None:
+async def update_contact_stance(
+    session: AsyncSession, contact_id: str, stance: str | None, actor: str | None = None,
+) -> Contact | None:
     """Único caminho de escrita de `stance` — só essa coluna, nunca
     `session.merge()` da linha inteira (mesmo padrão de
     `update_company_renewal_date`)."""
     row = await session.get(ContactORM, contact_id)
     if row is None:
         return None
+    _audit(session, "contact", contact_id, row.company_id, "stance", row.stance, stance, actor)
     row.stance = stance
     await session.commit()
     return _contact_from_row(row)
@@ -395,7 +471,7 @@ async def save_opportunity(session: AsyncSession, opportunity: Opportunity) -> N
 
 async def update_opportunity_qualification(
     session: AsyncSession, opportunity_id: str,
-    scope_note: str | None, criticality: str | None, severity_note: str | None,
+    scope_note: str | None, criticality: str | None, severity_note: str | None, actor: str | None = None,
 ) -> Opportunity | None:
     """Único caminho de escrita de scope_note/criticality/severity_note
     (Fase C, Fatia 5) — entrada manual do vendedor, nunca tocada por
@@ -406,6 +482,9 @@ async def update_opportunity_qualification(
     row = await session.get(OpportunityORM, opportunity_id)
     if row is None:
         return None
+    _audit(session, "opportunity", opportunity_id, row.company_id, "scope_note", row.scope_note, scope_note, actor)
+    _audit(session, "opportunity", opportunity_id, row.company_id, "criticality", row.criticality, criticality, actor)
+    _audit_marker(session, "opportunity", opportunity_id, row.company_id, "severity_note", row.severity_note, severity_note, actor)
     row.scope_note = scope_note
     row.criticality = criticality
     row.severity_note = severity_note
@@ -415,7 +494,7 @@ async def update_opportunity_qualification(
 
 async def update_opportunity_discovery(
     session: AsyncSession, opportunity_id: str,
-    root_cause_stated: str | None, trigger_event: str | None, champion_stake: str | None,
+    root_cause_stated: str | None, trigger_event: str | None, champion_stake: str | None, actor: str | None = None,
 ) -> Opportunity | None:
     """Único caminho de escrita dos 3 campos de discovery (Fase J) — manual,
     nunca tocado por `save_opportunity` (motor). Substituição completa, como
@@ -424,10 +503,21 @@ async def update_opportunity_discovery(
     row = await session.get(OpportunityORM, opportunity_id)
     if row is None:
         return None
-    row.root_cause_stated = (root_cause_stated or "").strip() or None
-    row.trigger_event = (trigger_event or "").strip() or None
-    row.champion_stake = (champion_stake or "").strip() or None
-    row.discovery_edited_at = datetime.now(timezone.utc)
+    new_values = {
+        "root_cause_stated": (root_cause_stated or "").strip() or None,
+        "trigger_event": (trigger_event or "").strip() or None,
+        "champion_stake": (champion_stake or "").strip() or None,
+    }
+    changed = False
+    for field, new in new_values.items():
+        old = getattr(row, field)
+        if (old or None) != new:
+            changed = True
+            # Texto pessoal: só o marcador, nunca o conteúdo (LGPD).
+            _audit_marker(session, "opportunity", opportunity_id, row.company_id, field, old, new, actor)
+            setattr(row, field, new)
+    if changed:
+        row.discovery_edited_at = datetime.now(timezone.utc)
     await session.commit()
     return _opportunity_from_row(row)
 
@@ -620,6 +710,8 @@ async def update_opportunity_status(
         if not is_discovery_complete(row.root_cause_stated, row.trigger_event, row.champion_stake):
             # Skip já registrado antes (ex.: reabertura de descartada) continua valendo.
             if is_valid_discovery_text(skip_discovery_reason):
+                _audit(session, "opportunity", opportunity_id, row.company_id, "discovery_skipped", bool(row.discovery_skipped), True)
+                _audit_marker(session, "opportunity", opportunity_id, row.company_id, "discovery_skip_reason", row.discovery_skip_reason, skip_discovery_reason.strip())
                 row.discovery_skipped = True
                 row.discovery_skip_reason = skip_discovery_reason.strip()
             elif not row.discovery_skipped:
