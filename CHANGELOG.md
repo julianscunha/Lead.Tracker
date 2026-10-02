@@ -4,6 +4,18 @@
 
 ### Corrigido
 
+- **Rascunho de e-mail falhava com "não devolveu o rascunho no formato
+  esperado (faltando: subject, greeting, body, cta)"** (achado do usuário no
+  app real). O prompt base mandava a IA responder num formato e a instrução do
+  e-mail pedia outro, e o leitor da resposta só aceitava JSON puro. Agora o
+  e-mail declara o próprio formato, a resposta em cerca de código
+  (```json) ou com texto em volta é lida, e um envelope simples
+  (`structured`/`email`/`rascunho`) também. A leitura é linear: entradas
+  patológicas não travam o servidor.
+- **Resposta de provider fora do formato** (200 com corpo vazio, não-JSON ou
+  sem `choices`) agora vira erro amigável em vez de exceção crua, nos 4
+  providers.
+
 - **Hints de prospecção geográfica** — o campo da chave do Google Maps agora
   explica como obter a chave (projeto no Google Cloud, Geocoding API e Places
   API (New), credenciais), e o campo de categoria do Google Places aponta para

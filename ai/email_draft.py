@@ -13,14 +13,22 @@ from typing import Any
 from ai.base import AIProvider, AIProviderError, AIRequest
 from ai.email_guardrails import validate_email_body, validate_persuasive_field
 
+_REQUIRED = ("subject", "greeting", "body", "cta")
+
+_OUTPUT_FORMAT = (
+    'Responda SOMENTE com um JSON válido, sem texto fora dele, com estas chaves de topo: '
+    '{"subject": string, "greeting": string, "body": string, "cta": string, '
+    '"differentiator": string (opcional), "ps": string (opcional)}. '
+)
+
 _BASE_INSTRUCTION = (
     "Gere um rascunho de e-mail comercial para a oportunidade descrita no contexto. "
     "Tom: empresarial, consultivo, contextual, nunca agressivo. Baseie-se somente nas "
     "evidências fornecidas — nunca invente fato, dado ou benefício não sustentado pelo "
     "contexto. O campo 'motivo_principal' do contexto é o motivo determinístico já decidido "
     "pelo motor de regras — reforce esse MESMO motivo em subject/body/cta (nunca troque, "
-    "nunca invente um motivo diferente ou adicional). Retorne o JSON pedido com 'structured' "
-    'contendo as chaves "subject", "greeting", "body" e "cta" (call-to-action), todas string, '
+    "nunca invente um motivo diferente ou adicional). Retorne o JSON com "
+    'as chaves "subject", "greeting", "body" e "cta" (call-to-action), todas string, '
     'e opcionalmente "differentiator" (uma frase só, releitura persuasiva de um fato JÁ presente '
     "em evidências/portfólio — nunca número, produto ou alegação que não esteja lá) e \"ps\" "
     "(um P.S. opcional reforçando o ponto mais forte já citado no corpo, mesma regra: nunca fato novo). "
@@ -97,6 +105,7 @@ def build_email_request(
     reason = primary_reason or justification or ""
     return AIRequest(
         instruction=_build_instruction(is_customer),
+        output_format=_OUTPUT_FORMAT,
         company_context={"nome": company_name, "tipo_oportunidade": opportunity_type, "is_customer": is_customer},
         portfolio=portfolio,
         provider_data={"evidencias": evidence, "justificativa": justification or "", "motivo_principal": reason},
@@ -121,7 +130,14 @@ def parse_email_draft(
     subject/greeting/body/cta (obrigatórios) passam por `validate_email_body` (módulo 4,
     Sales Coach consultado) — reprova aqui vira `AIProviderError` (mesmo tratamento de campo
     obrigatório ausente), porque não dá pra "descartar" um corpo de e-mail obrigatório."""
-    missing = [k for k in ("subject", "greeting", "body", "cta") if not structured.get(k)]
+    # Modelos às vezes aninham o rascunho sob uma chave-envelope; aceita um nível só.
+    if not structured.get("subject"):
+        for wrap in ("structured", "email", "rascunho"):
+            inner = structured.get(wrap)
+            if isinstance(inner, dict) and all(inner.get(k) for k in _REQUIRED):
+                structured = inner
+                break
+    missing = [k for k in _REQUIRED if not structured.get(k)]
     if missing:
         raise AIProviderError(
             f"O provider de IA não devolveu o rascunho no formato esperado (faltando: {', '.join(missing)}). Tente novamente."

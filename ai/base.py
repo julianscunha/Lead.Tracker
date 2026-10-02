@@ -112,11 +112,59 @@ def build_structured_prompt(request: AIRequest) -> str:
     )
 
 
+_MAX_PARSE_CHARS = 200_000  # acima disso nem tenta extrair JSON de texto em volta
+
+
+def _extract_json_object(text: str) -> str | None:
+    """Primeiro objeto {...} não vazio e JSON-válido do texto (cerca ```json inclusa).
+    Varredura única O(n) de topo: aspas só contam dentro de um objeto (depth>0), então
+    aspas soltas na prosa não quebram; candidato inválido ({x}) ou vazio ({}) é pulado
+    e a varredura segue DEPOIS dele — nunca reinicia dentro do candidato.
+    # ponytail: um '{' solto sem fechamento antes do JSON engole o resto e devolve None;
+    # upgrade: re-varrer a partir do '{' seguinte (custo O(n^2), exigiria limite próprio)."""
+    if len(text) > _MAX_PARSE_CHARS:
+        return None
+    depth, start, in_str, esc = 0, 0, False, False
+    for i, c in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif depth == 0:
+            if c == "{":
+                depth, start = 1, i
+        elif c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                cand = text[start:i + 1]
+                try:
+                    obj = json.loads(cand)
+                except (ValueError, RecursionError):
+                    continue
+                if isinstance(obj, dict) and obj:  # pula {} vazio
+                    return cand
+    return None
+
+
 def parse_structured_response(raw_text: str) -> AIResponse:
     """Converte a saída bruta do modelo em AIResponse. Degrada com segurança se o
-    modelo não devolver JSON válido — nunca propaga erro de parsing pro chamador."""
+    modelo não devolver JSON válido — nunca propaga erro de parsing pro chamador.
+    Tolera JSON dentro de cerca ```json ou com texto em volta."""
     try:
-        data = json.loads(raw_text)
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            extracted = _extract_json_object(raw_text)
+            if extracted is None:
+                raise
+            data = json.loads(extracted)
         if not isinstance(data, dict):  # lista/string/número: JSON válido, mas não é o formato pedido
             raise ValueError("JSON não é um objeto")
         return AIResponse(
@@ -125,5 +173,5 @@ def parse_structured_response(raw_text: str) -> AIResponse:
             confidence=float(data.get("confidence", 0.0)),
             structured=data,
         )
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (json.JSONDecodeError, TypeError, ValueError, RecursionError):
         return AIResponse(content=raw_text, evidence=[], confidence=0.0)

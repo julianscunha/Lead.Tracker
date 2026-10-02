@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import httpx
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -297,6 +298,81 @@ def test_generate_email_draft_rejects_generalization_without_concrete_case_end_t
             pass
 
     asyncio.run(run())
+
+
+# --- Regressão: formato JSON conflitante / cerca de código / aninhamento ---
+_CORE = {k: VALID_DRAFT[k] for k in ("subject", "greeting", "body", "cta")}
+
+
+def _gen_raw(raw: str):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": raw}}]})
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return asyncio.run(generate_email_draft(OpenAIProvider(api_key="k", client=client), "Aurora", "cross-sell", ["veeam_vbr"], "j", {}))
+
+
+def test_email_prompt_pede_chaves_exatas_sem_formato_content_evidence():
+    from ai.base import build_structured_prompt
+    prompt = build_structured_prompt(build_email_request("Aurora", "cross-sell", ["x"], "j", {}))
+    for k in ("subject", "greeting", "body", "cta"):
+        assert f'"{k}"' in prompt
+    assert '{"content": string, "evidence"' not in prompt and "structured" not in prompt
+
+
+def test_modelo_que_ignora_formato_devolve_erro_amigavel_sem_crash():
+    with pytest.raises(AIProviderError, match="formato esperado"):
+        _gen_raw(json.dumps({"content": "texto", "evidence": [], "confidence": 0.8}))
+
+
+def test_resposta_em_cerca_de_codigo_vira_rascunho():
+    assert _gen_raw("```json\n" + json.dumps(_CORE) + "\n```").subject == _CORE["subject"]
+
+
+def test_json_com_texto_em_volta_vira_rascunho():
+    assert _gen_raw("Claro! " + json.dumps(_CORE) + " Espero ter ajudado").cta == _CORE["cta"]
+
+
+def test_json_aninhado_em_structured_vira_rascunho():
+    assert _gen_raw(json.dumps({"structured": _CORE})).body == _CORE["body"]
+
+
+def test_extract_aspas_escapada_dentro_de_string_na_cerca():
+    from ai.base import _extract_json_object
+    obj = '{"a":"x \\" } {","b":1}'
+    assert json.loads(_extract_json_object("```json\n" + obj + "\n```")) == {"a": 'x " } {', "b": 1}
+
+
+def test_extract_barra_invertida_no_fim_da_string():
+    from ai.base import _extract_json_object
+    obj = '{"a":"x\\\\","b":2}'
+    assert json.loads(_extract_json_object("texto " + obj + " fim")) == {"a": "x\\", "b": 2}
+
+
+def test_extract_json_valido_depois_de_chaves_soltas():
+    from ai.base import _extract_json_object
+    assert json.loads(_extract_json_object('veja {x} {"subject":"s"}')) == {"subject": "s"}
+    assert json.loads(_extract_json_object('veja {} {"subject":"s"}')) == {"subject": "s"}
+
+
+def test_extract_bom_no_inicio():
+    from ai.base import parse_structured_response
+    assert parse_structured_response("﻿" + json.dumps({"subject": "s"})).structured == {"subject": "s"}
+
+
+@pytest.mark.parametrize("raw", [
+    "{" * 50000 + "}" * 50000, "{" * 150000, '"' * 200000, "}{" * 90000, '{"a":' * 30000,
+], ids=["aninhado50k", "abre150k", "aspas200k", "fecha-abre90k", "chave-valor30k"])
+def test_entrada_patologica_degrada_rapido_sem_excecao(raw):
+    import time
+    from ai.base import parse_structured_response
+    t = time.time()
+    assert parse_structured_response(raw).structured in (None, {})
+    assert time.time() - t < 2
+
+
+def test_envelope_so_com_subject_nao_e_adotado():
+    with pytest.raises(AIProviderError, match="faltando: subject, greeting, body, cta"):
+        parse_email_draft({"email": {"subject": "s"}})
 
 
 if __name__ == "__main__":
