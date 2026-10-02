@@ -28,7 +28,10 @@ from core.geo_promotion import (
 )
 from core.field_mapping import detect_broken_mappings
 from core.models import FieldMapping, SemanticFieldRole
-from core.opportunity_engine import AGING_SLA_ENV_KEY, field_mapping_id, parse_aging_sla_days
+from core.opportunity_engine import (
+    AGING_SLA_ENV_KEY, REP_CATEGORY_MIN_SAMPLE_ENV_KEY, field_mapping_id, parse_aging_sla_days,
+    parse_rep_category_min_sample,
+)
 from core.repository import delete_field_mapping, list_field_mappings, save_field_mapping
 from providers.base import ConnectionTestResult, ProviderError
 
@@ -102,6 +105,23 @@ async def update_aging_sla_days(body: AgingSlaConfig) -> AgingSlaConfig:
         raise_http(DomainError(ErrorCategory.INVALID_DATA, "O prazo precisa ser de pelo menos 1 dia."))
     set_env_values(_ENV_PATH, {AGING_SLA_ENV_KEY: str(body.days)})
     return AgingSlaConfig(days=body.days)
+
+
+class RepCategoryMinSampleConfig(BaseModel):
+    min_sample: int
+
+
+@router.get("/config/rep-category-min-sample")
+async def get_rep_category_min_sample() -> RepCategoryMinSampleConfig:
+    return RepCategoryMinSampleConfig(min_sample=parse_rep_category_min_sample(load_env(_ENV_PATH)))
+
+
+@router.put("/config/rep-category-min-sample")
+async def update_rep_category_min_sample(body: RepCategoryMinSampleConfig) -> RepCategoryMinSampleConfig:
+    if body.min_sample < 1:
+        raise_http(DomainError(ErrorCategory.INVALID_DATA, "O mínimo precisa ser de pelo menos 1 oportunidade."))
+    set_env_values(_ENV_PATH, {REP_CATEGORY_MIN_SAMPLE_ENV_KEY: str(body.min_sample)})
+    return RepCategoryMinSampleConfig(min_sample=body.min_sample)
 
 
 class GeoPromotionConfig(BaseModel):

@@ -164,6 +164,69 @@ def test_get_dashboard_metrics_reads_snapshot_and_excludes_zombie_from_weighted_
         assert body["aging_sla_days"] == 7
 
 
+def test_rep_category_reach_empty_state_is_honest():
+    with _TempDb():
+        body = client.get("/modules/lead_tracker/dashboard-metrics/rep-category-reach").json()
+        assert body == {"min_sample": 5, "unassigned_count": 0, "cells": [], "team_median": {}}
+
+
+def test_rep_category_reach_groups_by_rep_and_category_and_flags_insufficient():
+    with _TempDb() as db:
+        import asyncio
+        company = Company(name="Aurora Sistemas", rep_id="rep-1")
+        service = Service(name="Assessment de DR", category="Continuidade")
+        enough = [
+            Opportunity(company_id=company.id, type="service", service_id=service.id, sources=[SourceRef(type="salesforce")])
+            for _ in range(5)
+        ]
+        uncategorized = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="salesforce")])
+        orphan_company = Company(name="Borealis Dados")  # sem rep
+        unassigned = Opportunity(company_id=orphan_company.id, type="cross-sell", sources=[SourceRef(type="salesforce")])
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                await save_company(session, orphan_company)
+                await save_service(session, service)
+                for o in [*enough, uncategorized, unassigned]:
+                    await save_opportunity(session, o)
+                await recompute_daily_snapshot(session)
+        asyncio.run(seed())
+
+        body = client.get("/modules/lead_tracker/dashboard-metrics/rep-category-reach").json()
+
+        assert body["unassigned_count"] == 1  # sem rep: contada à parte, nunca um rep fictício
+        assert {c["rep_id"] for c in body["cells"]} == {"rep-1"}
+        cells = {c["category"]: c for c in body["cells"]}
+        assert set(cells) == {"Continuidade", "Sem categoria"}
+        assert cells["Continuidade"]["n"] == 5 and cells["Continuidade"]["insufficient"] is False
+        assert cells["Continuidade"]["reach_ratios"]["detected"] == 1.0
+        assert cells["Sem categoria"]["insufficient"] is True  # n=1 < 5
+        assert all(v is None for v in cells["Sem categoria"]["reach_ratios"].values())  # nunca 0%
+        assert body["team_median"]["Continuidade"]["detected"] is None  # só 1 rep elegível, sem referência
+
+
+def test_rep_category_reach_reads_configurable_min_sample():
+    with _TempDb() as db:
+        import asyncio
+        db.env_path.write_text("APP_ENV=local\nREP_CATEGORY_MIN_SAMPLE=2\n", encoding="utf-8")
+        company = Company(name="Aurora Sistemas", rep_id="rep-1")
+        opps = [Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="salesforce")]) for _ in range(2)]
+
+        async def seed():
+            async with db.session_factory() as session:
+                await save_company(session, company)
+                for o in opps:
+                    await save_opportunity(session, o)
+                await recompute_daily_snapshot(session)
+        asyncio.run(seed())
+
+        body = client.get("/modules/lead_tracker/dashboard-metrics/rep-category-reach").json()
+
+        assert body["min_sample"] == 2
+        assert body["cells"][0]["insufficient"] is False
+
+
 def test_dashboard_metrics_rep_without_target_shows_no_coverage_ratio():
     with _TempDb() as db:
         import asyncio

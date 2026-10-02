@@ -10,7 +10,7 @@ from core.models import Company, CompanySignal, PeriodType, Portfolio, Product, 
 from core.opportunity_engine import (
     CorrelationRule, RuleError, compute_account_health, compute_qbr_suggested_days,
     compute_severity_band, current_period_key, evaluate_rules, is_aging_opportunity, is_zombie_opportunity,
-    parse_aging_sla_days, rep_target_id, requires_status_change_justification,
+    parse_aging_sla_days, parse_rep_category_min_sample, rep_target_id, requires_status_change_justification,
 )
 
 
@@ -450,6 +450,14 @@ def test_parse_aging_sla_days_falls_back_to_default_when_missing_or_invalid():
 
 def test_parse_aging_sla_days_reads_valid_configured_value():
     assert parse_aging_sla_days({"AGING_SLA_DAYS": "14"}) == 14
+
+
+def test_parse_rep_category_min_sample_falls_back_to_5_when_missing_or_invalid():
+    assert parse_rep_category_min_sample({}) == 5
+    assert parse_rep_category_min_sample({"REP_CATEGORY_MIN_SAMPLE": "lixo"}) == 5
+    assert parse_rep_category_min_sample({"REP_CATEGORY_MIN_SAMPLE": "0"}) == 5
+    assert parse_rep_category_min_sample({"REP_CATEGORY_MIN_SAMPLE": "-3"}) == 5
+    assert parse_rep_category_min_sample({"REP_CATEGORY_MIN_SAMPLE": "9"}) == 9
 
 
 def test_current_period_key_monthly_format():

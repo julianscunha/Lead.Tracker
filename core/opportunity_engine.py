@@ -130,6 +130,22 @@ def parse_aging_sla_days(env: dict[str, str]) -> int:
     return days if days > 0 else _AGING_SLA_DEFAULT_DAYS
 
 
+# Funil por rep×categoria: amostra mínima por par pra mostrar razão em vez de
+# "dado insuficiente" — configurável pelo usuário, mesmo padrão do SLA acima.
+REP_CATEGORY_MIN_SAMPLE_ENV_KEY = "REP_CATEGORY_MIN_SAMPLE"
+_REP_CATEGORY_MIN_SAMPLE_DEFAULT = 5
+
+
+def parse_rep_category_min_sample(env: dict[str, str]) -> int:
+    """Valor ausente, vazio ou inválido cai no default (5), nunca quebra a
+    leitura da configuração."""
+    try:
+        n = int(env.get(REP_CATEGORY_MIN_SAMPLE_ENV_KEY, ""))
+    except ValueError:
+        return _REP_CATEGORY_MIN_SAMPLE_DEFAULT
+    return n if n > 0 else _REP_CATEGORY_MIN_SAMPLE_DEFAULT
+
+
 def is_aging_opportunity(status: str, first_detected_at: datetime, now: datetime, sla_days: int) -> bool:
     """Roadmap: oportunidade em `detected` há mais de N dias sem virar
     `qualified`/`dismissed` — SLA de triagem, conceito à parte de zumbi
@@ -420,7 +436,8 @@ __all__ = [
     "ThreadingRiskSignal", "compute_account_health", "compute_next_suggested_touch", "compute_qbr_suggested_days",
     "compute_severity_band", "compute_silence_signal", "compute_threading_risk_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
-    "rep_target_id", "requires_status_change_justification",
+    "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "parse_rep_category_min_sample", "rep_target_id",
+    "requires_status_change_justification",
 ]
 
 

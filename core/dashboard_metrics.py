@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from statistics import median
 
 from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
 from core.opportunity_engine import is_aging_opportunity
@@ -259,3 +260,77 @@ def funnel_reach(snapshot: list[OpportunitySnapshot]) -> list[FunnelReachStage]:
         result.append(FunnelReachStage(stage=stage, reach_count=reach[i], reach_ratio_from_previous=ratio))
         previous = reach[i]
     return result
+
+
+NO_CATEGORY_LABEL = "Sem categoria"
+MIN_ELIGIBLE_REPS_FOR_REFERENCE = 3
+
+
+@dataclass
+class RepCategoryReach:
+    rep_id: str
+    category: str
+    n: int
+    insufficient: bool  # n < min_sample — razões ficam None, contagens brutas continuam (tooltip)
+    reach_counts: dict[str, int]
+    reach_ratios: dict[str, float | None]  # reach_counts[s] / n; None quando insufficient, nunca 0%
+
+
+@dataclass
+class RepCategoryReachResult:
+    cells: list[RepCategoryReach]
+    # categoria -> estágio -> mediana das razões dos reps elegíveis; None sem ≥3 elegíveis
+    team_median: dict[str, dict[str, float | None]]
+    unassigned_count: int
+    min_sample: int
+
+
+def rep_category_reach(
+    snapshot: list[OpportunitySnapshot], category_by_opportunity: dict[str, str | None], min_sample: int,
+) -> RepCategoryReachResult:
+    """Alcance acumulado por (rep, categoria) — mesma leitura "visão atual"
+    de `funnel_reach` (mesmo corte do snapshot, `dismissed` fora): NUNCA é
+    conversão histórica. Par com `n < min_sample` é "dado insuficiente"
+    (razões `None`), nunca 0%. Sem categoria conhecida cai no balde neutro
+    `NO_CATEGORY_LABEL` (nada de categoria inventada) e não recebe referência
+    de time (produtos sem relação entre si não têm mediana com sentido).
+    Referência = MEDIANA entre reps elegíveis da categoria, só com
+    `MIN_ELIGIBLE_REPS_FOR_REFERENCE`+ deles. Oportunidade sem rep nunca vira
+    rep fictício: só entra em `unassigned_count`. Sem ranking: saída em ordem
+    alfabética (rep, categoria)."""
+    stage_index = {stage: i for i, stage in enumerate(FUNNEL_REACH_ORDER)}
+    n_by_pair: dict[tuple[str, str], int] = {}
+    reach_by_pair: dict[tuple[str, str], list[int]] = {}
+    unassigned = 0
+    for s in snapshot:
+        idx = stage_index.get(s.stage.value)
+        if idx is None:
+            continue
+        if not s.rep_id:
+            unassigned += 1
+            continue
+        pair = (s.rep_id, category_by_opportunity.get(s.opportunity_id) or NO_CATEGORY_LABEL)
+        n_by_pair[pair] = n_by_pair.get(pair, 0) + 1
+        reach = reach_by_pair.setdefault(pair, [0] * len(FUNNEL_REACH_ORDER))
+        for i in range(idx + 1):
+            reach[i] += 1
+
+    cells = []
+    for pair in sorted(n_by_pair):
+        n = n_by_pair[pair]
+        insufficient = n < min_sample
+        counts = dict(zip(FUNNEL_REACH_ORDER, reach_by_pair[pair]))
+        ratios = {stage: (None if insufficient else count / n) for stage, count in counts.items()}
+        cells.append(RepCategoryReach(
+            rep_id=pair[0], category=pair[1], n=n, insufficient=insufficient, reach_counts=counts, reach_ratios=ratios,
+        ))
+
+    team_median: dict[str, dict[str, float | None]] = {}
+    for category in sorted({c.category for c in cells}):
+        eligible = [c for c in cells if c.category == category and not c.insufficient]
+        has_reference = category != NO_CATEGORY_LABEL and len(eligible) >= MIN_ELIGIBLE_REPS_FOR_REFERENCE
+        team_median[category] = {
+            stage: (median(c.reach_ratios[stage] for c in eligible) if has_reference else None)
+            for stage in FUNNEL_REACH_ORDER
+        }
+    return RepCategoryReachResult(cells=cells, team_median=team_median, unassigned_count=unassigned, min_sample=min_sample)

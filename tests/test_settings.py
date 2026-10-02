@@ -185,6 +185,30 @@ def test_put_aging_sla_days_rejects_non_positive_value():
         assert "dia" in resp.json()["detail"]
 
 
+def test_get_rep_category_min_sample_defaults_to_5_when_not_configured():
+    with _TempEnv():
+        resp = client.get("/modules/lead_tracker/settings/config/rep-category-min-sample")
+        assert resp.status_code == 200
+        assert resp.json() == {"min_sample": 5}
+
+
+def test_put_rep_category_min_sample_persists_and_round_trips():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/rep-category-min-sample", json={"min_sample": 8})
+        assert resp.status_code == 200
+        assert resp.json() == {"min_sample": 8}
+
+        resp = client.get("/modules/lead_tracker/settings/config/rep-category-min-sample")
+        assert resp.json() == {"min_sample": 8}
+
+
+def test_put_rep_category_min_sample_rejects_non_positive_value():
+    with _TempEnv():
+        resp = client.put("/modules/lead_tracker/settings/config/rep-category-min-sample", json={"min_sample": 0})
+        assert resp.status_code == 422
+        assert "oportunidade" in resp.json()["detail"]
+
+
 def test_get_geo_promotion_config_defaults_when_not_configured():
     with _TempEnv():
         resp = client.get("/modules/lead_tracker/settings/config/geo-promotion")

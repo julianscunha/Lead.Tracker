@@ -28,7 +28,7 @@ from core.dashboard_metrics import (
     compute_kpis, compute_rep_coverage, compute_weighted_potential, count_aging_opportunities,
     count_zombie_opportunities, customer_vs_prospect, distribution_by_vendor, exclude_zombies,
     financial_potential_by_vendor, funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep,
-    potential_by_segment, potential_by_source,
+    potential_by_segment, potential_by_source, rep_category_reach,
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
@@ -43,7 +43,7 @@ from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     CADENCE_DAILY_CAP_REACHED, CadenceSuggestion, compute_account_health, compute_next_suggested_touch,
     compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, compute_threading_risk_signal,
-    current_period_key, is_aging_opportunity, parse_aging_sla_days, rep_target_id,
+    current_period_key, is_aging_opportunity, parse_aging_sla_days, parse_rep_category_min_sample, rep_target_id,
 )
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, delete_product, delete_rule, delete_service,
@@ -856,4 +856,34 @@ async def get_dashboard_metrics(period_type: Literal["monthly", "quarterly"] = "
         ],
         "coverage_period_type": resolved_period_type.value,
         "coverage_period_key": resolved_period_key,
+    }
+
+
+@router.get("/dashboard-metrics/rep-category-reach")
+async def get_rep_category_reach() -> dict:
+    """Visão atual (corte do snapshot mais recente), nunca conversão histórica."""
+    min_sample = parse_rep_category_min_sample(load_env(routes_settings._ENV_PATH))
+    async with session_factory() as session:
+        opportunities = await list_opportunities(session)
+        products = await list_products(session)
+        services = await list_services(session)
+        snapshot = await list_latest_snapshot(session)
+
+    category_by_item = {p.id: p.category for p in products} | {s.id: s.category for s in services}
+    # Produto vence; sem categoria no produto, tenta o serviço — nunca inventa uma.
+    category_by_opportunity = {
+        o.id: category_by_item.get(o.product_id) or category_by_item.get(o.service_id) for o in opportunities
+    }
+    result = rep_category_reach(snapshot, category_by_opportunity, min_sample)
+    return {
+        "min_sample": result.min_sample,
+        "unassigned_count": result.unassigned_count,
+        "cells": [
+            {
+                "rep_id": c.rep_id, "category": c.category, "n": c.n, "insufficient": c.insufficient,
+                "reach_counts": c.reach_counts, "reach_ratios": c.reach_ratios,
+            }
+            for c in result.cells
+        ],
+        "team_median": result.team_median,
     }

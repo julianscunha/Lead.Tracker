@@ -10,7 +10,7 @@ from core.dashboard_metrics import (
     RepCoverage, compute_kpis, compute_rep_coverage, compute_weighted_potential, count_aging_opportunities,
     count_zombie_opportunities, customer_vs_prospect, distribution_by_vendor, exclude_zombies,
     financial_potential_by_vendor, funnel_counts, funnel_reach, opportunities_by_service, potential_by_rep,
-    potential_by_segment, potential_by_source,
+    potential_by_segment, potential_by_source, NO_CATEGORY_LABEL, rep_category_reach,
 )
 from core.models import Company, Opportunity, OpportunitySnapshot, OpportunityStatus
 
@@ -200,6 +200,127 @@ def test_compute_rep_coverage_never_divides_by_zero_target():
     result = compute_rep_coverage([("rep-1", 1000.0)], targets={"rep-1": 0.0})
     assert result[0].target == 0.0
     assert result[0].coverage_ratio is None
+
+
+def _rep_snaps(rep_id: str, stages: list[OpportunityStatus], prefix: str | None = None) -> list[OpportunitySnapshot]:
+    prefix = prefix or rep_id
+    return [_snap(opportunity_id=f"{prefix}-{i}", rep_id=rep_id, stage=st) for i, st in enumerate(stages)]
+
+
+def _cats(snapshot: list[OpportunitySnapshot], category: str | None) -> dict[str, str | None]:
+    return {s.opportunity_id: category for s in snapshot}
+
+
+S = OpportunityStatus
+
+
+def test_rep_category_reach_is_cumulative_per_pair_and_excludes_dismissed():
+    snap = _rep_snaps("rep-1", [S.DETECTED, S.QUALIFIED, S.CONTACTED, S.CONTACTED, S.OPPORTUNITY, S.DISMISSED])
+
+    result = rep_category_reach(snap, _cats(snap, "Backup"), min_sample=5)
+
+    (cell,) = result.cells
+    assert (cell.rep_id, cell.category, cell.n, cell.insufficient) == ("rep-1", "Backup", 5, False)  # dismissed fora
+    assert cell.reach_counts == {"detected": 5, "qualified": 4, "reviewed": 3, "contacted": 3, "opportunity": 1}
+    assert cell.reach_ratios["contacted"] == 3 / 5
+
+
+def test_rep_category_reach_below_min_sample_is_insufficient_never_zero_percent():
+    snap = _rep_snaps("rep-1", [S.DETECTED] * 4)  # nenhum passou de detected: 0 real, mas n=4 < 5
+
+    (cell,) = rep_category_reach(snap, _cats(snap, "Backup"), min_sample=5).cells
+
+    assert cell.insufficient is True and cell.n == 4
+    assert all(r is None for r in cell.reach_ratios.values())  # nunca 0.0 nem número
+    assert cell.reach_counts["detected"] == 4  # contagem bruta continua pro tooltip
+
+
+def test_rep_category_reach_boundary_n_equal_min_sample_is_sufficient_and_min_sample_is_configurable():
+    snap = _rep_snaps("rep-1", [S.DETECTED] * 5)
+    cats = _cats(snap, "Backup")
+
+    assert rep_category_reach(snap, cats, min_sample=5).cells[0].insufficient is False
+    assert rep_category_reach(snap, cats, min_sample=6).cells[0].insufficient is True
+    assert rep_category_reach(snap, cats, min_sample=2).min_sample == 2
+
+
+def test_rep_category_reach_real_zero_percent_is_distinct_from_insufficient():
+    snap = _rep_snaps("rep-1", [S.DETECTED] * 5)
+
+    (cell,) = rep_category_reach(snap, _cats(snap, "Backup"), min_sample=5).cells
+
+    assert cell.insufficient is False
+    assert cell.reach_ratios["qualified"] == 0.0  # 0% real, com amostra suficiente
+
+
+def test_rep_category_reach_unknown_category_goes_to_neutral_bucket_without_team_reference():
+    snaps = []
+    for rep in ("rep-1", "rep-2", "rep-3"):
+        snaps += _rep_snaps(rep, [S.QUALIFIED] * 5)
+    cats = {s.opportunity_id: None for s in snaps}
+
+    result = rep_category_reach(snaps, cats, min_sample=5)
+
+    assert {c.category for c in result.cells} == {NO_CATEGORY_LABEL}
+    assert all(v is None for v in result.team_median[NO_CATEGORY_LABEL].values())  # 3 elegíveis, mas sem referência
+
+
+def test_rep_category_reach_empty_string_category_is_treated_as_unknown():
+    snap = _rep_snaps("rep-1", [S.DETECTED] * 5)
+
+    (cell,) = rep_category_reach(snap, _cats(snap, ""), min_sample=5).cells
+
+    assert cell.category == NO_CATEGORY_LABEL
+
+
+def test_rep_category_reach_team_median_needs_three_eligible_reps():
+    snaps = _rep_snaps("rep-1", [S.CONTACTED] * 5) + _rep_snaps("rep-2", [S.DETECTED] * 5)
+    cats = _cats(snaps, "Backup")
+    assert rep_category_reach(snaps, cats, min_sample=5).team_median["Backup"]["contacted"] is None  # só 2 elegíveis
+
+    snaps += _rep_snaps("rep-3", [S.CONTACTED] * 2 + [S.DETECTED] * 3)
+    cats = _cats(snaps, "Backup")
+    median_contacted = rep_category_reach(snaps, cats, min_sample=5).team_median["Backup"]["contacted"]
+    assert median_contacted == 0.4  # razões 1.0, 0.0, 0.4 -> mediana 0.4
+
+
+def test_rep_category_reach_insufficient_reps_do_not_count_toward_reference():
+    snaps = (
+        _rep_snaps("rep-1", [S.CONTACTED] * 5) + _rep_snaps("rep-2", [S.CONTACTED] * 5)
+        + _rep_snaps("rep-3", [S.DETECTED] * 2)  # insuficiente: fora da mediana e do mínimo de 3
+    )
+
+    result = rep_category_reach(snaps, _cats(snaps, "Backup"), min_sample=5)
+
+    assert result.team_median["Backup"]["contacted"] is None
+
+
+def test_rep_category_reach_unassigned_rep_is_counted_apart_never_a_fake_rep():
+    snaps = _rep_snaps("rep-1", [S.DETECTED] * 5) + [
+        _snap(opportunity_id="x1", rep_id=None, stage=S.QUALIFIED),
+        _snap(opportunity_id="x2", rep_id=None, stage=S.DISMISSED),  # dismissed sem rep nem conta
+    ]
+
+    result = rep_category_reach(snaps, _cats(snaps, "Backup"), min_sample=5)
+
+    assert result.unassigned_count == 1
+    assert {c.rep_id for c in result.cells} == {"rep-1"}
+
+
+def test_rep_category_reach_pairs_are_separated_and_ordered_alphabetically_not_by_performance():
+    snaps = _rep_snaps("rep-b", [S.OPPORTUNITY] * 5, prefix="b1") + _rep_snaps("rep-a", [S.DETECTED] * 5, prefix="a1")
+    cats = {s.opportunity_id: "Backup" for s in snaps}
+    snaps2 = _rep_snaps("rep-a", [S.DETECTED] * 5, prefix="a2")
+    cats.update({s.opportunity_id: "Cloud" for s in snaps2})
+
+    result = rep_category_reach(snaps + snaps2, cats, min_sample=5)
+
+    assert [(c.rep_id, c.category) for c in result.cells] == [("rep-a", "Backup"), ("rep-a", "Cloud"), ("rep-b", "Backup")]
+
+
+def test_rep_category_reach_empty_snapshot_is_empty_result():
+    result = rep_category_reach([], {}, min_sample=5)
+    assert result.cells == [] and result.team_median == {} and result.unassigned_count == 0
 
 
 if __name__ == "__main__":
