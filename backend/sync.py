@@ -16,12 +16,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from backend.settings import SOURCES, SourceDescriptor
 from core.field_mapping import split_custom_fields
 from core.models import Company
-from core.normalization import dedup_key, merge_companies, merge_pair
+from core.normalization import (
+    ConflictProposal, FieldChange, dedup_key, merge_companies, reconcile, with_field_sources,
+)
 from core.opportunity_engine import evaluate_rules
 from core.repository import (
     apply_field_mapping_updates, get_portfolio_by_company, list_active_rules, list_companies,
     list_company_signals, list_field_mappings, list_products, list_services, recompute_daily_snapshot,
-    save_company, save_contact, save_opportunity,
+    record_reconciliation, rejected_conflict_keys, save_company, save_contact, save_opportunity,
 )
 from providers.base import DataProvider, ProviderError
 
@@ -56,18 +58,30 @@ async def sync_source(
 
     async with session_factory() as session:
         existing_by_key = {dedup_key(c): c for c in await list_companies(session)}
+        rejected_by_company = await rejected_conflict_keys(session)
 
     # native_id (o que o provider reconhece, ex.: Salesforce Account Id) ->
     # Company final a persistir (id existente reconciliado, se já havia
     # empresa igual de outra fonte — senão o próprio id nativo).
     to_persist: dict[str, Company] = {}
+    reconciliations: dict[str, tuple[list[FieldChange], list[ConflictProposal]]] = {}
     for company in fetched:
         match = existing_by_key.get(dedup_key(company))
-        to_persist[company.id] = merge_pair(match, company) if match else company
+        if match is None:
+            to_persist[company.id] = with_field_sources(company, source.id)
+            continue
+        # Fase N: valor da mesma fonte atualiza (e é auditado); valor de OUTRA fonte que difere
+        # abre conflito em vez de vencer em silêncio.
+        result = reconcile(match, company, source.id, rejected_by_company.get(match.id, frozenset()))
+        to_persist[company.id] = result.company
+        reconciliations[result.company.id] = (result.changes, result.conflicts)
 
     async with session_factory() as session:
         for final in to_persist.values():
             await save_company(session, final)
+            changes, conflicts = reconciliations.get(final.id, ([], []))
+            if changes or conflicts:
+                await record_reconciliation(session, final.id, changes, conflicts, source.id)
 
     errors: list[str] = []
     contacts_synced = 0

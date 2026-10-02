@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlparse
 
-from core.models import Company, SourceRef
+from core.models import Address, Company, SourceRef
 
 # Sufixos jurídicos comuns no cadastro de empresa que não mudam a identidade
 # real ("Acme Ltda" e "Acme S.A." são a mesma empresa) — só usados aqui pra
@@ -158,3 +160,120 @@ def merge_companies(companies: list[Company]) -> list[Company]:
         else:
             merged[key] = company
     return list(merged.values())
+
+
+# ── Fase N — reconciliação com a empresa já gravada ──────────────────────────
+# `merge_pair` continua como está (também é usado DENTRO da mesma fonte, onde abriria
+# falsos conflitos). `reconcile` é chamada só onde já existe empresa persistida.
+
+RECONCILED_FIELDS = (
+    "legal_name", "website", "industry", "address", "annual_revenue", "employee_count", "customer_status",
+)
+LEGACY_SOURCE = "legacy"
+
+
+@dataclass(frozen=True)
+class FieldChange:
+    field: str
+    old: Any
+    new: Any
+
+
+@dataclass(frozen=True)
+class ConflictProposal:
+    field: str
+    current_value: Any
+    current_source: str
+    incoming_value: Any
+    incoming_source: str
+
+
+@dataclass(frozen=True)
+class ReconcileResult:
+    company: Company
+    changes: list[FieldChange]
+    conflicts: list[ConflictProposal]
+
+
+def _fold(text: str) -> str:
+    """Caixa, acento, pontuação e espaços — sem remover sufixo jurídico (diferente de `normalize_name`)."""
+    folded = unicodedata.normalize("NFKD", text.strip().lower())
+    folded = "".join(c for c in folded if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", folded)).strip()
+
+
+def comparable(field: str, value: Any) -> str | None:
+    """Forma comparável do valor (ignora formatação); `None` = ausência (nunca discorda)."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        value = Address(**value)
+    if isinstance(value, Address):
+        parts = [_fold(p) for p in (value.city, value.state, value.postal_code, value.country) if p]
+        return "|".join(parts) or None
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        return str(float(value))  # 0 é valor real
+    text = str(value)
+    if field == "website":
+        return normalize_domain(text) or None
+    return _fold(text) or None
+
+
+def effective_field_source(company: Company, field: str) -> str:
+    recorded = company.field_sources.get(field)
+    if recorded:
+        return recorded
+    return company.sources[0].type if len(company.sources) == 1 else LEGACY_SOURCE
+
+
+def with_field_sources(company: Company, source_type: str) -> Company:
+    """Empresa NOVA: registra a fonte de cada campo reconciliável já preenchido. Sem isso, quando
+    uma segunda fonte entrar em `sources` o dono do campo viraria "legacy" (ambíguo)."""
+    sources = {
+        f: source_type for f in RECONCILED_FIELDS
+        if comparable(f, getattr(company, f)) is not None and f not in company.field_sources
+    }
+    return company.model_copy(update={"field_sources": {**company.field_sources, **sources}}) if sources else company
+
+
+def reconcile(
+    persisted: Company, fetched: Company, source_type: str,
+    rejected: frozenset[tuple[str, str, str]] = frozenset(),
+) -> ReconcileResult:
+    """Reconcilia o que a fonte `source_type` trouxe com a empresa já gravada.
+    - campo vazio no gravado: preenche (não é sobrescrita);
+    - mesma fonte que gravou o campo, valor diferente: ATUALIZA e devolve a mudança (vai pra auditoria);
+    - outra fonte, valor diferente: abre CONFLITO e mantém o valor atual;
+    - valor ausente na fonte nunca apaga nem discorda; `mapping` (escolha explícita do usuário) nunca
+      é contestado pela fonte padrão; um par (campo, fonte, valor) já rejeitado numa resolução não reabre.
+    O resto da empresa (is_customer, last_activity_at, sources…) segue `merge_pair`."""
+    base = merge_pair(persisted, fetched)
+    updates: dict[str, Any] = {}
+    sources = dict(persisted.field_sources)
+    changes: list[FieldChange] = []
+    conflicts: list[ConflictProposal] = []
+    for field in RECONCILED_FIELDS:
+        current, incoming = getattr(persisted, field), getattr(fetched, field)
+        current_key, incoming_key = comparable(field, current), comparable(field, incoming)
+        if current_key is not None and field not in sources:
+            # Fixa o dono AGORA: depois do merge `sources` ganha outra fonte e o dono derivado viraria "legacy".
+            sources[field] = effective_field_source(persisted, field)
+        if incoming_key is None or incoming_key == current_key:
+            continue
+        if current_key is None:
+            updates[field] = incoming
+            sources[field] = source_type
+            continue
+        owner = effective_field_source(persisted, field)
+        if owner == "mapping":
+            continue
+        if owner == source_type:
+            updates[field] = incoming
+            sources[field] = source_type
+            changes.append(FieldChange(field, current, incoming))
+        elif (field, source_type, incoming_key) not in rejected:
+            conflicts.append(ConflictProposal(field, current, owner, incoming, source_type))
+    company = base.model_copy(update={**updates, "field_sources": sources})
+    return ReconcileResult(company=company, changes=changes, conflicts=conflicts)

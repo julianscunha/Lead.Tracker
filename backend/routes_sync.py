@@ -38,7 +38,7 @@ from core.models import (
     SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE, build_discovery_records, find_existing_match
-from core.normalization import dedup_key, merge_pair, normalize_website
+from core.normalization import dedup_key, normalize_website, reconcile, with_field_sources
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
@@ -55,7 +55,7 @@ from core.repository import (
     list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
     list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
     save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
-    lift_do_not_contact, list_audit_entries, list_do_not_contact, save_do_not_contact, update_opportunity_discovery,
+    lift_do_not_contact, list_audit_entries, list_do_not_contact, record_reconciliation, rejected_conflict_keys, save_do_not_contact, update_opportunity_discovery,
     update_opportunity_qualification, update_opportunity_status,
 )
 from backend.blocks import REASON_LABEL, block_error, find_block
@@ -944,6 +944,8 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             if o.type == GEO_DISCOVERY_OPPORTUNITY_TYPE and o.status != OpportunityStatus.DISMISSED
         }
         match_by_place_id: dict[str, Company] = {}
+        rejected_by_company = await rejected_conflict_keys(session)
+        reconciled: dict[str, tuple] = {}
         known: list[tuple[PlaceSignal, Company]] = []
         fresh_scored = []
         seen_keys: set[str] = set()
@@ -988,9 +990,15 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             match = match_by_place_id.get(signal.place_id)
             if match is not None:
                 # Empresa sem dono passa a ser do rep que a descobriu (a cota é contada por rep da empresa).
-                company = merge_pair(match, company).model_copy(update={"rep_id": match.rep_id or body.rep_id})
+                result = reconcile(match, company, "google_maps", rejected_by_company.get(match.id, frozenset()))
+                company = result.company.model_copy(update={"rep_id": match.rep_id or body.rep_id})
+                reconciled[match.id] = (result.changes, result.conflicts)
                 opportunity = opportunity.model_copy(update={"company_id": match.id})
+            else:
+                company = with_field_sources(company, "google_maps")
             await save_company(session, company)
+            if match is not None and any(reconciled[match.id]):
+                await record_reconciliation(session, match.id, *reconciled[match.id], "google_maps")
             await save_opportunity(session, opportunity)
             promoted_out.append(_item(signal, company_id=company.id, opportunity_id=opportunity.id))
 

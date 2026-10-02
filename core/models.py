@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from enum import Enum
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
@@ -93,6 +94,9 @@ class Company(BaseModel):
     annual_revenue: float | None = None
     employee_count: int | None = None
     address: Address | None = None
+    # Fase N — de que fonte veio cada campo reconciliável (campo -> tipo da fonte; "manual",
+    # "mapping" ou "legacy"). Vazio = derivado: empresa de uma fonte só -> essa fonte; várias -> "legacy".
+    field_sources: dict[str, str] = Field(default_factory=dict)
     # Fase F, módulo 4 (`mapping-driven-context-split`) — único papel
     # semântico sem campo estrutural pré-existente; criado especificamente
     # pra ter destino (Salesforce Architect consultado: sem isso, mapear um
@@ -361,6 +365,30 @@ class OutreachTouch(BaseModel):
     # Fase L: toque registrado MESMO com alvo bloqueado (o rep confirmou
     # explicitamente) — fato consumado nunca é recusado, só marcado pra auditoria.
     block_acknowledged: bool = False
+
+
+class FieldConflictCandidate(BaseModel):
+    """Um valor candidato de um campo em conflito, com a fonte que o trouxe. `value` é JSON
+    (texto, número ou o dict de um endereço)."""
+    source: str
+    value: Any = None
+    seen_at: datetime = Field(default_factory=_now)
+
+
+class FieldConflict(BaseModel):
+    """Fase N — duas fontes discordam de um campo da empresa. O valor atual continua valendo
+    até o usuário escolher. `rejected` lembra os pares (campo|fonte|valor comparável) recusados
+    numa resolução, pra o mesmo valor não reabrir o conflito a cada sync."""
+    id: str = Field(default_factory=_new_id)
+    company_id: str
+    field: str
+    candidates: list[FieldConflictCandidate] = Field(default_factory=list)
+    status: str = "open"  # open | resolved
+    resolved_value: Any = None
+    resolved_source: str | None = None
+    resolved_at: datetime | None = None
+    rejected: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_now)
 
 
 class AuditEntry(BaseModel):

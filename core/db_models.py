@@ -62,6 +62,7 @@ class CompanyORM(Base):
     employee_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     address: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     deal_size_hint: Mapped[float | None] = mapped_column(Float, nullable=True)
+    field_sources: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class ContactORM(Base):
@@ -156,6 +157,21 @@ class OutreachTouchORM(Base):
     reason_label: Mapped[str] = mapped_column(String)
     sent_at: Mapped[datetime] = mapped_column()
     block_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class FieldConflictORM(Base):
+    """Fase N — ver `core.models.FieldConflict`."""
+    __tablename__ = "field_conflicts"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    company_id: Mapped[str] = mapped_column(String, index=True)
+    field: Mapped[str] = mapped_column(String)
+    candidates: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String, index=True)
+    resolved_value: Mapped[dict | list | str | float | int | None] = mapped_column(JSON, nullable=True)
+    resolved_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    rejected: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column()
 
 
 class AuditLogORM(Base):

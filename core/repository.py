@@ -16,13 +16,14 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE
+from core.normalization import ConflictProposal, FieldChange, comparable
 from core.db_models import (
-    AuditLogORM, CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, DoNotContactORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
+    AuditLogORM, FieldConflictORM, CompanyORM, CompanySignalORM, ContactORM, CorrelationRuleORM, DoNotContactORM, FieldMappingORM, ICPProfileORM, OpportunityORM,
     OpportunitySnapshotORM, OpportunityStatusChangeORM, OutreachTouchORM, PortfolioORM, ProductORM, RepTargetORM,
     ServiceORM, VendorORM,
 )
 from core.models import (
-    Address, AuditEntry, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
+    Address, AuditEntry, FieldConflict, FieldConflictCandidate, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
     DiscoveryRequiredError, DismissalReasonRequiredError, DoNotContact, DoNotContactReason, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType, Portfolio, Product, ProductRelation,
     RepTarget, SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
@@ -189,6 +190,7 @@ def _company_from_row(row: CompanyORM) -> Company:
         renewal_date=_ensure_utc(row.renewal_date) if row.renewal_date else None,
         industry=row.industry, annual_revenue=row.annual_revenue, employee_count=row.employee_count,
         address=_address_from_json(row.address), deal_size_hint=row.deal_size_hint,
+        field_sources=dict(row.field_sources or {}),
     )
 
 
@@ -212,6 +214,7 @@ async def save_company(session: AsyncSession, company: Company) -> None:
         last_activity_at=company.last_activity_at,
         industry=company.industry, annual_revenue=company.annual_revenue, employee_count=company.employee_count,
         address=_address_to_json(company.address), deal_size_hint=company.deal_size_hint,
+        field_sources=company.field_sources or None,
     )
     stmt = sqlite_insert(CompanyORM).values(id=company.id, renewal_date=None, **engine_columns)
     stmt = stmt.on_conflict_do_update(index_elements=["id"], set_=engine_columns)
@@ -282,6 +285,104 @@ def _audit_marker(
         _audit(session, entity_type, entity_id, company_id, field, marker[0], marker[1], actor)
 
 
+# ── FieldConflict (Fase N) ───────────────────────────────────────────────────
+
+def _json_value(value):
+    """Valor de campo em JSON puro (endereço vira dict)."""
+    return value.model_dump() if isinstance(value, Address) else value
+
+
+def _typed_value(field: str, value):
+    return Address(**value) if field == "address" and isinstance(value, dict) else value
+
+
+def _conflict_from_row(r: FieldConflictORM) -> FieldConflict:
+    return FieldConflict(
+        id=r.id, company_id=r.company_id, field=r.field,
+        candidates=[FieldConflictCandidate(**c) for c in (r.candidates or [])], status=r.status,
+        resolved_value=r.resolved_value, resolved_source=r.resolved_source,
+        resolved_at=_ensure_utc(r.resolved_at) if r.resolved_at else None,
+        rejected=list(r.rejected or []), created_at=_ensure_utc(r.created_at),
+    )
+
+
+async def list_field_conflicts(session: AsyncSession, status: str = "open") -> list[FieldConflict]:
+    rows = (await session.execute(select(FieldConflictORM).where(FieldConflictORM.status == status))).scalars().all()
+    return sorted((_conflict_from_row(r) for r in rows), key=lambda c: c.created_at)
+
+
+async def rejected_conflict_keys(session: AsyncSession) -> dict[str, frozenset[tuple[str, str, str]]]:
+    """company_id -> {(campo, fonte, valor comparável)} já recusados em resoluções (Fase N)."""
+    rows = (await session.execute(select(FieldConflictORM).where(FieldConflictORM.status == "resolved"))).scalars().all()
+    out: dict[str, set[tuple[str, str, str]]] = {}
+    for r in rows:
+        for key in r.rejected or []:
+            field, source, value_key = key.split("|", 2)
+            out.setdefault(r.company_id, set()).add((field, source, value_key))
+    return {company_id: frozenset(keys) for company_id, keys in out.items()}
+
+
+async def record_reconciliation(
+    session: AsyncSession, company_id: str, changes: list[FieldChange], conflicts: list[ConflictProposal],
+    source_type: str,
+) -> None:
+    """Depois do `save_company`: audita a atualização feita pela mesma fonte (`sync:<fonte>`) e abre
+    (ou atualiza) um conflito por campo, sem duplicar. Um commit só."""
+    for change in changes:
+        _audit(session, "company", company_id, company_id, change.field, change.old, change.new, f"sync:{source_type}")
+    now = datetime.now(timezone.utc)
+    for proposal in conflicts:
+        existing = (await session.execute(select(FieldConflictORM).where(
+            FieldConflictORM.company_id == company_id, FieldConflictORM.field == proposal.field,
+            FieldConflictORM.status == "open",
+        ))).scalars().first()
+        current = FieldConflictCandidate(source=proposal.current_source, value=_json_value(proposal.current_value), seen_at=now)
+        incoming = FieldConflictCandidate(source=proposal.incoming_source, value=_json_value(proposal.incoming_value), seen_at=now)
+        if existing is None:
+            session.add(FieldConflictORM(
+                id=FieldConflict(company_id=company_id, field=proposal.field).id, company_id=company_id,
+                field=proposal.field, candidates=[current.model_dump(mode="json"), incoming.model_dump(mode="json")],
+                status="open", resolved_value=None, rejected=[], created_at=now,
+            ))
+            continue
+        kept = [c for c in (existing.candidates or []) if c.get("source") not in (current.source, incoming.source)]
+        existing.candidates = [*kept, current.model_dump(mode="json"), incoming.model_dump(mode="json")]
+    await session.commit()
+
+
+async def resolve_field_conflict(
+    session: AsyncSession, conflict_id: str, chosen_source: str, actor: str | None = None,
+) -> FieldConflict | None:
+    """Aplica o valor da fonte escolhida: grava no campo, passa a fonte a dona do campo, audita
+    (R3) e guarda os pares recusados (não reabrem). `None` se o conflito não existe/já foi resolvido
+    ou a fonte não é candidata (rota decide a mensagem)."""
+    row = await session.get(FieldConflictORM, conflict_id)
+    if row is None or row.status != "open":
+        return None
+    chosen = next((c for c in (row.candidates or []) if c.get("source") == chosen_source), None)
+    company = await session.get(CompanyORM, row.company_id)
+    if chosen is None or company is None:
+        return None
+    new_value = chosen.get("value")
+    old_value = getattr(company, row.field)
+    if comparable(row.field, old_value) != comparable(row.field, new_value):
+        _audit(session, "company", company.id, company.id, row.field, old_value, new_value, actor)
+        setattr(company, row.field, new_value)
+    company.field_sources = {**(company.field_sources or {}), row.field: chosen_source}
+    row.rejected = [
+        f"{row.field}|{c['source']}|{comparable(row.field, _typed_value(row.field, c.get('value')))}"
+        for c in (row.candidates or [])
+        if c.get("source") != chosen_source and comparable(row.field, _typed_value(row.field, c.get("value"))) is not None
+    ]
+    row.status = "resolved"
+    row.resolved_value = new_value
+    row.resolved_source = chosen_source
+    row.resolved_at = datetime.now(timezone.utc)
+    await session.commit()
+    await session.refresh(row)
+    return _conflict_from_row(row)
+
+
 async def list_audit_entries(
     session: AsyncSession, *, company_id: str | None = None, entity_type: str | None = None,
     entity_id: str | None = None,
@@ -339,6 +440,8 @@ async def apply_field_mapping_updates(session: AsyncSession, company_id: str, up
         # Escrita automática do sync: sem isso o renewal_date mudaria sem rastro (Fase M).
         _audit(session, "company", company_id, company_id, column, getattr(row, column, None), value, "sync")
         setattr(row, column, value)
+    # Escolha explícita do usuário de uma fonte externa como verdade pro campo (Fase N).
+    row.field_sources = {**(row.field_sources or {}), **{column: "mapping" for column in updates}}
     await session.commit()
 
 
