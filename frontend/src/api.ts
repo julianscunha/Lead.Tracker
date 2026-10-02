@@ -319,6 +319,12 @@ interface OpportunityApiRow {
   qbr_reason: string
   dismissal_reason: OpportunityRow['dismissalReason']
   discovery_prompt?: string | null
+  root_cause_stated?: string | null
+  trigger_event?: string | null
+  champion_stake?: string | null
+  discovery_skipped?: boolean
+  discovery_skip_reason?: string | null
+  discovery_pending?: boolean
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -362,6 +368,12 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     qbrReason: r.qbr_reason,
     dismissalReason: r.dismissal_reason,
     discoveryPrompt: r.discovery_prompt ?? null,
+    rootCauseStated: r.root_cause_stated ?? null,
+    triggerEvent: r.trigger_event ?? null,
+    championStake: r.champion_stake ?? null,
+    discoverySkipped: r.discovery_skipped ?? false,
+    discoverySkipReason: r.discovery_skip_reason ?? null,
+    discoveryPending: r.discovery_pending ?? false,
   }
 }
 
@@ -395,11 +407,30 @@ export async function updateOpportunityStatus(
   newStatus: OpportunityRow['status'],
   note: string | null,
   dismissalReason: OpportunityRow['dismissalReason'] = null,
+  skipDiscoveryReason: string | null = null,
 ): Promise<OpportunityRow> {
   const resp = await fetch(`${BASE}/opportunities/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_status: newStatus, note, dismissal_reason: dismissalReason }),
+    body: JSON.stringify({ new_status: newStatus, note, dismissal_reason: dismissalReason, skip_discovery_reason: skipDiscoveryReason }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  const data: OpportunityApiRow = await resp.json()
+  return fromApiRow(data)
+}
+
+export async function updateOpportunityDiscovery(
+  id: string,
+  discovery: { rootCauseStated: string; triggerEvent: string; championStake: string },
+): Promise<OpportunityRow> {
+  const resp = await fetch(`${BASE}/opportunities/${id}/discovery`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      root_cause_stated: discovery.rootCauseStated,
+      trigger_event: discovery.triggerEvent,
+      champion_stake: discovery.championStake,
+    }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
   const data: OpportunityApiRow = await resp.json()

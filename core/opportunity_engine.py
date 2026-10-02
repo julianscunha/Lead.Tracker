@@ -15,6 +15,7 @@ daqui pra quem já importava deste módulo continuar funcionando.
 """
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
@@ -144,6 +145,42 @@ def parse_rep_category_min_sample(env: dict[str, str]) -> int:
     except ValueError:
         return _REP_CATEGORY_MIN_SAMPLE_DEFAULT
     return n if n > 0 else _REP_CATEGORY_MIN_SAMPLE_DEFAULT
+
+
+# Fase J — gate de discovery completa. Validador deliberadamente burro (sem IA,
+# sem checagem semântica): só barra o preenchimento-lixo óbvio. Qualidade real
+# é coaching, não validador. Blocklist genérica — nenhum termo de vendor/negócio.
+DISCOVERY_GATE_ENV_KEY = "DISCOVERY_GATE_ENABLED"
+_DISCOVERY_MIN_CHARS = 15
+_DISCOVERY_MIN_WORDS = 3
+_DISCOVERY_BLOCKLIST = {"na", "nao sei", "tbd", "teste", "xxx", "sem info", "depois vejo", "nada"}
+
+
+def parse_discovery_gate_enabled(env: dict[str, str]) -> bool:
+    """Ausente/vazio/inválido = ligado (padrão seguro); só "false"/"0"/"off" desliga."""
+    return env.get(DISCOVERY_GATE_ENV_KEY, "").strip().lower() not in ("false", "0", "off")
+
+
+def is_valid_discovery_text(text: str | None) -> bool:
+    cleaned = (text or "").strip()
+    if len(cleaned) < _DISCOVERY_MIN_CHARS or len(cleaned.split()) < _DISCOVERY_MIN_WORDS:
+        return False
+    folded = "".join(
+        c for c in unicodedata.normalize("NFKD", cleaned.lower()) if c.isalnum() or c.isspace()
+    ).strip()
+    return folded not in _DISCOVERY_BLOCKLIST and len(set(folded.replace(" ", ""))) > 1
+
+
+def is_discovery_complete(root_cause: str | None, trigger: str | None, stake: str | None) -> bool:
+    return all(is_valid_discovery_text(t) for t in (root_cause, trigger, stake))
+
+
+def requires_discovery_gate(old_status: str, new_status: str) -> bool:
+    """Sair de `detected` (ou reabrir um `dismissed`) pra qualquer estágio de
+    avanço exige discovery (ou skip justificado). Cobre `detected→contacted`
+    e `detected→dismissed→qualified`, que de outro modo contornariam o gate.
+    Descartar nunca é gateado."""
+    return old_status in ("detected", "dismissed") and new_status in _STAGE_ORDER and new_status != "detected"
 
 
 def is_aging_opportunity(status: str, first_detected_at: datetime, now: datetime, sla_days: int) -> bool:
@@ -436,7 +473,8 @@ __all__ = [
     "ThreadingRiskSignal", "compute_account_health", "compute_next_suggested_touch", "compute_qbr_suggested_days",
     "compute_severity_band", "compute_silence_signal", "compute_threading_risk_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
-    "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "parse_rep_category_min_sample", "rep_target_id",
+    "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "DISCOVERY_GATE_ENV_KEY", "parse_discovery_gate_enabled",
+    "is_valid_discovery_text", "is_discovery_complete", "requires_discovery_gate", "parse_rep_category_min_sample", "rep_target_id",
     "requires_status_change_justification",
 ]
 

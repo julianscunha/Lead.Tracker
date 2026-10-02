@@ -32,7 +32,7 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    Company, CorrelationRule, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
+    Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
     StatusChangeRequiresJustificationError, Vendor,
 )
@@ -43,7 +43,7 @@ from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     CADENCE_DAILY_CAP_REACHED, CadenceSuggestion, compute_account_health, compute_next_suggested_touch,
     compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, compute_threading_risk_signal,
-    current_period_key, is_aging_opportunity, parse_aging_sla_days, parse_rep_category_min_sample, rep_target_id,
+    current_period_key, is_aging_opportunity, is_discovery_complete, parse_aging_sla_days, parse_discovery_gate_enabled, parse_rep_category_min_sample, rep_target_id,
 )
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, delete_product, delete_rule, delete_service,
@@ -51,7 +51,7 @@ from core.repository import (
     list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
     list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
     save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
-    update_opportunity_qualification, update_opportunity_status,
+    update_opportunity_discovery, update_opportunity_qualification, update_opportunity_status,
 )
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
@@ -97,6 +97,18 @@ class OpportunityOut(BaseModel):
     is_aging: bool
     dismissal_reason: str | None
     discovery_prompt: str | None = None
+    root_cause_stated: str | None = None
+    trigger_event: str | None = None
+    champion_stake: str | None = None
+    discovery_skipped: bool = False
+    discovery_skip_reason: str | None = None
+    discovery_pending: bool = False
+
+
+class OpportunityDiscoveryIn(BaseModel):
+    root_cause_stated: str | None = Field(default=None, max_length=2000)
+    trigger_event: str | None = Field(default=None, max_length=2000)
+    champion_stake: str | None = Field(default=None, max_length=2000)
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -117,6 +129,7 @@ class OpportunityStatusIn(BaseModel):
     new_status: Literal["detected", "qualified", "reviewed", "contacted", "opportunity", "dismissed"]
     note: str | None = None
     dismissal_reason: Literal["no_evidence", "not_fit", "not_qualified", "false_positive", "other"] | None = None
+    skip_discovery_reason: str | None = None
 
 
 _PERIOD_KEY_PATTERN = {"monthly": re.compile(r"^\d{4}-\d{2}$"), "quarterly": re.compile(r"^\d{4}-Q[1-4]$")}
@@ -309,6 +322,12 @@ def _to_opportunity_out(
         is_aging=is_aging_opportunity(o.status.value, o.first_detected_at, datetime.now(timezone.utc), aging_sla_days),
         dismissal_reason=o.dismissal_reason.value if o.dismissal_reason else None,
         discovery_prompt=o.discovery_prompt,
+        root_cause_stated=o.root_cause_stated, trigger_event=o.trigger_event,
+        champion_stake=o.champion_stake, discovery_skipped=o.discovery_skipped,
+        discovery_skip_reason=o.discovery_skip_reason,
+        # Selo informativo (nunca bloqueio): já passou de `detected` sem discovery completa nem skip.
+        discovery_pending=o.status.value not in ("detected", "dismissed") and not o.discovery_skipped
+        and not is_discovery_complete(o.root_cause_stated, o.trigger_event, o.champion_stake),
     )
 
 
@@ -342,6 +361,23 @@ async def update_opportunity_qualification_route(opportunity_id: str, body: Oppo
     return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
 
 
+@router.patch("/opportunities/{opportunity_id}/discovery")
+async def update_opportunity_discovery_route(opportunity_id: str, body: OpportunityDiscoveryIn) -> OpportunityOut:
+    aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
+    async with session_factory() as session:
+        updated = await update_opportunity_discovery(
+            session, opportunity_id, body.root_cause_stated, body.trigger_event, body.champion_stake,
+        )
+        if updated is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        companies = {c.id: c for c in await list_companies(session)}
+        products = {p.id: p.name for p in await list_products(session)}
+        services = {s.id: s.name for s in await list_services(session)}
+        health_map = await _account_health_map(session, [updated], companies)
+
+    return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
+
+
 @router.patch("/opportunities/{opportunity_id}/status")
 async def update_opportunity_status_route(opportunity_id: str, body: OpportunityStatusIn) -> OpportunityOut:
     aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
@@ -350,7 +386,14 @@ async def update_opportunity_status_route(opportunity_id: str, body: Opportunity
         try:
             updated = await update_opportunity_status(
                 session, opportunity_id, OpportunityStatus(body.new_status), body.note, dismissal_reason,
+                body.skip_discovery_reason, parse_discovery_gate_enabled(load_env(routes_settings._ENV_PATH)),
             )
+        except DiscoveryRequiredError:
+            raise_http(DomainError(
+                ErrorCategory.INVALID_DATA,
+                "Antes de qualificar, preencha a discovery (causa, gatilho e interesse do contato) "
+                "ou use \"Qualificar sem discovery\" com uma justificativa.",
+            ))
         except StatusChangeRequiresJustificationError:
             raise_http(DomainError(
                 ErrorCategory.INVALID_DATA,

@@ -22,11 +22,13 @@ from core.db_models import (
 )
 from core.models import (
     Address, Company, CompanySignal, ContextNote, Contact, CorrelationRule, DismissalReason,
-    DismissalReasonRequiredError, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
+    DiscoveryRequiredError, DismissalReasonRequiredError, FieldMapping, ICPProfile, Opportunity, OpportunitySnapshot,
     OpportunityStatus, OpportunityStatusChange, OutreachTouch, PeriodType, Portfolio, Product, ProductRelation,
     RepTarget, SemanticFieldRole, Service, SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
-from core.opportunity_engine import is_zombie_opportunity, requires_status_change_justification
+from core.opportunity_engine import (
+    is_discovery_complete, is_valid_discovery_text, is_zombie_opportunity, requires_discovery_gate, requires_status_change_justification,
+)
 
 
 def _sources_to_json(sources: list[SourceRef]) -> list[dict]:
@@ -337,6 +339,10 @@ def _opportunity_from_row(row: OpportunityORM) -> Opportunity:
         first_detected_at=_ensure_utc(row.first_detected_at),
         scope_note=row.scope_note, criticality=row.criticality, severity_note=row.severity_note,
         dismissal_reason=DismissalReason(row.dismissal_reason) if row.dismissal_reason else None,
+        root_cause_stated=row.root_cause_stated, trigger_event=row.trigger_event,
+        champion_stake=row.champion_stake, discovery_skipped=bool(row.discovery_skipped),
+        discovery_skip_reason=row.discovery_skip_reason,
+        discovery_edited_at=_ensure_utc(row.discovery_edited_at) if row.discovery_edited_at else None,
     )
 
 
@@ -402,6 +408,25 @@ async def update_opportunity_qualification(
     row.scope_note = scope_note
     row.criticality = criticality
     row.severity_note = severity_note
+    await session.commit()
+    return _opportunity_from_row(row)
+
+
+async def update_opportunity_discovery(
+    session: AsyncSession, opportunity_id: str,
+    root_cause_stated: str | None, trigger_event: str | None, champion_stake: str | None,
+) -> Opportunity | None:
+    """Único caminho de escrita dos 3 campos de discovery (Fase J) — manual,
+    nunca tocado por `save_opportunity` (motor). Substituição completa, como
+    `update_opportunity_qualification`. Não valida o conteúdo: o gate valida
+    na saída de `detected`; aqui o rascunho parcial é permitido."""
+    row = await session.get(OpportunityORM, opportunity_id)
+    if row is None:
+        return None
+    row.root_cause_stated = (root_cause_stated or "").strip() or None
+    row.trigger_event = (trigger_event or "").strip() or None
+    row.champion_stake = (champion_stake or "").strip() or None
+    row.discovery_edited_at = datetime.now(timezone.utc)
     await session.commit()
     return _opportunity_from_row(row)
 
@@ -530,6 +555,9 @@ async def count_outreach_touches_today(session: AsyncSession, rep_id: str, today
 async def update_opportunity_status(
     session: AsyncSession, opportunity_id: str, new_status: OpportunityStatus, note: str | None = None,
     dismissal_reason: DismissalReason | None = None,
+    # Gate off por padrão aqui: o único chamador de produção (a rota) sempre passa o valor
+    # de Configurações (padrão ligado). Evita acoplar o repositório a `.env`.
+    skip_discovery_reason: str | None = None, discovery_gate_enabled: bool = False,
 ) -> Opportunity | None:
     """Único caminho de escrita de `status` após a criação — o motor
     (`save_opportunity`) nunca mais toca essa coluna depois do INSERT
@@ -567,6 +595,14 @@ async def update_opportunity_status(
         raise StatusChangeRequiresJustificationError()
     if new_status == OpportunityStatus.DISMISSED and dismissal_reason is None:
         raise DismissalReasonRequiredError()
+    if discovery_gate_enabled and requires_discovery_gate(row.status, new_status.value):
+        if not is_discovery_complete(row.root_cause_stated, row.trigger_event, row.champion_stake):
+            # Skip já registrado antes (ex.: reabertura de descartada) continua valendo.
+            if is_valid_discovery_text(skip_discovery_reason):
+                row.discovery_skipped = True
+                row.discovery_skip_reason = skip_discovery_reason.strip()
+            elif not row.discovery_skipped:
+                raise DiscoveryRequiredError()
     row.status = new_status.value
     row.dismissal_reason = dismissal_reason.value if new_status == OpportunityStatus.DISMISSED else None
     change = OpportunityStatusChange(

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   exportBusinessCase, generateEmailDraft, getAiConfig, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
-  updateOpportunityQualification, updateOpportunityStatus,
+  updateOpportunityDiscovery, updateOpportunityQualification, updateOpportunityStatus,
   type CompanyContact, type EmailDraft, type NextSuggestedTouch,
 } from './api'
 import { canExportBusinessCase, proseSourceMessage } from './businessCase'
@@ -78,22 +78,26 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
   const [pendingStatus, setPendingStatus] = useState<OpportunityRow['status'] | null>(null)
   const [note, setNote] = useState('')
   const [dismissalReason, setDismissalReason] = useState<DismissalReason | ''>('')
+  const [skipReason, setSkipReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Sair de "detectada" exige discovery preenchida (acima) ou justificativa pra seguir sem ela — o backend decide.
+  const leavingDetected = row.status === 'detected' && pendingStatus !== null && pendingStatus !== 'dismissed'
   const needsNote = pendingStatus !== null && statusChangeNeedsJustification(row.status, pendingStatus)
   const needsDismissalReason = pendingStatus === 'dismissed'
-  const needsConfirm = needsNote || needsDismissalReason
+  const needsConfirm = needsNote || needsDismissalReason || leavingDetected
 
   const submit = async (value: OpportunityRow['status'], noteValue: string | null, reasonValue: DismissalReason | null) => {
     setSaving(true)
     setSaveError(null)
     try {
-      const updated = await updateOpportunityStatus(row.id, value, noteValue, reasonValue)
+      const updated = await updateOpportunityStatus(row.id, value, noteValue, reasonValue, skipReason.trim() || null)
       onUpdated(updated)
       setPendingStatus(null)
       setNote('')
       setDismissalReason('')
+      setSkipReason('')
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Falha ao mudar o status.')
     } finally {
@@ -108,7 +112,7 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
       return
     }
     setPendingStatus(value)
-    if (value !== 'dismissed' && !statusChangeNeedsJustification(row.status, value)) void submit(value, null, null)
+    if (value !== 'dismissed' && row.status !== 'detected' && !statusChangeNeedsJustification(row.status, value)) void submit(value, null, null)
   }
 
   return (
@@ -140,6 +144,13 @@ function StatusTransition({ row, onUpdated }: { row: OpportunityRow; onUpdated: 
           <span>Justificativa (pulou etapas ou reabriu uma oportunidade descartada)</span>
           <textarea value={note} onChange={e => setNote(e.target.value)} />
           <span className="lt-hint">Explica por que a mudança fugiu do fluxo normal — fica registrada no histórico.</span>
+        </label>
+      )}
+      {leavingDetected && (
+        <label className="lt-field">
+          <span>Qualificar sem discovery (opcional)</span>
+          <textarea value={skipReason} onChange={e => setSkipReason(e.target.value)} />
+          <span className="lt-hint">Só se não der pra preencher a discovery acima — a justificativa fica registrada e a oportunidade aparece como "sem discovery".</span>
         </label>
       )}
       {needsConfirm && (
@@ -195,6 +206,47 @@ function SortHeader({ label, sortKey, current, direction, onSort }: {
         {label}{active ? (direction === 'asc' ? ' ▲' : ' ▼') : ''}
       </button>
     </th>
+  )
+}
+
+const DISCOVERY_FIELDS = [
+  { key: 'rootCauseStated', label: 'Por que isso acontece hoje?', help: "Com as palavras do cliente. Não o sintoma ('é lento'), mas a causa ('a plataforma não escala')." },
+  { key: 'triggerEvent', label: 'Por que agora?', help: 'O que mudou que torna isto prioridade neste trimestre? Auditoria, contrato vencendo, incidente, crescimento.' },
+  { key: 'championStake', label: 'O que o seu contato ganha ou perde com isso?', help: 'O que está em jogo para essa pessoa: uma meta, uma apresentação, a reputação dela?' },
+] as const
+
+function DiscoveryFields({ row, onUpdated }: { row: OpportunityRow; onUpdated: (updated: OpportunityRow) => void }) {
+  const [values, setValues] = useState({
+    rootCauseStated: row.rootCauseStated ?? '', triggerEvent: row.triggerEvent ?? '', championStake: row.championStake ?? '',
+  })
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const save = async () => {
+    setSaveError(null)
+    try {
+      onUpdated(await updateOpportunityDiscovery(row.id, values))
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Falha ao salvar a discovery.')
+    }
+  }
+
+  return (
+    <div className="lt-severity">
+      {row.discoveryPending && <p className="lt-hint">Discovery pendente — esta oportunidade avançou sem os 3 campos abaixo.</p>}
+      {row.discoverySkipped && <p className="lt-hint">Qualificada sem discovery: {row.discoverySkipReason}</p>}
+      {DISCOVERY_FIELDS.map(f => (
+        <label key={f.key} className="lt-field">
+          <span>{f.label}</span>
+          <textarea
+            value={values[f.key]}
+            onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+            onBlur={save}
+          />
+          <span className="lt-hint">{f.help}</span>
+        </label>
+      ))}
+      {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
+    </div>
   )
 }
 
@@ -647,6 +699,7 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
           {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
         </dl>
+        <DiscoveryFields row={row} onUpdated={onRowUpdated} />
         <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
         <SeverityQualification row={row} onUpdated={onRowUpdated} />

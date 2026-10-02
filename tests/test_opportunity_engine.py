@@ -538,3 +538,26 @@ if __name__ == "__main__":
     test_rep_target_id_is_deterministic_for_same_rep_period()
     test_rep_target_id_differs_for_different_periods()
     print("OK — todos os testes do motor de oportunidades passaram")
+
+
+def test_is_valid_discovery_text_rejects_filler_and_accepts_real_sentence():
+    from core.opportunity_engine import is_valid_discovery_text
+    for bad in (None, "", "n/a", "não sei", "aaaaaaaaaaaaaaaa", "curto demais", "depois vejo isso aí"[:10], "xxx xxx xxx xxx xxx"):
+        assert is_valid_discovery_text(bad) is False, bad
+    assert is_valid_discovery_text("A plataforma atual não escala no fechamento do mês") is True
+
+
+def test_requires_discovery_gate_only_when_leaving_detected_forward():
+    from core.opportunity_engine import requires_discovery_gate
+    assert requires_discovery_gate("detected", "qualified") is True
+    assert requires_discovery_gate("detected", "contacted") is True
+    assert requires_discovery_gate("detected", "dismissed") is False
+    assert requires_discovery_gate("qualified", "reviewed") is False
+    assert requires_discovery_gate("qualified", "detected") is False
+
+
+def test_parse_discovery_gate_enabled_defaults_on():
+    from core.opportunity_engine import parse_discovery_gate_enabled
+    assert parse_discovery_gate_enabled({}) is True
+    assert parse_discovery_gate_enabled({"DISCOVERY_GATE_ENABLED": "false"}) is False
+    assert parse_discovery_gate_enabled({"DISCOVERY_GATE_ENABLED": "lixo"}) is True

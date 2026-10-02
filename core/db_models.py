@@ -103,6 +103,12 @@ class OpportunityORM(Base):
     criticality: Mapped[str | None] = mapped_column(String, nullable=True)
     severity_note: Mapped[str | None] = mapped_column(String, nullable=True)
     dismissal_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    root_cause_stated: Mapped[str | None] = mapped_column(String, nullable=True)
+    trigger_event: Mapped[str | None] = mapped_column(String, nullable=True)
+    champion_stake: Mapped[str | None] = mapped_column(String, nullable=True)
+    discovery_skipped: Mapped[bool] = mapped_column(Boolean, default=False)
+    discovery_skip_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    discovery_edited_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class PortfolioORM(Base):

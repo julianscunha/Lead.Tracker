@@ -47,7 +47,8 @@ class _TempDb:
         routes_csv_import.session_factory = self.session_factory
 
         env_path = tmp_path / ".env"
-        env_path.write_text("APP_ENV=local\n", encoding="utf-8")
+        # Gate de discovery desligado por padrão nos testes legados de status; os da Fase J ligam explicitamente.
+        env_path.write_text("APP_ENV=local\nDISCOVERY_GATE_ENABLED=false\n", encoding="utf-8")
         routes_settings._ENV_PATH = env_path
         self.env_path = env_path
         return self
@@ -1649,3 +1650,84 @@ if __name__ == "__main__":
     test_get_next_suggested_touch_last_contact_id_reflects_true_most_recent_touch()
     test_get_next_suggested_touch_no_threading_risk_when_contact_id_never_set()
     print("OK — todos os testes HTTP de dado real passaram")
+
+
+def _seed_discovery_opportunity(db):
+    import asyncio
+    company = Company(name="Aurora Sistemas")
+    opportunity = Opportunity(company_id=company.id, type="cross-sell", sources=[SourceRef(type="rule_engine")])
+
+    async def seed():
+        async with db.session_factory() as session:
+            await save_company(session, company)
+            await save_opportunity(session, opportunity)
+    asyncio.run(seed())
+    db.env_path.write_text("APP_ENV=local\n", encoding="utf-8")  # gate ligado (padrão)
+    return opportunity
+
+
+def test_discovery_gate_blocks_qualify_until_filled_or_skipped():
+    with _TempDb() as db:
+        opp = _seed_discovery_opportunity(db)
+        url = f"/modules/lead_tracker/opportunities/{opp.id}"
+
+        resp = client.patch(f"{url}/status", json={"new_status": "qualified"})
+        assert resp.status_code == 422
+        assert "discovery" in resp.json()["detail"]
+
+        lixo = client.patch(f"{url}/discovery", json={"root_cause_stated": "n/a", "trigger_event": "n/a", "champion_stake": "n/a"})
+        assert lixo.status_code == 200
+        assert client.patch(f"{url}/status", json={"new_status": "qualified"}).status_code == 422
+
+        client.patch(f"{url}/discovery", json={
+            "root_cause_stated": "A plataforma atual não escala no fechamento",
+            "trigger_event": "Auditoria marcada para o próximo trimestre",
+            "champion_stake": "A meta de custo da diretoria depende disso",
+        })
+        ok = client.patch(f"{url}/status", json={"new_status": "qualified"})
+        assert ok.status_code == 200
+        assert ok.json()["discovery_skipped"] is False
+        assert ok.json()["discovery_pending"] is False
+
+
+def test_discovery_gate_skip_with_reason_is_recorded_and_pending_badge_shows():
+    with _TempDb() as db:
+        opp = _seed_discovery_opportunity(db)
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opp.id}/status",
+            json={"new_status": "qualified", "skip_discovery_reason": "Cliente indicou compra urgente por telefone"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["discovery_skipped"] is True
+        assert body["discovery_skip_reason"].startswith("Cliente indicou")
+        assert body["discovery_pending"] is False
+
+
+def test_discovery_gate_disabled_in_settings_lets_qualify_through():
+    with _TempDb() as db:
+        opp = _seed_discovery_opportunity(db)
+        db.env_path.write_text("APP_ENV=local\nDISCOVERY_GATE_ENABLED=false\n", encoding="utf-8")
+        resp = client.patch(f"/modules/lead_tracker/opportunities/{opp.id}/status", json={"new_status": "qualified"})
+        assert resp.status_code == 200
+        assert resp.json()["discovery_pending"] is True
+
+
+def test_discovery_gate_cannot_be_bypassed_via_dismiss_and_reopen():
+    with _TempDb() as db:
+        opp = _seed_discovery_opportunity(db)
+        url = f"/modules/lead_tracker/opportunities/{opp.id}/status"
+        assert client.patch(url, json={"new_status": "dismissed", "dismissal_reason": "other"}).status_code == 200
+        reopen = client.patch(url, json={"new_status": "qualified", "note": "Cliente voltou a pedir proposta"})
+        assert reopen.status_code == 422
+        assert "discovery" in reopen.json()["detail"]
+
+
+def test_discovery_gate_rejects_filler_skip_reason():
+    with _TempDb() as db:
+        opp = _seed_discovery_opportunity(db)
+        resp = client.patch(
+            f"/modules/lead_tracker/opportunities/{opp.id}/status",
+            json={"new_status": "qualified", "skip_discovery_reason": "n/a"},
+        )
+        assert resp.status_code == 422

@@ -4,6 +4,14 @@
 
 ### Adicionado
 
+- **Discovery antes de qualificar** — para sair de "detectada" (ou reabrir uma
+  descartada) a oportunidade precisa de 3 respostas escritas pelo vendedor: por
+  que isso acontece hoje, por que agora e o que o contato ganha ou perde. Quem
+  não puder preencher usa "Qualificar sem discovery" com uma justificativa, que
+  fica registrada. Oportunidades que já estavam adiante não são bloqueadas;
+  aparecem com o aviso "discovery pendente". Dá para desligar a regra em
+  Configurações (variável `DISCOVERY_GATE_ENABLED`, padrão ligado). O texto de
+  "o que o contato ganha ou perde" nunca vai para exportações nem para a IA.
 - **Onde as oportunidades estão hoje, por representante e categoria** — nova
   seção no dashboard (bloco "Representantes") com uma matriz que mostra, para
   cada representante e categoria do portfólio, quantas oportunidades já

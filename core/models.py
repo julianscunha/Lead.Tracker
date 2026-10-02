@@ -249,6 +249,14 @@ class Opportunity(BaseModel):
     # frase legível a partir deles.
     evidence_summary: str | None = None
     discovery_prompt: str | None = None
+    # Fase J — discovery humana (nunca escrita por provider/motor/IA).
+    # `champion_stake` é dado de pessoa: fora de exports, logs e prompts de IA.
+    root_cause_stated: str | None = None
+    trigger_event: str | None = None
+    champion_stake: str | None = None
+    discovery_skipped: bool = False
+    discovery_skip_reason: str | None = None
+    discovery_edited_at: datetime | None = None
     synced_at: datetime = Field(default_factory=_now)
     # Fase D — carimbo de criação, gravado só uma vez (achado da revisão de
     # código: synced_at é atualizado a cada /sync que ainda detecta a
@@ -377,6 +385,12 @@ class StatusChangeRequiresJustificationError(Exception):
     scope_note/renewal_date/status: uma leitura-decide-escreve em 2 passos
     deixa uma janela onde o status real pode mudar entre a decisão e a
     escrita)."""
+
+
+class DiscoveryRequiredError(Exception):
+    """Saída de `detected` sem discovery completa (3 campos válidos) e sem
+    `skip_discovery_reason`. Mesmo desenho de StatusChangeRequiresJustificationError:
+    decidida contra o status/campos da MESMA busca, nunca de leitura prévia da rota."""
 
 
 class DismissalReasonRequiredError(Exception):

@@ -426,7 +426,7 @@ houver espaço/prioridade):**
   documento de 1 página (situação → gap → custo de não agir → estado
   futuro) compondo os campos que o motor já calcula — sem lógica de score
   nova, IA só preenche prosa numa estrutura fixa.
-- **Gate de "discovery completa"** (Discovery Coach): três campos de texto
+- **Gate de "discovery completa"** (Discovery Coach) — **entregue** (spec: `engineering/specs/fase-j-gate-discovery.md`): três campos de texto
   livre (`root_cause_stated`, `trigger_event`, `champion_stake`)
   preenchidos só por humano; bloqueia a transição `detected`→`qualified`
   até os três estarem preenchidos — distingue "motor inferiu um gap" de

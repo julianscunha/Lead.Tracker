@@ -42,6 +42,12 @@ export interface OpportunityRow {
   qbrReason: string
   dismissalReason: DismissalReason | null
   discoveryPrompt?: string | null
+  rootCauseStated?: string | null
+  triggerEvent?: string | null
+  championStake?: string | null
+  discoverySkipped?: boolean
+  discoverySkipReason?: string | null
+  discoveryPending?: boolean
 }
 
 export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'
