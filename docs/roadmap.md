@@ -27,6 +27,8 @@ Dependências: `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomend
 ## Agora
 
 ### R2. Lista de "não contatar"
+Spec em proposta: [`fase-l-lista-nao-contatar.md`](implementacao/specs/fase-l-lista-nao-contatar.md).
+
 Não existe hoje. Registro por contato ou empresa e por canal, com motivo (pedido do contato, e-mail inválido, decisão do vendedor), comentário e data, insert-only (padrão do `DoNotContact` do Mautic: `reason`, `channel`, `comments`, `dateAdded`). Quando ativo, sugestões de outreach daquele contato/canal são bloqueadas e a tela explica o porquê. Reforça o limite diário por rep e ajuda na conformidade com a LGPD.
 
 ### R3. Registro de auditoria geral
