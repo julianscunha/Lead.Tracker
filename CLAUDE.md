@@ -60,15 +60,7 @@ Pass `model: "haiku"` when delegating execution via the Agent tool, or switch se
 
 ## Token economy
 
-Mandatory, aggressive optimization: prefer `ast-grep`/`ast-grep-outline` over reading whole files; don't re-read a file just edited (Edit/Write already confirm success); keep responses terse, no recapping what's already in CLAUDE.md; avoid spawning subagents/forks unless they yield a real context-size win (each cold start re-derives context).
-
-## Search tooling
-
-Mandatory: for code search/lookup tasks, use the `ast-grep` skills instead of plain text grep — pick whichever fits the situation: `ast-grep-outline` for a cheap structural map (files, imports, exports, members) before reading full source; `ast-grep` for structural/AST pattern queries (find specific language constructs, not just text matches).
-
-## Agent skill discipline
-
-Mandatory: run the `using-agent-skills` skill both before and after any coding work in this session — before, to select the right skill(s) for the task; after, to confirm nothing applicable was skipped.
+Mandatory, aggressive optimization: read only the file ranges you need (targeted Grep, Read with offset/limit); don't re-read a file just edited (Edit/Write already confirm success); keep responses terse, no recapping what's already in CLAUDE.md; avoid spawning subagents/forks unless they yield a real context-size win (each cold start re-derives context).
 
 ## Security and Safety Boundaries
 
