@@ -98,6 +98,7 @@ class OpportunityORM(Base):
     risk_flag: Mapped[str | None] = mapped_column(String, nullable=True)
     evidence_summary: Mapped[str | None] = mapped_column(String, nullable=True)
     discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
+    financial_potential_basis: Mapped[str | None] = mapped_column(String, nullable=True)
     synced_at: Mapped[datetime] = mapped_column()
     first_detected_at: Mapped[datetime] = mapped_column()
     scope_note: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -249,6 +250,7 @@ class CorrelationRuleORM(Base):
     confidence_score: Mapped[float] = mapped_column(Float)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     discovery_prompt: Mapped[str | None] = mapped_column(String, nullable=True)
+    estimated_deal_value: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class RepTargetORM(Base):

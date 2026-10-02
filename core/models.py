@@ -262,6 +262,8 @@ class Opportunity(BaseModel):
     # frase legível a partir deles.
     evidence_summary: str | None = None
     discovery_prompt: str | None = None
+    # Fase O (R12) — de onde veio `financial_potential`, em linguagem de negócio (nunca um número solto).
+    financial_potential_basis: str | None = None
     # Fase J — discovery humana (nunca escrita por provider/motor/IA).
     # `champion_stake` é dado de pessoa: fora de exports, logs e prompts de IA.
     root_cause_stated: str | None = None
@@ -506,6 +508,11 @@ class CorrelationRule(BaseModel):
     # Pergunta que o vendedor deveria fazer pra confirmar a causa raiz —
     # nunca a resposta (princípio 2 do roadmap). Opcional, por regra.
     discovery_prompt: str | None = None
+    # Fase O (R12) — valor típico do negócio em R$, INFORMADO pelo usuário nesta regra. O sistema só o
+    # copia para `Opportunity.financial_potential`: nunca calcula, deriva nem usa valor padrão (calcular
+    # seria "custo de inação em R$ calculado pelo sistema", fora de escopo). None = não informado; 0 e
+    # negativo são recusados para 0 nunca significar "desconhecido".
+    estimated_deal_value: float | None = Field(default=None, gt=0, le=1_000_000_000_000, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def _requires_exactly_one_evidence_mechanism(self) -> "CorrelationRule":

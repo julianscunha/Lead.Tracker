@@ -2,7 +2,7 @@
 Motor de Oportunidades — regras determinísticas.
 
 Regras vêm antes da IA (CLAUDE.md 'Deterministic rules come before AI').
-Sem IA aqui. `financial_potential` e `strategic_score` ficam `None`: não há
+Sem IA aqui. `strategic_score` fica `None` (e `financial_potential` só vem do valor típico que o usuário informa na regra): não há
 dado real pra sustentá-los ainda, e nunca inventamos número — núcleo genérico,
 sem depender de informação específica de uma empresa ou fabricante.
 
@@ -689,6 +689,11 @@ def _warmth_multiplier(company: Company | None) -> float:
     return _LUKEWARM_MULTIPLIER if age_days <= _LUKEWARM_WINDOW_DAYS else _COLD_MULTIPLIER
 
 
+def _format_brl(value: float) -> str:
+    inteiro = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return "R$ " + (inteiro[:-3] if inteiro.endswith(",00") else inteiro)
+
+
 def _build_opportunity(
     rule: CorrelationRule, portfolio: Portfolio, evidence: list[str],
     risk_flag: str | None = None, company: Company | None = None,
@@ -701,7 +706,12 @@ def _build_opportunity(
         company_id=portfolio.company_id,
         type=rule.opportunity_type,
         opportunity_score=rule.opportunity_score,
-        financial_potential=None,
+        # Fase O (R12): valor TÍPICO que o usuário informou na regra, copiado como está; sem valor = None.
+        financial_potential=rule.estimated_deal_value,
+        financial_potential_basis=(
+            f"Valor típico informado na regra «{rule.opportunity_type}»: {_format_brl(rule.estimated_deal_value)}"
+            if rule.estimated_deal_value is not None else None
+        ),
         strategic_score=None,
         confidence_score=confidence_score,
         evidence=evidence,

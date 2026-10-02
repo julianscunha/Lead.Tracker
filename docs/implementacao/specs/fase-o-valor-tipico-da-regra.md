@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase O — Valor típico informado na regra (preenche o "potencial financeiro")
 
-Consulta: `ecc:architect` (princípios, âncora, riscos), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**.
+Consulta: `ecc:architect` (princípios, âncora, riscos), antes de decidir. Status: **concluída** (entregue após a 1.3.0).
 
 ## Problema
 

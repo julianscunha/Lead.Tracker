@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Valor típico informado na regra** — cada regra aceita um valor típico em R$
+  (opcional, maior que zero). O sistema só copia esse número para as oportunidades
+  da regra, junto com a origem ("Valor típico informado na regra «X»: R$ N"); nunca
+  calcula nem prevê. Sem valor, a oportunidade fica sem valor ("—"). O Dashboard
+  mostra a soma dos valores informados (não é previsão e pode se sobrepor) e quantas
+  oportunidades ficaram sem valor. Na prospecção geográfica o valor continua vazio.
+
+### Alterado
+
+- Os rótulos "Potencial financeiro" / "Porte estimado da conta" viraram "Valor típico
+  informado" na lista, no detalhe, no Dashboard, no Excel/PDF e no business case.
+
 ## [1.3.0] - 2026-10-02
 
 ### Alterado

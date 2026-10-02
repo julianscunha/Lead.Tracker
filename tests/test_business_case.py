@@ -64,7 +64,7 @@ def test_quatro_scores_separados_com_rotulos_e_faixas():
     bc = _bc()
     assert bc.scores == (
         ("Aderência ao portfólio", "Alta"),
-        ("Porte estimado da conta", "Média"),
+        ("Valor típico da regra", "Média"),
         ("Relevância estratégica", "Baixa"),
         ("Solidez das evidências", "Alta"),
     )
@@ -86,7 +86,7 @@ def test_score_nan_vira_nao_avaliado():
 
 def test_score_none_vira_nao_avaliado_no_cabecalho():
     d = dict(_bc(_opp(financial_potential=None, strategic_score=None)).scores)
-    assert d["Porte estimado da conta"] == "Não avaliado"
+    assert d["Valor típico da regra"] == "Não avaliado"
     assert d["Relevância estratégica"] == "Não avaliado"
 
 

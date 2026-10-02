@@ -80,11 +80,11 @@ export function Dashboard({ onNavigate, active = true }: {
 
       <DashSection id="lt-dash-pipeline" title="Pipeline: como está?" description="Volume, valor e andamento das oportunidades.">
         <div className="lt-stat-grid">
-          <StatTile label="Potencial financeiro" value={formatCurrency(kpis.financialPotentialTotal)}
-            hint="Soma bruta de todas as oportunidades com valor estimado — sem ponderar por confiança." />
-          <StatTile label="Potencial ponderado (avaliado)" value={formatCurrency(metrics.weightedPotential.weightedEvaluatedTotal)}
+          <StatTile label="Valor típico informado" value={formatCurrency(kpis.financialPotentialTotal)}
+            hint={`Soma dos valores típicos que você informou nas regras. Não é previsão de receita e pode se sobrepor (várias regras na mesma conta somam). ${kpis.opportunitiesWithoutValue} oportunidade(s) sem valor informado não entram na soma.`} />
+          <StatTile label="Valor ponderado (avaliado)" value={formatCurrency(metrics.weightedPotential.weightedEvaluatedTotal)}
             hint="Só oportunidades com confiança real avaliada, multiplicada pelo potencial — nunca substitui o bruto, complementa." />
-          <StatTile label="Potencial ponderado (estimado)" value={formatCurrency(metrics.weightedPotential.weightedEstimatedTotal)}
+          <StatTile label="Valor ponderado (estimado)" value={formatCurrency(metrics.weightedPotential.weightedEstimatedTotal)}
             hint="Inclui também as sem confiança avaliada, usando uma estimativa conservadora — visão mais otimista que o avaliado." />
         </div>
 
@@ -117,8 +117,8 @@ export function Dashboard({ onNavigate, active = true }: {
           </div>
           <div className="lt-chart-grid">
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-vendor-money">
-            <h4 id="lt-chart-vendor-money">Potencial financeiro por fabricante</h4>
-            <BarChart data={metrics.financialByVendor} formatValue={formatCurrency} emptyMessage="Sem potencial financeiro registrado." />
+            <h4 id="lt-chart-vendor-money">Valor típico por fabricante</h4>
+            <BarChart data={metrics.financialByVendor} formatValue={formatCurrency} emptyMessage="Sem valor típico informado nas regras." />
           </div>
 
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-service">
@@ -127,12 +127,12 @@ export function Dashboard({ onNavigate, active = true }: {
           </div>
 
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-segment">
-            <h4 id="lt-chart-segment">Potencial por segmento</h4>
+            <h4 id="lt-chart-segment">Valor típico por segmento</h4>
             <BarChart data={metrics.potentialBySegment} formatValue={formatCurrency} emptyMessage="Sem oportunidade com segmento atribuído ainda." />
           </div>
 
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-source">
-            <h4 id="lt-chart-source">Potencial por fonte</h4>
+            <h4 id="lt-chart-source">Valor típico por fonte</h4>
             <BarChart data={metrics.potentialBySource} formatValue={formatCurrency} emptyMessage="Sem oportunidade com fonte atribuída ainda." />
           </div>
 
@@ -193,7 +193,7 @@ export function Dashboard({ onNavigate, active = true }: {
           </div>
 
           <div role="group" className="lt-chart-card" aria-labelledby="lt-chart-rep-money">
-            <h4 id="lt-chart-rep-money">Potencial por representante</h4>
+            <h4 id="lt-chart-rep-money">Valor típico por representante</h4>
             <BarChart data={metrics.potentialByRep} formatValue={formatCurrency} emptyMessage="Sem oportunidade atribuída a representante ainda." />
           </div>
 

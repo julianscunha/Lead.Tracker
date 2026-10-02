@@ -26,7 +26,7 @@ NOT_ASSESSED = "Não avaliado"
 # (campo de Opportunity, rótulo para o vendedor) — ordem fixa, nunca fundidos.
 SCORE_LABELS: tuple[tuple[str, str], ...] = (
     ("opportunity_score", "Aderência ao portfólio"),
-    ("financial_potential", "Porte estimado da conta"),
+    ("financial_potential", "Valor típico da regra"),
     ("strategic_score", "Relevância estratégica"),
     ("confidence_score", "Solidez das evidências"),
 )

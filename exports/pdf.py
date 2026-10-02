@@ -64,7 +64,7 @@ def opportunities_pdf(rows: list[OpportunityExportRow], filters_summary: str, ge
     pdf.cell(0, 6, f"Total: {len(rows)} oportunidade(s)", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
-    headers = ["Empresa", "Cliente", "Score", "Potencial", "Produto", "Servico", "Prioridade", "Fontes"]
+    headers = ["Empresa", "Cliente", "Score", "Valor tipico", "Produto", "Servico", "Prioridade", "Fontes"]
     widths = [55, 20, 18, 28, 40, 40, 25, 40]
 
     pdf.set_font("Helvetica", "B", 9)
@@ -119,7 +119,7 @@ def executive_pdf(
         f"Oportunidades identificadas: {kpis.opportunities_identified}",
         f"Clientes analisados: {kpis.customers_analyzed}",
         f"Prospects analisados: {kpis.prospects_analyzed}",
-        f"Potencial financeiro: {_format_currency(kpis.financial_potential_total)}",
+        f"Valor tipico informado: {_format_currency(kpis.financial_potential_total)}",
         f"Oportunidades de produto: {kpis.product_opportunities}",
         f"Oportunidades de servico: {kpis.service_opportunities}",
         f"Fabricante principal: {_pdf_safe(kpis.top_vendor) if kpis.top_vendor else '-'}",

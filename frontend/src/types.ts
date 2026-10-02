@@ -19,6 +19,8 @@ export interface OpportunityRow {
   isCustomer: boolean
   opportunityScore: number | null
   financialPotential: number | null
+  /** De onde veio o valor (ex.: «Valor típico informado na regra …»); null = sem valor informado. */
+  financialPotentialBasis?: string | null
   type: string
   product: string | null
   service: string | null

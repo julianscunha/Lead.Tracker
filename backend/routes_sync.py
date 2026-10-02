@@ -106,6 +106,7 @@ class OpportunityOut(BaseModel):
     is_aging: bool
     dismissal_reason: str | None
     discovery_prompt: str | None = None
+    financial_potential_basis: str | None = None
     root_cause_stated: str | None = None
     trigger_event: str | None = None
     champion_stake: str | None = None
@@ -247,6 +248,7 @@ class RuleIn(BaseModel):
     opportunity_score: float = 1.0
     confidence_score: float = 1.0
     active: bool = True
+    estimated_deal_value: float | None = Field(default=None, gt=0, le=1_000_000_000_000)
 
 
 @router.post("/sync")
@@ -403,6 +405,7 @@ def _to_opportunity_out(
         dismissal_reason=o.dismissal_reason.value if o.dismissal_reason else None,
         discovery_prompt=o.discovery_prompt,
         company_website=normalize_website(company.website) if company else None,
+        financial_potential_basis=o.financial_potential_basis,
         root_cause_stated=o.root_cause_stated, trigger_event=o.trigger_event,
         champion_stake=o.champion_stake, discovery_skipped=o.discovery_skipped,
         discovery_skip_reason=o.discovery_skip_reason,
@@ -1101,6 +1104,7 @@ async def get_dashboard_metrics(period_type: Literal["monthly", "quarterly"] = "
             "customers_analyzed": kpis.customers_analyzed,
             "prospects_analyzed": kpis.prospects_analyzed,
             "financial_potential_total": kpis.financial_potential_total,
+            "opportunities_without_value": kpis.opportunities_without_value,
             "product_opportunities": kpis.product_opportunities,
             "service_opportunities": kpis.service_opportunities,
             "top_vendor": kpis.top_vendor,

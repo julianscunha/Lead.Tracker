@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
 import { InfoHint } from '../InfoHint'
+
+// "40.000", "40.000,50" e "40000.5" (pt-BR ou simples); qualquer outra coisa, inclusive infinito, vira NaN.
+const parseBRL = (s: string) => {
+  const t = s.trim()
+  const n = Number(/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(',', '.'))
+  return Number.isFinite(n) ? n : NaN
+}
 import { createRule, deleteRule, listRules, type CorrelationRule, type NewRule, type Product, type Service } from '../api'
 
 type RuleKind = 'category' | 'presence' | 'relation'
@@ -27,6 +34,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
   const [requiresCategory, setRequiresCategory] = useState('')
   const [absentCategory, setAbsentCategory] = useState('')
   const [relationType, setRelationType] = useState('prerequisite')
+  const [dealValue, setDealValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -43,6 +51,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
 
   const resetForm = () => {
     setJustification('')
+    setDealValue('')
     setRequiresItem(''); setAbsentItem('')
     setRequiresCategory(''); setAbsentCategory('')
   }
@@ -51,6 +60,8 @@ export function RulesSection({ products, services }: { products: Product[]; serv
     setSaving(true)
     setSaveError(null)
     const body: NewRule = { opportunity_type: opportunityType, justification }
+    const value = parseBRL(dealValue)
+    if (dealValue.trim() !== '' && value > 0) body.estimated_deal_value = value
     if (kind === 'presence') {
       body.requires = requiresItem ? [requiresItem] : []
       body.absent = absentItem ? [absentItem] : []
@@ -89,7 +100,8 @@ export function RulesSection({ products, services }: { products: Product[]; serv
   if (loadError) return <p className="lt-alert" role="alert">{loadError}</p>
   if (!rules) return <p className="lt-hint">Carregando regras…</p>
 
-  const canSave = justification.trim() !== '' && (
+  const dealValueOk = dealValue.trim() === '' || parseBRL(dealValue) > 0
+  const canSave = dealValueOk && justification.trim() !== '' && (
     kind === 'relation' || (kind === 'presence' ? requiresItem !== '' : requiresCategory !== '')
   )
 
@@ -172,6 +184,10 @@ export function RulesSection({ products, services }: { products: Product[]; serv
             <span>Justificativa (aparece na oportunidade gerada)</span>
             <input value={justification} onChange={e => setJustification(e.target.value)} />
           </label>
+          <label className="lt-field">
+            <span>Valor típico da oportunidade, em R$ (opcional) <InfoHint text="Quanto costuma valer um negócio deste tipo, segundo você. O sistema só copia este número para cada oportunidade da regra: não calcula nem prevê nada. Em branco, a oportunidade fica sem valor (aparece como “—”)." /></span>
+            <input inputMode="decimal" value={dealValue} onChange={e => setDealValue(e.target.value)} placeholder="ex.: 40000" />
+          </label>
 
           {saveError && <p className="lt-alert" role="alert">{saveError}</p>}
           <div className="lt-detail-actions">
@@ -188,7 +204,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
       ) : (
         <table className="lt-table">
           <thead>
-            <tr><th>Rótulo</th><th>Condição</th><th>Justificativa</th><th>Ativa</th><th></th></tr>
+            <tr><th>Rótulo</th><th>Condição</th><th>Justificativa</th><th>Valor típico</th><th>Ativa</th><th></th></tr>
           </thead>
           <tbody>
             {rules.map(r => (
@@ -196,6 +212,7 @@ export function RulesSection({ products, services }: { products: Product[]; serv
                 <td>{r.opportunity_type}</td>
                 <td>{describeRule(r)}</td>
                 <td>{r.justification}</td>
+                <td>{r.estimated_deal_value ? r.estimated_deal_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }) : '—'}</td>
                 <td>{r.active ? 'Sim' : 'Não'}</td>
                 <td>
                   <button type="button" className="lt-btn" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>

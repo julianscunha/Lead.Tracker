@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from exports.errors import wrap_export_errors
 from exports.types import OpportunityExportRow
 
-_HEADERS = ["Empresa", "Cliente", "Score", "Potencial", "Produto", "Serviço", "Prioridade", "Fontes"]
+_HEADERS = ["Empresa", "Cliente", "Score", "Valor típico informado", "Produto", "Serviço", "Prioridade", "Fontes"]
 
 
 @wrap_export_errors

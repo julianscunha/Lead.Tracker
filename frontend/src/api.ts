@@ -358,6 +358,7 @@ interface OpportunityApiRow {
   service_name: string | null
   opportunity_score: number | null
   financial_potential: number | null
+  financial_potential_basis?: string | null
   strategic_score: number | null
   confidence_score: number | null
   evidence: string[]
@@ -401,6 +402,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     isCustomer: r.is_customer,
     opportunityScore: r.opportunity_score,
     financialPotential: r.financial_potential,
+    financialPotentialBasis: r.financial_potential_basis ?? null,
     type: r.type,
     product: r.product_name,
     service: r.service_name,
@@ -616,6 +618,7 @@ export interface DashboardMetrics {
     customersAnalyzed: number
     prospectsAnalyzed: number
     financialPotentialTotal: number
+    opportunitiesWithoutValue: number
     productOpportunities: number
     serviceOpportunities: number
     topVendor: string | null
@@ -650,6 +653,7 @@ export async function getDashboardMetrics(periodType: PeriodType = 'monthly'): P
       customersAnalyzed: d.kpis.customers_analyzed,
       prospectsAnalyzed: d.kpis.prospects_analyzed,
       financialPotentialTotal: d.kpis.financial_potential_total,
+      opportunitiesWithoutValue: d.kpis.opportunities_without_value ?? 0,
       productOpportunities: d.kpis.product_opportunities,
       serviceOpportunities: d.kpis.service_opportunities,
       topVendor: d.kpis.top_vendor,
@@ -924,6 +928,7 @@ export interface CorrelationRule {
   absent_category: string[]
   relation_type: string | null
   active: boolean
+  estimated_deal_value?: number | null
 }
 
 export interface NewRule {
@@ -934,6 +939,7 @@ export interface NewRule {
   requires_category?: string[]
   absent_category?: string[]
   relation_type?: string | null
+  estimated_deal_value?: number | null
 }
 
 export async function listVendors(): Promise<Vendor[]> {

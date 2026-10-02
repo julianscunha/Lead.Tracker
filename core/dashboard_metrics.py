@@ -37,6 +37,8 @@ class DashboardKPIs:
     service_opportunities: int
     top_vendor: str | None
     top_service: str | None
+    # Fase O (R12): quantas oportunidades não têm valor típico informado (o total acima não as inclui).
+    opportunities_without_value: int = 0
 
 
 def compute_kpis(
@@ -68,6 +70,7 @@ def compute_kpis(
         service_opportunities=service_opps,
         top_vendor=top_vendor,
         top_service=top_service,
+        opportunities_without_value=sum(1 for o in opportunities if o.financial_potential is None),
     )
 
 

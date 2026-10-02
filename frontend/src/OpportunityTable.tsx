@@ -859,7 +859,7 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
       row.companyName,
       row.isCustomer ? 'Cliente' : 'Prospect',
       `Score: ${formatScore(row.opportunityScore)}`,
-      `Potencial: ${formatCurrency(row.financialPotential)}`,
+      `Valor típico informado: ${formatCurrency(row.financialPotential)}`,
       row.justification ?? '',
     ].filter(Boolean).join(' — ')
     await navigator.clipboard.writeText(text)
@@ -924,8 +924,8 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           <dd>{row.recommendedProducts.join(', ') || '—'}</dd>
           <dt>Serviços recomendados</dt>
           <dd>{row.recommendedServices.join(', ') || '—'}</dd>
-          <dt>Potencial financeiro</dt>
-          <dd>{formatCurrency(row.financialPotential)}</dd>
+          <dt>Valor típico informado</dt>
+          <dd>{formatCurrency(row.financialPotential)}{row.financialPotentialBasis ? ` — ${row.financialPotentialBasis}` : ''}</dd>
           <dt>Scores</dt>
           <dd>
             oportunidade {formatScore(row.opportunityScore)} · estratégico {formatScore(null)} · confiança {formatScore(row.confidenceScore)}
@@ -1003,7 +1003,7 @@ export function OpportunityTable({ rows, repId, onRowUpdated, onRenewalDateUpdat
           <th>Cliente</th>
           <th>Status</th>
           <SortHeader label="Score" sortKey="score" current={sortKey} direction={direction} onSort={handleSort} />
-          <SortHeader label="Potencial $" sortKey="potencial" current={sortKey} direction={direction} onSort={handleSort} />
+          <SortHeader label="Valor típico" sortKey="potencial" current={sortKey} direction={direction} onSort={handleSort} />
           <th>Produto / Serviço</th>
           <th>Saúde da conta</th>
         </tr>
