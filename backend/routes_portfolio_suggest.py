@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from ai.base import AIProviderError
 from ai.factory import create_ai_provider
 from ai.portfolio_extract import suggest_portfolio
-from ai.portfolio_guardrails import MAX_NAME, MAX_SUGGESTIONS, _NAME_FORBIDDEN
+from ai.portfolio_guardrails import MAX_NAME, MAX_SUGGESTIONS, has_forbidden_chars
 from backend import routes_settings
 from backend.db_session import session_factory
 from backend.http_errors import raise_http
@@ -98,7 +98,7 @@ async def suggest_from_website() -> SuggestionsOut:
 
 
 def _reject_markup(*values: str | None) -> None:
-    if any(v and _NAME_FORBIDDEN.search(v) for v in values):
+    if any(v and has_forbidden_chars(v) for v in values):
         raise_http(DomainError(ErrorCategory.INVALID_DATA, "Há um nome inválido na seleção.", "Revise os itens marcados."))
 
 

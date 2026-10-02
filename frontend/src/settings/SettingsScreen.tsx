@@ -36,6 +36,12 @@ export function SettingsScreen() {
   const [services, setServices] = useState<Service[] | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
 
+  const reloadCatalog = () => {
+    Promise.all([listProducts(), listServices()])
+      .then(([p, s]) => { setProducts(p); setServices(s) })
+      .catch(err => setCatalogError(err instanceof Error ? err.message : 'Não consegui carregar o portfólio.'))
+  }
+
   useEffect(() => {
     listSettings()
       .then(setSources)
@@ -94,6 +100,7 @@ export function SettingsScreen() {
         onServiceCreated={s => setServices(prev => [...(prev ?? []), s])}
         onProductDeleted={id => setProducts(prev => (prev ?? []).filter(p => p.id !== id))}
         onServiceDeleted={id => setServices(prev => (prev ?? []).filter(s => s.id !== id))}
+        onCatalogChanged={reloadCatalog}
       />
       <RulesSection products={products ?? []} services={services ?? []} />
       <RepTargetsSection />

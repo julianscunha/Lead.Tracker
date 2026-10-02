@@ -207,3 +207,51 @@ def test_logs_never_contain_the_url_query_or_body(caplog):
     with pytest.raises(SafeFetchError):
         _run(_Net(), "http://10.0.0.5/segredo?token=abc123")
     assert "abc123" not in caplog.text and "segredo" not in caplog.text
+
+
+@pytest.mark.parametrize("ip", ["::7f00:1", "::10.0.0.1", "::1.2.3.4", "::ffff:0:0", "100::1", "3fff::1"])
+def test_ipv4_compatible_and_non_global_ipv6_are_refused(ip):
+    """Regressão da revisão: `::7f00:1` (== ::127.0.0.1) tinha is_global True."""
+    with pytest.raises(SafeFetchError):
+        ensure_public_ip(ip)
+
+
+def test_global_unicast_ipv6_still_passes():
+    assert ensure_public_ip("2606:2800:220:1:248:1893:25c8:1946") == "2606:2800:220:1:248:1893:25c8:1946"
+
+
+def test_ipv4_is_tried_first_and_next_validated_ip_is_used_when_one_cannot_connect():
+    """Regressão da revisão: só o primeiro IP era usado e a ordem era por texto (IPv6 antes de IPv4)."""
+    from core.safe_fetch import default_resolver  # noqa: F401
+    tried: list[str] = []
+
+    def handler(request):
+        tried.append(request.url.host)
+        if request.url.host != "93.184.216.34":
+            raise httpx.ConnectError("sem rota IPv6")
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="ok")
+
+    net = _Net(handler=handler, dns={"good.com": ["2606:2800:220:1:248:1893:25c8:1946", "93.184.216.34"]})
+    # o resolvedor falso devolve nessa ordem; o fetch usa na ordem recebida e cai para o seguinte
+    assert _run(net, "https://good.com").text == "ok"
+    assert tried == ["2606:2800:220:1:248:1893:25c8:1946", "93.184.216.34"]
+
+
+def test_default_resolver_orders_ipv4_before_ipv6(monkeypatch):
+    import socket
+    from core.safe_fetch import default_resolver
+
+    async def fake(self, host, port, **kw):
+        return [(socket.AF_INET6, 0, 0, "", ("2606:2800::1", port, 0, 0)), (socket.AF_INET, 0, 0, "", ("93.184.216.34", port))]
+
+    monkeypatch.setattr(asyncio.get_event_loop_policy().new_event_loop().__class__, "getaddrinfo", fake, raising=False)
+    assert asyncio.run(default_resolver("good.com", 443)) == ["93.184.216.34", "2606:2800::1"]
+
+
+def test_all_validated_ips_failing_to_connect_is_a_friendly_error():
+    def handler(request):
+        raise httpx.ConnectError("sem rota")
+    net = _Net(handler=handler)
+    with pytest.raises(SafeFetchError) as exc:
+        _run(net, "https://good.com")
+    assert exc.value.reason == "sem_conexao"

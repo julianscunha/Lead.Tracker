@@ -7,6 +7,7 @@ robots.txt, lê no máximo `MAX_PAGES` páginas do MESMO site (a inicial + links
 texto visível (sem script/style/iframe/comentários; nenhum JavaScript é executado)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from html.parser import HTMLParser
 from urllib.parse import urljoin
@@ -21,9 +22,10 @@ from providers.base import ConnectionTestResult, DataProvider, ProviderContext, 
 log = logging.getLogger(__name__)
 
 MAX_PAGES = 5
+COLLECT_DEADLINE = 60.0  # prazo TOTAL da coleta (robots + páginas); o de safe_fetch é por página
 MAX_TEXT_PER_PAGE = 12_000
 MAX_TEXT_TOTAL = 30_000
-_SKIP_TAGS = {"script", "style", "noscript", "iframe", "template", "svg", "canvas", "object", "embed"}
+_SKIP_TAGS = {"script", "style", "noscript", "iframe", "template", "svg", "canvas", "object"}  # só tags COM fechamento
 _BLOCK_TAGS = {"p", "div", "li", "br", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "ul", "ol", "td", "th"}
 _SKIP_HREF_PREFIXES = ("mailto:", "tel:", "javascript:", "data:", "#")
 _SKIP_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".zip", ".mp4", ".webp", ".css", ".js", ".xml")
@@ -139,8 +141,17 @@ class WebsiteProvider(DataProvider):
         parser.parse(page.text.splitlines())
         return parser
 
-    async def collect_pages(self) -> list[tuple[str, str]]:
-        """[(url, texto)] — a página inicial e até MAX_PAGES-1 links do mesmo site. Texto total truncado."""
+    async def collect_pages(self, deadline: float | None = None) -> list[tuple[str, str]]:
+        """[(url, texto)] — a página inicial e até MAX_PAGES-1 links do mesmo site. Texto total truncado.
+        Um site lento (slowloris) não pode prender a requisição: há um prazo TOTAL, além do por página."""
+        try:
+            async with asyncio.timeout(deadline if deadline is not None else COLLECT_DEADLINE):
+                return await self._collect_pages()
+        except TimeoutError:
+            log.warning("website: prazo total da coleta estourou")
+            raise SafeFetchError("prazo_total") from None
+
+    async def _collect_pages(self) -> list[tuple[str, str]]:
         robots = await self._allowed_by_robots()
 
         def allowed(url: str) -> bool:

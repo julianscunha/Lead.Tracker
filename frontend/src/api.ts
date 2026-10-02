@@ -498,6 +498,33 @@ export async function updateOpportunityDiscovery(
   return fromApiRow(data)
 }
 
+export interface PortfolioSuggestion {
+  kind: 'vendor' | 'product' | 'service'
+  name: string
+  vendor_name: string | null
+  evidence: string
+  page_url: string
+  already_in_catalog: boolean
+}
+
+export async function suggestPortfolioFromWebsite(): Promise<{ suggestions: PortfolioSuggestion[]; discarded: number; pages_read: number }> {
+  const resp = await fetch(`${BASE}/portfolio-suggestions`, { method: 'POST' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function applyPortfolioSuggestions(
+  items: { kind: PortfolioSuggestion['kind']; name: string; vendor_name: string | null }[],
+): Promise<{ created: { vendor: number; product: number; service: number }; skipped_existing: number }> {
+  const resp = await fetch(`${BASE}/portfolio-suggestions/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export interface AuditEntry {
   id: string
   entity_type: 'opportunity' | 'company' | 'contact'

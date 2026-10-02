@@ -3,9 +3,9 @@
 O texto do site é dado NÃO confiável (pode conter instruções para a IA). Por isso a saída da IA
 nunca é aceita pelo que diz: um item só passa se for comprovável NO TEXTO COLETADO:
   1. a `pagina` citada é uma das páginas realmente coletadas;
-  2. o `nome` aparece literalmente (sem caixa/acento) no texto dessa página;
-  3. a `evidencia` é trecho literal desse texto (mínimo 10 caracteres, máximo 300);
-  4. o `fabricante`, quando vem, também aparece literalmente nessa página;
+  2. a `evidencia` é trecho literal do texto dessa página (mínimo 10 caracteres, máximo 300);
+  3. o `nome` aparece literalmente (sem caixa/acento, com fronteira de palavra) DENTRO da evidência;
+  4. o `fabricante`, quando vem, também aparece literalmente (fronteira de palavra) nessa página;
   5. o `tipo` é fabricante/produto/servico, e o nome não tem markup, URL nem caractere de controle.
 Qualquer outro campo, URL, comando ou ação vinda da IA é ignorado. O que é descartado é só contado."""
 from __future__ import annotations
@@ -39,11 +39,21 @@ def _norm(text: str) -> str:
     return " ".join(folded.casefold().split())
 
 
+def has_forbidden_chars(name: str) -> bool:
+    """Markup, URL, controle e caracteres invisíveis/bidi (Cf, que permitem spoofing de exibição)."""
+    return bool(_NAME_FORBIDDEN.search(name)) or any(unicodedata.category(c) == "Cf" for c in name)
+
+
+def _contains_word(text: str, term: str) -> bool:
+    """`term` aparece em `text` com fronteira de palavra (ambos já normalizados): "go" não casa em "google"."""
+    return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text) is not None
+
+
 def _clean_name(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     name = " ".join(value.split())
-    if not 2 <= len(name) <= MAX_NAME or _NAME_FORBIDDEN.search(name):
+    if not 2 <= len(name) <= MAX_NAME or has_forbidden_chars(name):
         return None
     return name
 
@@ -86,12 +96,15 @@ def _validate_one(raw: Any, texts: dict[str, str]) -> Suggestion | None:
         return None
     evidence = " ".join(evidence.split())[:MAX_EVIDENCE]
     page_text = texts[page_url]
-    if len(evidence) < MIN_EVIDENCE or _norm(evidence) not in page_text or _norm(name) not in page_text:
+    evidence_norm = _norm(evidence)
+    # A evidência tem de ser trecho REAL da página E mostrar o item: sem isso a IA poderia citar uma frase
+    # qualquer ("Fale conosco") para um nome solto em outro lugar da página.
+    if len(evidence) < MIN_EVIDENCE or evidence_norm not in page_text or not _contains_word(evidence_norm, _norm(name)):
         return None
     vendor_name = None
     if raw.get("fabricante") not in (None, ""):
         vendor_name = _clean_name(raw.get("fabricante"))
-        if vendor_name is None or _norm(vendor_name) not in page_text:
+        if vendor_name is None or not _contains_word(page_text, _norm(vendor_name)):
             return None
     if kind == "vendor":
         vendor_name = None

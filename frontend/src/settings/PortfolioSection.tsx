@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { InfoHint } from '../InfoHint'
+import { WebsiteSuggestions } from './WebsiteSuggestions'
 import {
   createProduct, createService, createVendor, deleteProduct, deleteService, listVendors,
   type Product, type Service, type Vendor,
@@ -17,7 +18,7 @@ const NEW_VENDOR = '__new__'
 // onServiceCreated em vez de guardar cópia local, senão uma regra criada
 // logo depois não veria a categoria nova sem recarregar a página.
 export function PortfolioSection({
-  products, services, loadError, onProductCreated, onServiceCreated, onProductDeleted, onServiceDeleted,
+  products, services, loadError, onProductCreated, onServiceCreated, onProductDeleted, onServiceDeleted, onCatalogChanged,
 }: {
   products: Product[] | null
   services: Service[] | null
@@ -26,6 +27,7 @@ export function PortfolioSection({
   onServiceCreated: (s: Service) => void
   onProductDeleted: (id: string) => void
   onServiceDeleted: (id: string) => void
+  onCatalogChanged: () => void
 }) {
   const [vendors, setVendors] = useState<Vendor[]>([])
 
@@ -137,6 +139,8 @@ export function PortfolioSection({
         <h2>Portfólio</h2>
         <InfoHint text="Produtos e serviços que sua empresa vende — é o catálogo que as Regras usam pra detectar oportunidade." />
       </div>
+
+      <WebsiteSuggestions onApplied={() => { listVendors().then(setVendors).catch(() => undefined); onCatalogChanged() }} />
 
       <div className="lt-toolbar">
         <button type="button" className="lt-btn" onClick={() => setProductFormOpen(f => !f)}>

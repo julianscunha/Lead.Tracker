@@ -143,3 +143,26 @@ def test_malformed_ai_output_is_a_friendly_error_and_empty_text_never_calls_the_
 def test_catalog_key_ignores_case_accent_and_punctuation():
     assert catalog_key("Veeam Backup & Replication") == catalog_key("veeam backup  replication")
     assert catalog_key("Consultoria em Nuvem") == catalog_key("CONSULTORIA EM NUVÉM!")
+
+
+def test_name_must_be_inside_the_evidence_not_just_somewhere_on_the_page():
+    """Regressão da revisão: a IA citava uma frase qualquer como evidência para um nome solto na página."""
+    page = [(URL, "Somos uma empresa. Nosso Cloud privado é sólido. Fale conosco hoje mesmo.")]
+    solto = {"tipo": "produto", "nome": "Cloud", "fabricante": "Somos", "evidencia": "Fale conosco hoje mesmo", "pagina": URL}
+    assert validate_suggestions([solto], page) == ([], 1)
+    certo = {"tipo": "servico", "nome": "Cloud", "fabricante": None, "evidencia": "Nosso Cloud privado é sólido", "pagina": URL}
+    assert len(validate_suggestions([certo], page)[0]) == 1
+
+
+def test_word_boundary_prevents_short_names_matching_inside_other_words():
+    page = [(URL, "Trabalhamos com Google Workspace para empresas de todos os portes.")]
+    item = {"tipo": "servico", "nome": "go", "fabricante": None, "evidencia": "Trabalhamos com Google Workspace", "pagina": URL}
+    assert validate_suggestions([item], page) == ([], 1)
+    vendor_inside_word = {"tipo": "produto", "nome": "Workspace", "fabricante": "Goo", "evidencia": "Google Workspace para empresas", "pagina": URL}
+    assert validate_suggestions([vendor_inside_word], page) == ([], 1)
+
+
+def test_invisible_and_bidi_characters_in_names_are_refused():
+    from ai.portfolio_guardrails import has_forbidden_chars
+    assert has_forbidden_chars("Veeam\u202e") and has_forbidden_chars("Vee\u200bam") and not has_forbidden_chars("Veeam One")
+    assert validate_suggestions([_item(nome="Veeam\u202e Backup & Replication")], PAGES) == ([], 1)

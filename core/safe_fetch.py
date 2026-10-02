@@ -41,6 +41,8 @@ _HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$"
 )
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_GLOBAL_UNICAST_V6 = ipaddress.ip_network("2000::/3")
+_DOCUMENTATION_V6 = ipaddress.ip_network("3fff::/20")  # RFC 9637; versões antigas do Python o dão como global
 _REDIRECT_STATUS = {301, 302, 303, 307, 308}
 _DEFAULT_TYPES = ("text/html", "text/plain", "application/xhtml+xml")
 
@@ -122,7 +124,8 @@ def ensure_public_ip(address: str) -> str:
     if isinstance(ip, ipaddress.IPv6Address):
         if ip.ipv4_mapped is not None:
             ip = ip.ipv4_mapped
-        elif ip in _NAT64 or ip.sixtofour is not None or ip.teredo is not None:
+        elif ip not in _GLOBAL_UNICAST_V6 or ip in _DOCUMENTATION_V6 or ip in _NAT64 or ip.sixtofour is not None or ip.teredo is not None:
+            # só 2000::/3 (inclui recusar ::/96 "compatível com IPv4": ::7f00:1 seria 127.0.0.1)
             raise SafeFetchError("ip_nao_publico")
     if not ip.is_global or ip.is_multicast:
         raise SafeFetchError("ip_nao_publico")
@@ -132,7 +135,7 @@ def ensure_public_ip(address: str) -> str:
 async def default_resolver(host: str, port: int) -> list[str]:
     loop = asyncio.get_running_loop()
     infos = await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    return sorted({info[4][0] for info in infos})
+    return sorted({info[4][0] for info in infos}, key=lambda a: (":" in a, a))  # IPv4 primeiro
 
 
 def _same_site(origin_host: str, host: str) -> bool:
@@ -192,32 +195,52 @@ async def _fetch_following(
             "Host": target.host, "User-Agent": USER_AGENT, "Accept": ", ".join(content_types),
             "Accept-Encoding": "identity",  # sem compressão: bomba de descompressão
         }
-        async with http.stream(
-            "GET", _ip_url(target, validated[0]), headers=headers, extensions={"sni_hostname": target.host},
-        ) as response:
-            if response.status_code in _REDIRECT_STATUS:
-                location = response.headers.get("location")
-                if not location or hop == MAX_REDIRECTS:
-                    raise SafeFetchError("redirect")
-                next_target = validate_url(urljoin(target.url, location))
-                if target.scheme == "https" and next_target.scheme == "http":
-                    raise SafeFetchError("downgrade")
-                if not _same_site(origin, next_target.host):
-                    raise SafeFetchError("fora_do_site")
-                target = next_target
+        outcome = None
+        for ip in validated:  # só IPs JÁ validados; tenta o próximo se não conseguir conectar (ex.: sem rota IPv6)
+            try:
+                outcome = await _request_once(http, target, ip, headers, max_bytes, expect_ok, content_types)
+                break
+            except (httpx.ConnectError, httpx.ConnectTimeout):
                 continue
-            content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
-            if expect_ok and response.status_code != 200:
-                raise SafeFetchError("status")
-            if content_type not in content_types:
-                if expect_ok or response.status_code == 200:
-                    raise SafeFetchError("tipo_de_conteudo")
-                return Page(target.url, response.status_code, content_type, "")
-            buffer = bytearray()
-            async for chunk in response.aiter_bytes():
-                buffer.extend(chunk)
-                if len(buffer) > max_bytes:
-                    raise SafeFetchError("grande_demais")
-            text = bytes(buffer).decode(_charset(response.headers.get("content-type", "")), errors="replace")
-            return Page(target.url, response.status_code, content_type, text)
+        if outcome is None:
+            raise SafeFetchError("sem_conexao")
+        if isinstance(outcome, Page):
+            return outcome
+        if hop == MAX_REDIRECTS:
+            raise SafeFetchError("redirect")
+        next_target = validate_url(urljoin(target.url, outcome))
+        if target.scheme == "https" and next_target.scheme == "http":
+            raise SafeFetchError("downgrade")
+        if not _same_site(origin, next_target.host):
+            raise SafeFetchError("fora_do_site")
+        target = next_target
     raise SafeFetchError("redirect")  # inalcançável (o laço sempre retorna ou levanta)
+
+
+async def _request_once(
+    http: httpx.AsyncClient, target: Target, ip: str, headers: dict[str, str], max_bytes: int, expect_ok: bool,
+    content_types: tuple[str, ...],
+) -> Page | str:
+    """Uma requisição ao IP validado. Devolve a `Page` ou, num redirect, o valor de `Location`."""
+    async with http.stream(
+        "GET", _ip_url(target, ip), headers=headers, extensions={"sni_hostname": target.host},
+    ) as response:
+        if response.status_code in _REDIRECT_STATUS:
+            location = response.headers.get("location")
+            if not location:
+                raise SafeFetchError("redirect")
+            return location
+        content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
+        if expect_ok and response.status_code != 200:
+            raise SafeFetchError("status")
+        if content_type not in content_types:
+            if expect_ok or response.status_code == 200:
+                raise SafeFetchError("tipo_de_conteudo")
+            return Page(target.url, response.status_code, content_type, "")
+        buffer = bytearray()
+        async for chunk in response.aiter_bytes():
+            buffer.extend(chunk)
+            if len(buffer) > max_bytes:
+                raise SafeFetchError("grande_demais")
+        text = bytes(buffer).decode(_charset(response.headers.get("content-type", "")), errors="replace")
+        return Page(target.url, response.status_code, content_type, text)

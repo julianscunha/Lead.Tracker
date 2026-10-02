@@ -132,3 +132,24 @@ def test_test_connection_reports_ok_and_friendly_failure():
     broken, _ = _provider(lambda r: httpx.Response(500, headers={"content-type": "text/html"}, text="x"))
     result = asyncio.run(broken.test_connection())
     assert result.is_connected is False and "Não foi possível ler o site" in result.message
+
+
+def test_void_embed_tag_does_not_swallow_the_rest_of_the_page():
+    """Regressão da revisão: <embed> não tem fechamento e deixava o parser em "ignorar" para sempre."""
+    text, links = extract_text_and_links('<p>antes</p><embed src="x"><p>depois</p><a href="/produtos">p</a>')
+    assert "antes" in text and "depois" in text and "/produtos" in links
+
+
+def test_collection_has_a_total_deadline_not_only_a_per_page_one():
+    async def slow_resolver(host, port):
+        await asyncio.sleep(0.2)
+        return PUBLIC
+
+    def handler(request):
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="<a href='/a'>a</a><a href='/b'>b</a>")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    provider = WebsiteProvider("https://acme.com.br", client=client, resolver=slow_resolver)
+    with pytest.raises(SafeFetchError) as exc:
+        asyncio.run(provider.collect_pages(deadline=0.3))
+    assert exc.value.reason == "prazo_total"
