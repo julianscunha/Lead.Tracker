@@ -22,7 +22,7 @@ from backend import routes_settings  # _ENV_PATH acessado via módulo, não impo
                                        # refletir monkeypatch de teste em routes_settings._ENV_PATH
 from backend.db_session import session_factory
 from backend.http_errors import raise_http
-from backend.sync import sync_all_enabled_sources
+from backend.sync import SYNC_LOCK, sync_all_enabled_sources
 from core.config import load_env
 from core.dashboard_metrics import (
     compute_kpis, compute_rep_coverage, compute_weighted_potential, count_aging_opportunities,
@@ -32,13 +32,15 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    AuditEntry, Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, DoNotContact,
+    AuditEntry, FieldConflictCandidate, Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, DoNotContact,
     DoNotContactReason, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
     SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE, build_discovery_records, find_existing_match
-from core.normalization import dedup_key, normalize_website, reconcile, with_field_sources
+from core.normalization import (
+    CSV_PROFILE_FIELDS, RECONCILED_FIELDS, dedup_key, normalize_website, reconcile, with_field_sources,
+)
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
@@ -55,7 +57,8 @@ from core.repository import (
     list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
     list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
     save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
-    lift_do_not_contact, list_audit_entries, list_do_not_contact, record_reconciliation, rejected_conflict_keys, save_do_not_contact, update_opportunity_discovery,
+    lift_do_not_contact, list_audit_entries, list_do_not_contact, list_field_conflicts, record_reconciliation, rejected_conflict_keys,
+    resolve_field_conflict, save_do_not_contact, update_opportunity_discovery,
     update_opportunity_qualification, update_opportunity_status,
 )
 from backend.blocks import REASON_LABEL, block_error, find_block
@@ -115,7 +118,7 @@ class OpportunityOut(BaseModel):
 
 def _reject_reserved_actor(value: str | None) -> str | None:
     # "sync" é o autor das escritas automáticas: um cliente não pode se passar por ele no histórico.
-    if value is not None and value.strip().lower() == "sync":
+    if value is not None and (value.strip().lower() == "sync" or value.strip().lower().startswith("sync:")):
         raise ValueError('O identificador "sync" é reservado.')
     return value
 
@@ -454,6 +457,46 @@ async def update_opportunity_discovery_route(opportunity_id: str, body: Opportun
         health_map = await _account_health_map(session, [updated], companies)
 
     return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
+
+
+class FieldConflictOut(BaseModel):
+    id: str
+    company_id: str
+    company_name: str
+    field: str
+    candidates: list[FieldConflictCandidate]
+
+
+class FieldConflictResolveIn(BaseModel):
+    chosen_source: str = Field(min_length=1, max_length=64)
+    rep_id: ActorId = None
+
+
+@router.get("/field-conflicts")
+async def list_field_conflicts_route() -> list[FieldConflictOut]:
+    """Conflitos abertos (duas fontes discordam de um campo da empresa). O valor atual continua
+    valendo até o usuário escolher."""
+    async with session_factory() as session:
+        conflicts = await list_field_conflicts(session)
+        names = {c.id: c.name for c in await list_companies(session)}
+    return [
+        FieldConflictOut(
+            id=c.id, company_id=c.company_id, company_name=names.get(c.company_id, "(empresa removida)"),
+            field=c.field, candidates=c.candidates,
+        )
+        for c in conflicts
+    ]
+
+
+@router.post("/field-conflicts/{conflict_id}/resolve")
+async def resolve_field_conflict_route(conflict_id: str, body: FieldConflictResolveIn) -> dict:
+    async with session_factory() as session:
+        resolved = await resolve_field_conflict(session, conflict_id, body.chosen_source, body.rep_id)
+    if resolved is None:
+        raise_http(DomainError(
+            ErrorCategory.NOT_FOUND, "Conflito não encontrado, já resolvido, ou a fonte escolhida não é uma das opções.",
+        ))
+    return {"id": resolved.id, "status": resolved.status, "resolved_source": resolved.resolved_source}
 
 
 @router.get("/opportunities/{opportunity_id}/audit")
@@ -927,7 +970,7 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
     min_score = parse_promotion_min_score(env)
     daily_cap = parse_promotion_daily_cap(env)
 
-    async with session_factory() as session:
+    async with SYNC_LOCK, session_factory() as session:
         # Achado da revisão de código: date.today() é a data LOCAL do
         # servidor, mas Company.created_at é sempre gravado em UTC
         # (core/models.py::_now) — comparar os dois desalinha a cota
@@ -991,11 +1034,14 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             if match is not None:
                 # Empresa sem dono passa a ser do rep que a descobriu (a cota é contada por rep da empresa).
                 result = reconcile(match, company, "google_maps", rejected_by_company.get(match.id, frozenset()))
-                company = result.company.model_copy(update={"rep_id": match.rep_id or body.rep_id})
+                assigned_rep = match.rep_id or body.rep_id
+                company = result.company.model_copy(update={"rep_id": assigned_rep})
+                if match.rep_id is None:  # a geo atribuiu o rep: a fonte desse campo é ela, não "legacy"
+                    company = company.model_copy(update={"field_sources": {**company.field_sources, "rep_id": "google_maps"}})
                 reconciled[match.id] = (result.changes, result.conflicts)
                 opportunity = opportunity.model_copy(update={"company_id": match.id})
             else:
-                company = with_field_sources(company, "google_maps")
+                company = with_field_sources(company, "google_maps", RECONCILED_FIELDS + CSV_PROFILE_FIELDS)
             await save_company(session, company)
             if match is not None and any(reconciled[match.id]):
                 await record_reconciliation(session, match.id, *reconciled[match.id], "google_maps")

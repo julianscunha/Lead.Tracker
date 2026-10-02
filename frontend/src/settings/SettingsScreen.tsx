@@ -4,6 +4,7 @@ import {
   type SyncResult,
 } from '../api'
 import { AiConfigSection } from './AiConfigSection'
+import { ConflictsSection } from './ConflictsSection'
 import { CsvImportSection } from './CsvImportSection'
 import { FieldMappingSection } from './FieldMappingSection'
 import { PortfolioSection } from './PortfolioSection'
@@ -83,6 +84,7 @@ export function SettingsScreen() {
         ))}
       </div>
 
+      <ConflictsSection />
       {sources.find(s => s.id === 'salesforce')?.enabled && <FieldMappingSection />}
       <AiConfigSection />
       <ThresholdsSection />

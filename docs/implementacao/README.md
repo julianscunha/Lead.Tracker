@@ -26,4 +26,5 @@ Tudo que **já foi construído**. O que falta está em [`../roadmap.md`](../road
 | K | URL da empresa (captura no Maps, reconciliação da promoção geo, link na tela) | [`fase-k-url-da-empresa.md`](specs/fase-k-url-da-empresa.md) |
 | L | Lista de "não contatar" (bloqueio por empresa/contato/canal, aplicado na sugestão, no toque e no rascunho) | [`fase-l-lista-nao-contatar.md`](specs/fase-l-lista-nao-contatar.md) |
 | M | Registro de auditoria geral (edições de qualificação, discovery, renovação e sync, sem texto pessoal) | [`fase-m-auditoria-geral.md`](specs/fase-m-auditoria-geral.md) |
+| N | Conflito entre fontes (valor da mesma fonte atualiza com rastro; outra fonte que discorda abre conflito para o usuário escolher) | [`fase-n-conflito-entre-fontes.md`](specs/fase-n-conflito-entre-fontes.md) |
 | — | Business case por oportunidade (PDF de 1 página) | [`business-case-por-oportunidade.md`](specs/business-case-por-oportunidade.md) |

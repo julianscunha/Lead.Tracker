@@ -2,7 +2,25 @@
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Importação de planilha descartava dados** — segmento, região e representante
+  de uma empresa que já estava na base eram ignorados sem aviso. Agora a planilha
+  preenche o que estava vazio, atualiza o que ela mesma gravou antes e, se outra
+  fonte discorda, abre um conflito em vez de sobrescrever. Planilha com a mesma
+  empresa escrita de formas diferentes ("Acme" e "ACME") conta uma empresa só.
+- **Dado velho não atualizava** — quando o Salesforce mudava o setor, o número de
+  funcionários, o site ou o endereço de uma empresa que já estava na base, o
+  valor antigo ficava para sempre. Agora a mesma fonte atualiza o dado, e a
+  troca aparece no histórico de alterações.
+
 ### Adicionado
+
+- **Conflitos de dados** — quando duas fontes (por exemplo Salesforce e uma
+  planilha) trazem valores diferentes para o mesmo campo de uma empresa, nada
+  é sobrescrito: o valor atual continua valendo e o conflito aparece na seção
+  "Conflitos de dados", em Configurações, para você escolher qual manter. A
+  escolha fica no histórico e o mesmo valor recusado não volta a ser perguntado.
 
 - **Histórico de alterações** — no detalhe da oportunidade, o botão "Ver
   histórico de alterações" mostra o que mudou (alcance, criticidade, data de

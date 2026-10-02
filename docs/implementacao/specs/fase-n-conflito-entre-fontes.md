@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase N — Conflito entre fontes
 
-Item R4 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (menor desenho, riscos, ponto de interceptação), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**. Inspirado no `SyncJudge` do Mautic (o funcionamento interno dele não foi lido); sem código copiado (Mautic é GPL).
+Item R4 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (menor desenho, riscos, ponto de interceptação), antes de decidir. Status: **concluída** (5 módulos). Inspirado no `SyncJudge` do Mautic (o funcionamento interno dele não foi lido); sem código copiado (Mautic é GPL).
 
 ## Problema
 
@@ -59,7 +59,13 @@ O usuário escolhe um dos valores candidatos (ou mantém o atual). Grava no camp
 
 ## Critério de sucesso
 
-- [ ] Valor alterado na própria fonte atualiza a empresa e deixa rastro.
-- [ ] Duas fontes que discordam nunca decidem em silêncio: o valor atual fica e o conflito aparece.
-- [ ] Rodar o sync de novo depois de resolver não reabre o mesmo conflito.
-- [ ] Atualizar uma instalação existente não gera uma enxurrada de conflitos.
+- [x] Valor alterado na própria fonte atualiza a empresa e deixa rastro.
+- [x] Duas fontes que discordam nunca decidem em silêncio: o valor atual fica e o conflito aparece.
+- [x] Rodar o sync de novo depois de resolver não reabre o mesmo conflito.
+- [x] Atualizar uma instalação existente não gera uma enxurrada de conflitos.
+
+## Decisões tomadas na implementação
+
+- O dono do campo é **fixado na primeira reconciliação** (e em empresa nova, `with_field_sources`): depois do merge a lista `sources` ganha outra fonte e o dono derivado viraria `legacy`, o que faria o mesmo campo conflitar para sempre.
+- Campo trazido por **mapeamento de campo** (`mapping`) nunca é contestado pela busca padrão: é a escolha explícita do usuário.
+- A reconciliação roda no sync e na promoção geográfica. O CSV não traz nenhum dos 7 campos reconciliados, então não passa por ela (o descarte de segmento/região/representante é o item R11).

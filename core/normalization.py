@@ -170,6 +170,8 @@ RECONCILED_FIELDS = (
     "legal_name", "website", "industry", "address", "annual_revenue", "employee_count", "customer_status",
 )
 LEGACY_SOURCE = "legacy"
+# Perfil que o CSV traz (R11). Não entram no sync/Maps: só a importação passa estes campos.
+CSV_PROFILE_FIELDS = ("segment", "region", "rep_id")
 
 
 @dataclass(frozen=True)
@@ -218,6 +220,8 @@ def comparable(field: str, value: Any) -> str | None:
     text = str(value)
     if field == "website":
         return normalize_domain(text) or None
+    if field == "rep_id":
+        return text.strip().casefold() or None  # identificador: "rep-1" e "rep1" são pessoas diferentes
     return _fold(text) or None
 
 
@@ -228,11 +232,33 @@ def effective_field_source(company: Company, field: str) -> str:
     return company.sources[0].type if len(company.sources) == 1 else LEGACY_SOURCE
 
 
-def with_field_sources(company: Company, source_type: str) -> Company:
+_ADDRESS_SLOTS = ("city", "state", "postal_code", "country")
+
+
+def _address_slots(value) -> dict[str, str]:
+    address = Address(**value) if isinstance(value, dict) else value
+    return {s: _fold(getattr(address, s) or "") for s in _ADDRESS_SLOTS if getattr(address, s)}
+
+
+def _address_differs(current, incoming) -> bool:
+    """Endereço diverge só se um MESMO campo (cidade/UF/CEP/país) existe nos dois e é diferente;
+    campo ausente de um lado (endereço menos detalhado) não é discordância."""
+    cur, inc = _address_slots(current), _address_slots(incoming)
+    return any(cur[s] != inc[s] for s in cur.keys() & inc.keys())
+
+
+def _merged_address(current, incoming) -> Address:
+    """Refresh da mesma fonte: o que ela trouxe vale; o que ela não trouxe fica como estava."""
+    cur = Address(**current) if isinstance(current, dict) else current
+    inc = Address(**incoming) if isinstance(incoming, dict) else incoming
+    return Address(**{s: getattr(inc, s) or getattr(cur, s) for s in _ADDRESS_SLOTS})
+
+
+def with_field_sources(company: Company, source_type: str, fields: tuple[str, ...] = RECONCILED_FIELDS) -> Company:
     """Empresa NOVA: registra a fonte de cada campo reconciliável já preenchido. Sem isso, quando
     uma segunda fonte entrar em `sources` o dono do campo viraria "legacy" (ambíguo)."""
     sources = {
-        f: source_type for f in RECONCILED_FIELDS
+        f: source_type for f in fields
         if comparable(f, getattr(company, f)) is not None and f not in company.field_sources
     }
     return company.model_copy(update={"field_sources": {**company.field_sources, **sources}}) if sources else company
@@ -240,7 +266,7 @@ def with_field_sources(company: Company, source_type: str) -> Company:
 
 def reconcile(
     persisted: Company, fetched: Company, source_type: str,
-    rejected: frozenset[tuple[str, str, str]] = frozenset(),
+    rejected: frozenset[tuple[str, str, str]] = frozenset(), fields: tuple[str, ...] = RECONCILED_FIELDS,
 ) -> ReconcileResult:
     """Reconcilia o que a fonte `source_type` trouxe com a empresa já gravada.
     - campo vazio no gravado: preenche (não é sobrescrita);
@@ -254,13 +280,17 @@ def reconcile(
     sources = dict(persisted.field_sources)
     changes: list[FieldChange] = []
     conflicts: list[ConflictProposal] = []
-    for field in RECONCILED_FIELDS:
+    for field in fields:
         current, incoming = getattr(persisted, field), getattr(fetched, field)
         current_key, incoming_key = comparable(field, current), comparable(field, incoming)
         if current_key is not None and field not in sources:
             # Fixa o dono AGORA: depois do merge `sources` ganha outra fonte e o dono derivado viraria "legacy".
-            sources[field] = effective_field_source(persisted, field)
+            owner_now = effective_field_source(persisted, field)
+            if owner_now != LEGACY_SOURCE:  # "legacy" nunca é gravado: é só "não sei", e uma resolução/fonte real o substitui
+                sources[field] = owner_now
         if incoming_key is None or incoming_key == current_key:
+            continue
+        if field == "address" and current_key is not None and not _address_differs(current, incoming):
             continue
         if current_key is None:
             updates[field] = incoming
@@ -270,9 +300,10 @@ def reconcile(
         if owner == "mapping":
             continue
         if owner == source_type:
-            updates[field] = incoming
+            new_value = _merged_address(current, incoming) if field == "address" else incoming
+            updates[field] = new_value
             sources[field] = source_type
-            changes.append(FieldChange(field, current, incoming))
+            changes.append(FieldChange(field, current, new_value))
         elif (field, source_type, incoming_key) not in rejected:
             conflicts.append(ConflictProposal(field, current, owner, incoming, source_type))
     company = base.model_copy(update={**updates, "field_sources": sources})

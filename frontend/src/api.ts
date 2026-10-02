@@ -509,6 +509,34 @@ export interface AuditEntry {
   actor: string | null
 }
 
+export interface FieldConflictCandidate {
+  source: string
+  value: unknown
+}
+
+export interface FieldConflictRow {
+  id: string
+  company_id: string
+  company_name: string
+  field: string
+  candidates: FieldConflictCandidate[]
+}
+
+export async function listFieldConflicts(): Promise<FieldConflictRow[]> {
+  const resp = await fetch(`${BASE}/field-conflicts`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function resolveFieldConflict(id: string, chosenSource: string, repId: string | null): Promise<void> {
+  const resp = await fetch(`${BASE}/field-conflicts/${id}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chosen_source: chosenSource, rep_id: repId || null }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+}
+
 export async function listOpportunityAudit(opportunityId: string): Promise<AuditEntry[]> {
   const resp = await fetch(`${BASE}/opportunities/${opportunityId}/audit`)
   if (!resp.ok) throw new Error(await friendlyError(resp))
@@ -965,6 +993,7 @@ export interface CsvImportResult {
   portfolios_updated: number
   opportunities_generated: number
   errors: string[]
+  conflicts_opened?: number
 }
 
 export async function importCsv(file: File, mode: 'merge' | 'replace'): Promise<CsvImportResult> {

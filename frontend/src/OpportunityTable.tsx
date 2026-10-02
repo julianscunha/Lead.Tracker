@@ -644,6 +644,9 @@ const AUDIT_FIELD_LABEL: Record<string, string> = {
   champion_stake: 'O que o contato ganha ou perde', discovery_skipped: 'Qualificada sem discovery',
   discovery_skip_reason: 'Justificativa para qualificar sem discovery', renewal_date: 'Data de renovação',
   industry: 'Setor', deal_size_hint: 'Porte estimado', stance: 'Postura do contato',
+  segment: 'Segmento', region: 'Região', rep_id: 'Representante', website: 'Site', address: 'Endereço',
+  legal_name: 'Razão social', annual_revenue: 'Receita anual', employee_count: 'Nº de funcionários',
+  customer_status: 'Status do cliente',
 }
 
 function auditValue(field: string, value: string | null): string {

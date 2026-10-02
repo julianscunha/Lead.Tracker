@@ -86,3 +86,13 @@ describe('safeHttpUrl', () => {
     expect(safeHttpUrl('')).toBeNull()
   })
 })
+
+describe('formatConflictValue', () => {
+  it('mostra texto, endereço compacto e "vazio"', async () => {
+    const { formatConflictValue } = await import('./settings/ConflictsSection')
+    expect(formatConflictValue('Software')).toBe('Software')
+    expect(formatConflictValue({ city: 'São Paulo', state: 'SP', postal_code: null, country: null })).toBe('São Paulo, SP')
+    expect(formatConflictValue(null)).toBe('vazio')
+    expect(formatConflictValue('')).toBe('vazio')
+  })
+})

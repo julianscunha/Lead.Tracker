@@ -64,6 +64,12 @@ export function CsvImportSection() {
               {result.companies_imported} empresa(s) importada(s), {result.portfolios_updated} portfólio(s)
               atualizado(s), {result.opportunities_generated} oportunidade(s) gerada(s).
             </p>
+            {(result.conflicts_opened ?? 0) > 0 && (
+              <p className="lt-advisory" role="status">
+                {result.conflicts_opened} valor(es) da planilha diferem do que já estava na base e não foram
+                alterados. Escolha qual manter na seção "Conflitos de dados", mais abaixo.
+              </p>
+            )}
             {result.errors.length > 0 && (
               <ul>
                 {result.errors.map((e, i) => <li key={i} className="lt-alert">{e}</li>)}

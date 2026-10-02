@@ -12,28 +12,18 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
-| R4 | Conflito entre fontes | Médio: qualidade do dado com 3+ fontes | M | — | Depois |
-| R11 | CSV descarta segmento/região/representante de empresa existente | Médio: dado perdido em silêncio | P | — | Depois |
 | R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
 | R7 | Forecast por conversão histórica | Alto, mas só com dado | G | volume de histórico (R3, auditoria, já entregue) | Condicionado |
 | R8 | Autenticação e autoria confiável | Baixo hoje | M | — | Condicionado |
 | R9 | Novos conectores (HubSpot, Pipedrive, Website) | Depende do cliente | M cada | — | Sob demanda |
-| R10 | Entrada genérica por webhook | Médio | M | R4 (ideal) | Sob demanda |
+| R10 | Entrada genérica por webhook | Médio | M | — (R4 já entregue) | Sob demanda |
 
-Dependências: `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
+Sem dependências abertas entre os itens: todos podem andar em paralelo.
 
 ## Agora
 
 ## Depois
-
-### R4. Conflito entre fontes
-Spec em proposta: [`fase-n-conflito-entre-fontes.md`](implementacao/specs/fase-n-conflito-entre-fontes.md).
-
-Quando Salesforce, Maps e CSV trazem a mesma empresa, `core/normalization.py` fica com o primeiro valor não vazio, sem avisar. Proposta: precedência configurável por campo (fonte preferida e/ou mais recente) e, quando não der para decidir, mostrar o conflito ao usuário em vez de escolher em silêncio ("nunca sobrescrever em silêncio"). Inspirado no `SyncJudge` do Mautic (modos `BestEvidence`/`FuzzyEvidence`/`HardEvidence`); o funcionamento interno não foi lido.
-
-### R11. CSV descarta segmento, região e representante de empresa que já existe
-O CSV preenche `segment`, `region` e `rep_id`, mas quando a empresa já está na base esses valores são descartados sem aviso (`backend/routes_csv_import.py`; `merge_pair` mantém os da base). Achado da consulta do R4. Correção pequena (preencher se vazio, ou abrir conflito) com teste de regressão.
 
 ### R5. Provider de enriquecimento
 Completar a empresa a partir do domínio (porte, setor, site) por API externa, como os plugins Clearbit e FullContact do Mautic. Provider só coleta e normaliza, como os demais.

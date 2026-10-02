@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, Float, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, Float, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db import Base
@@ -162,6 +162,9 @@ class OutreachTouchORM(Base):
 class FieldConflictORM(Base):
     """Fase N — ver `core.models.FieldConflict`."""
     __tablename__ = "field_conflicts"
+    __table_args__ = (
+        Index("ux_field_conflicts_open", "company_id", "field", unique=True, sqlite_where=text("status = 'open'")),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     company_id: Mapped[str] = mapped_column(String, index=True)
     field: Mapped[str] = mapped_column(String)

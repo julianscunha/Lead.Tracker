@@ -363,8 +363,11 @@ async def resolve_field_conflict(
     company = await session.get(CompanyORM, row.company_id)
     if chosen is None or company is None:
         return None
-    new_value = chosen.get("value")
     old_value = getattr(company, row.field)
+    owner = (company.field_sources or {}).get(row.field)
+    # Escolher o valor da fonte que já é a dona = MANTER o valor atual: o candidato guardado pode ter
+    # ficado velho (a dona atualizou depois do conflito abrir) e regravá-lo perderia dado.
+    new_value = _json_value(old_value) if chosen_source in (owner, "legacy") else chosen.get("value")
     if comparable(row.field, old_value) != comparable(row.field, new_value):
         _audit(session, "company", company.id, company.id, row.field, old_value, new_value, actor)
         setattr(company, row.field, new_value)

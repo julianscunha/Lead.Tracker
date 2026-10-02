@@ -8,6 +8,7 @@ tem" a partir de Salesforce/Manual (ver docs/implementacao/specs/fase-b1-ligacao
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -37,7 +38,20 @@ class SyncResult:
     errors: list[str] = field(default_factory=list)
 
 
+# ponytail: trava global — dois syncs ao mesmo tempo gravariam a linha inteira da empresa a partir de
+# leituras antigas (perde field_sources/valores). Ferramenta de uso manual, uma fonte por vez; upgrade:
+# trava por empresa se a concorrência real aparecer.
+SYNC_LOCK = asyncio.Lock()
+
+
 async def sync_source(
+    session_factory: async_sessionmaker, source: SourceDescriptor, env: dict[str, str],
+) -> SyncResult:
+    async with SYNC_LOCK:
+        return await _sync_source(session_factory, source, env)
+
+
+async def _sync_source(
     session_factory: async_sessionmaker, source: SourceDescriptor, env: dict[str, str],
 ) -> SyncResult:
     """Busca empresas/contatos do provider da fonte, normaliza (dedup dentro
@@ -57,7 +71,9 @@ async def sync_source(
     fetched = merge_companies(raw_companies)  # dedup dentro da própria fonte — ids seguem nativos do provider
 
     async with session_factory() as session:
-        existing_by_key = {dedup_key(c): c for c in await list_companies(session)}
+        persisted_companies = await list_companies(session)
+        existing_by_key = {dedup_key(c): c for c in persisted_companies}
+        existing_by_id = {c.id: c for c in persisted_companies}
         rejected_by_company = await rejected_conflict_keys(session)
 
     # native_id (o que o provider reconhece, ex.: Salesforce Account Id) ->
@@ -66,7 +82,7 @@ async def sync_source(
     to_persist: dict[str, Company] = {}
     reconciliations: dict[str, tuple[list[FieldChange], list[ConflictProposal]]] = {}
     for company in fetched:
-        match = existing_by_key.get(dedup_key(company))
+        match = existing_by_key.get(dedup_key(company)) or existing_by_id.get(company.id)
         if match is None:
             to_persist[company.id] = with_field_sources(company, source.id)
             continue

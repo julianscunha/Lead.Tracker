@@ -82,3 +82,21 @@ def test_address_is_compared_by_content_and_is_customer_still_uses_or_semantics(
     incoming = _company(address=Address(city="sao paulo", state="sp"), is_customer=False, sources=[SourceRef(type="csv")])
     result = reconcile(persisted, incoming, "csv")
     assert result.conflicts == [] and result.company.is_customer is True
+
+
+def test_partial_address_does_not_conflict_or_erase_and_same_source_merges_missing_parts():
+    full = Address(city="São Paulo", state="SP", postal_code="01310-100", country="Brasil")
+    persisted = _company(address=full)
+    partial = _company(address=Address(city="sao paulo", state="SP"), sources=[SourceRef(type="csv")])
+    assert reconcile(persisted, partial, "csv").conflicts == []  # menos detalhado não diverge
+    moved = _company(address=Address(city="Campinas", state="SP"))
+    result = reconcile(persisted, moved, "salesforce")  # mesma fonte, cidade mudou: funde, não apaga CEP/país
+    assert result.company.address.city == "Campinas" and result.company.address.postal_code == "01310-100"
+    different = _company(address=Address(city="Recife"), sources=[SourceRef(type="csv")])
+    assert len(reconcile(persisted, different, "csv").conflicts) == 1
+
+
+def test_legacy_owner_is_never_pinned_into_field_sources():
+    multi = [SourceRef(type="salesforce"), SourceRef(type="csv")]
+    result = reconcile(_company(industry="A", sources=multi), _company(industry="A"), "salesforce")
+    assert "industry" not in result.company.field_sources

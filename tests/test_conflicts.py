@@ -106,3 +106,51 @@ def test_company_without_field_sources_in_existing_db_is_derived_not_flooded_wit
         async with sf() as session:
             assert await list_field_conflicts(session) == []
     _run(body)
+
+
+def test_resolving_in_favor_of_the_owner_keeps_its_newer_value():
+    """Regressão da revisão: o conflito guarda o valor do dono no momento em que abriu; se o dono
+    atualizou depois, escolher "manter o dono" não pode regravar o valor velho."""
+    async def body(sf):
+        await sync_source(sf, _source("salesforce", [_acme("Software", "salesforce")]), {})
+        await sync_source(sf, _source("csv", [_acme("Varejo", "csv")]), {})
+        await sync_source(sf, _source("salesforce", [_acme("Software 2", "salesforce")]), {})  # dono atualiza
+        async with sf() as session:
+            conflict = (await list_field_conflicts(session))[0]
+            await resolve_field_conflict(session, conflict.id, "salesforce", actor="rep-1")
+            company = (await list_companies(session))[0]
+        assert company.industry == "Software 2"
+    _run(body)
+
+
+def test_same_source_changing_website_updates_same_company_and_keeps_field_sources():
+    """Regressão da revisão: a fonte que muda o site muda a chave de dedup; sem casar por id a empresa
+    virava "nova" e o upsert zerava field_sources/campos de outras fontes."""
+    async def body(sf):
+        first = Company(id="001ABC", name="Acme", website="https://acme.com.br", industry="Software", sources=[SourceRef(type="salesforce")])
+        await sync_source(sf, _source("salesforce", [first]), {})
+        async with sf() as session:
+            from core.repository import apply_field_mapping_updates
+            await apply_field_mapping_updates(session, "001ABC", {"industry": "Setor do usuário"})
+        moved = Company(id="001ABC", name="Acme", website="https://novo-acme.com.br", industry="Outro", sources=[SourceRef(type="salesforce")])
+        await sync_source(sf, _source("salesforce", [moved]), {})
+        async with sf() as session:
+            companies = await list_companies(session)
+        assert len(companies) == 1
+        assert companies[0].website == "https://novo-acme.com.br"
+        assert companies[0].industry == "Setor do usuário" and companies[0].field_sources["industry"] == "mapping"
+    _run(body)
+
+
+def test_open_conflict_is_protected_by_a_partial_unique_index():
+    """Um conflito ABERTO por (empresa, campo): protege de duplicata em sync concorrente, mas
+    conflitos já resolvidos (histórico) podem repetir."""
+    from sqlalchemy import text
+
+    async def body(sf):
+        async with sf() as session:
+            sql = (await session.execute(text(
+                "SELECT sql FROM sqlite_master WHERE name = 'ux_field_conflicts_open'"
+            ))).scalar_one()
+        assert "UNIQUE" in sql.upper() and "status = 'open'" in sql
+    _run(body)
