@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Site da empresa nas oportunidades** — o link do site aparece no detalhe da
+  oportunidade (só endereços http/https, abrindo em nova aba). A prospecção pelo
+  Google Maps passa a trazer o site do lugar, e o site vindo do Salesforce é
+  limpo antes de ser guardado.
+- **Prospecção sem duplicatas** — rodar a busca de novo não cria empresa nem
+  oportunidade repetida: lugares que já estão na base aparecem como "já
+  estavam na sua base". Empresa que é cliente, ou que pertence a outro
+  representante, nunca vira prospect de quem buscou; empresa sem dono passa a
+  ser de quem a descobriu.
+- A cota diária de prospecção passa a contar as oportunidades criadas no dia,
+  e não só as empresas novas.
+
 ## [1.1.0] - 2026-10-02
 
 ### Corrigido

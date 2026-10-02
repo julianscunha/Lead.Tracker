@@ -37,6 +37,16 @@ const QBR_REASON_LABEL: Record<string, string> = {
   alinhada_a_renovacao: 'conta saudável — revisão alinhada à data de renovação',
 }
 
+// A API já devolve a URL sanitizada (core/normalization.py::normalize_website); aqui é a
+// segunda trava antes de virar href — só http(s), nunca javascript:/data:.
+export function safeHttpUrl(url: string | null | undefined): string | null {
+  return url && /^https?:\/\//i.test(url) ? url : null
+}
+
+function websiteLabel(url: string): string {
+  return url.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '')
+}
+
 function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : ''
 }
@@ -697,6 +707,12 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           <dd>{row.evidence.join(', ') || '—'}</dd>
           <dt>Insight</dt>
           <dd>{row.justification ?? 'Sem justificativa registrada.'}</dd>
+          {safeHttpUrl(row.companyWebsite) && (
+            <>
+              <dt>Site</dt>
+              <dd><a href={safeHttpUrl(row.companyWebsite) as string} target="_blank" rel="noopener noreferrer">{websiteLabel(row.companyWebsite as string)}</a></dd>
+            </>
+          )}
           {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
         </dl>
         <DiscoveryFields row={row} onUpdated={onRowUpdated} />

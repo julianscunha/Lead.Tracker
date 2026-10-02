@@ -214,3 +214,13 @@ def test_dedup_key_ignores_generic_platform_domains():
     assert dedup_key(a) != dedup_key(b)
     assert dedup_key(a).startswith("name:")
     assert dedup_key(Company(name="X", website="https://www.empresa.com")) == "domain:empresa.com"
+
+
+def test_dedup_key_ignores_subdomains_of_platform_domains():
+    from core.models import Company
+    from core.normalization import dedup_key, normalize_website
+    a = Company(name="Padaria A", website="https://m.facebook.com/padariaA")
+    b = Company(name="Padaria B", website="https://pt-br.facebook.com/padariaB")
+    assert dedup_key(a) != dedup_key(b)
+    assert normalize_website("https://empresa.com/\u202e") is None
+    assert normalize_website("https://empresa.com/\u200b") is None

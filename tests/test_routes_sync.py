@@ -1785,3 +1785,42 @@ def test_run_geo_discovery_reuses_existing_noncustomer_company_and_keeps_its_web
         opps = client.get("/modules/lead_tracker/opportunities").json()
         assert len(opps) == 1 and opps[0]["company_id"] == existing.id
         assert opps[0]["company_website"] == "https://beta.com.br"
+
+
+
+def test_run_geo_discovery_does_not_take_company_owned_by_another_rep():
+    with _TempDb() as db, _GeoDiscoveryStub():
+        _seed_company(db, Company(name="Gama Ltda", website="https://gama.com.br", rep_id="rep-2", sources=[SourceRef(type="salesforce")]))
+        _StubGoogleMapsProvider.signals = [_place_signal("g", rating=5.0, review_count=50, website="gama.com.br")]
+        body = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert body["promoted"] == [] and len(body["already_known"]) == 1
+        assert client.get("/modules/lead_tracker/opportunities").json() == []
+
+
+def test_run_geo_discovery_assigns_unowned_company_to_discovering_rep_and_counts_quota():
+    with _TempDb() as db, _GeoDiscoveryStub():
+        existing = Company(name="Delta Ltda", website="https://delta.com.br", sources=[SourceRef(type="csv")])
+        _seed_company(db, existing)
+        _StubGoogleMapsProvider.signals = [_place_signal("d", rating=5.0, review_count=50, website="delta.com.br")]
+        body = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert [i["company_id"] for i in body["promoted"]] == [existing.id]
+        import asyncio
+        from core.repository import count_geo_discoveries_today, get_company
+        from datetime import datetime, timezone
+
+        async def check():
+            async with db.session_factory() as session:
+                company = await get_company(session, existing.id)
+                return company.rep_id, await count_geo_discoveries_today(session, "rep-1", datetime.now(timezone.utc).date())
+        assert asyncio.run(check()) == ("rep-1", 1)
+
+
+def test_run_geo_discovery_merges_same_search_duplicates_with_same_website():
+    with _TempDb(), _GeoDiscoveryStub():
+        _StubGoogleMapsProvider.signals = [
+            _place_signal("f1", rating=5.0, review_count=50, website="https://rede.com.br/filial1"),
+            _place_signal("f2", rating=5.0, review_count=50, website="https://rede.com.br/filial2"),
+        ]
+        body = client.post("/modules/lead_tracker/geo-discovery/run", json=_GEO_BODY).json()
+        assert len(body["promoted"]) == 1
+        assert len(client.get("/modules/lead_tracker/opportunities").json()) == 1

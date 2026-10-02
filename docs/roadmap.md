@@ -12,25 +12,19 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
-| R1 | URL da empresa | Alto: dedup dos prospects do Maps, destrava R5 | P | — | Agora |
 | R2 | Lista de "não contatar" | Alto: segurança do outreach e LGPD | P–M | — | Agora |
 | R3 | Registro de auditoria geral | Médio: rastro de edições, base de R7 e R8 | P | — | Agora |
 | R4 | Conflito entre fontes | Médio: qualidade do dado com 3+ fontes | M | — | Depois |
-| R5 | Provider de enriquecimento | Médio | M | R1 | Depois |
+| R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
 | R7 | Forecast por conversão histórica | Alto, mas só com dado | G | R3 e volume de histórico | Condicionado |
 | R8 | Autoria das edições | Baixo hoje | P | autenticação no produto | Condicionado |
 | R9 | Novos conectores (HubSpot, Pipedrive, Website) | Depende do cliente | M cada | — | Sob demanda |
 | R10 | Entrada genérica por webhook | Médio | M | R4 (ideal) | Sob demanda |
 
-Dependências: `R1 → R5`; `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
+Dependências: `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
 
 ## Agora
-
-### R1. URL da empresa
-Spec em proposta: [`fase-k-url-da-empresa.md`](implementacao/specs/fase-k-url-da-empresa.md).
-
-`Company.website` existe no modelo e no banco, mas só o Salesforce o preenche. Lacunas: a busca do Google Maps não pede `websiteUri` (prospects ficam sem URL e não deduplicam por domínio); o site não vai da descoberta para a `Company` na promoção; a API de oportunidades não o devolve e a tela não o mostra. Módulos: captura no Maps (só preenche se vazio, nunca sobrescreve o Salesforce) → `company_website` na API → link seguro na UI (`http(s)` apenas, `rel="noopener noreferrer"`). Atenção: `websiteUri` na busca por proximidade muda a faixa de preço da Places API.
 
 ### R2. Lista de "não contatar"
 Não existe hoje. Registro por contato ou empresa e por canal, com motivo (pedido do contato, e-mail inválido, decisão do vendedor), comentário e data, insert-only (padrão do `DoNotContact` do Mautic: `reason`, `channel`, `comments`, `dateAdded`). Quando ativo, sugestões de outreach daquele contato/canal são bloqueadas e a tela explica o porquê. Reforça o limite diário por rep e ajuda na conformidade com a LGPD.

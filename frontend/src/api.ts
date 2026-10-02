@@ -325,6 +325,7 @@ interface OpportunityApiRow {
   discovery_skipped?: boolean
   discovery_skip_reason?: string | null
   discovery_pending?: boolean
+  company_website?: string | null
 }
 
 /** priority não existe no domínio (core/models.py) — derivado do score real,
@@ -374,6 +375,7 @@ function fromApiRow(r: OpportunityApiRow): OpportunityRow {
     discoverySkipped: r.discovery_skipped ?? false,
     discoverySkipReason: r.discovery_skip_reason ?? null,
     discoveryPending: r.discovery_pending ?? false,
+    companyWebsite: r.company_website ?? null,
   }
 }
 
@@ -672,6 +674,7 @@ export interface GeoDiscoveryResult {
   promoted: GeoDiscoveryItem[]
   deferred: GeoDiscoveryItem[]
   rejected: GeoDiscoveryItem[]
+  alreadyKnown: GeoDiscoveryItem[]
 }
 
 interface GeoDiscoveryItemApi {
@@ -704,6 +707,7 @@ export async function runGeoDiscovery(request: GeoDiscoveryRequest): Promise<Geo
     promoted: d.promoted.map(geoDiscoveryItemFromApi),
     deferred: d.deferred.map(geoDiscoveryItemFromApi),
     rejected: d.rejected.map(geoDiscoveryItemFromApi),
+    alreadyKnown: (d.already_known ?? []).map(geoDiscoveryItemFromApi),
   }
 }
 

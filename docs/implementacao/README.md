@@ -23,4 +23,5 @@ Tudo que **já foi construído**. O que falta está em [`../roadmap.md`](../road
 | H | Cobertura de stakeholder e risco de single-thread | [`fase-h-cobertura-stakeholder.md`](specs/fase-h-cobertura-stakeholder.md) |
 | I | Funil por representante × categoria | [`fase-i-funil-rep-categoria.md`](specs/fase-i-funil-rep-categoria.md) |
 | J | Gate de discovery completa antes de qualificar | [`fase-j-gate-discovery.md`](specs/fase-j-gate-discovery.md) |
+| K | URL da empresa (captura no Maps, reconciliação da promoção geo, link na tela) | [`fase-k-url-da-empresa.md`](specs/fase-k-url-da-empresa.md) |
 | — | Business case por oportunidade (PDF de 1 página) | [`business-case-por-oportunidade.md`](specs/business-case-por-oportunidade.md) |

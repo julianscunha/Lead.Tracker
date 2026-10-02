@@ -74,3 +74,15 @@ describe('CADENCE_REASON_PHRASE', () => {
     }
   })
 })
+
+describe('safeHttpUrl', () => {
+  it('só deixa passar http(s)', async () => {
+    const { safeHttpUrl } = await import('./OpportunityTable')
+    expect(safeHttpUrl('https://acme.com.br')).toBe('https://acme.com.br')
+    expect(safeHttpUrl('HTTP://acme.com')).toBe('HTTP://acme.com')
+    expect(safeHttpUrl('javascript:alert(1)')).toBeNull()
+    expect(safeHttpUrl('data:text/html,x')).toBeNull()
+    expect(safeHttpUrl(null)).toBeNull()
+    expect(safeHttpUrl('')).toBeNull()
+  })
+})

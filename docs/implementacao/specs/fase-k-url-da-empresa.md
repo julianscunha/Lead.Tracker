@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase K — URL da empresa
 
-Item R1 do [`roadmap`](../../roadmap.md). Consultas: `ecc:architect` (sanitização e reconciliação), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**.
+Item R1 do [`roadmap`](../../roadmap.md). Consultas: `ecc:architect` (sanitização e reconciliação), antes de decidir. Status: **concluída** (5 módulos). Revisão de segurança (`ecc:security-reviewer`) aplicada.
 
 ## Problema
 
@@ -32,7 +32,9 @@ Item R1 do [`roadmap`](../../roadmap.md). Consultas: `ecc:architect` (sanitizaç
   - Blocklist de domínios genéricos no dedup (`facebook.com`, `instagram.com`, `wa.me`, `linktr.ee`, `sites.google.com`): o link continua exibido, mas não serve de chave.
   - Empresa que já é cliente (`is_customer`): não cria oportunidade geo.
   - Já existe oportunidade `geo-discovery` não descartada para a empresa: **pula** (sem duplicar). Se não existir, cria com `company_id` da empresa existente.
-  - `merge_pair` não mescla `rep_id`/`segment`: a empresa existente **mantém o rep original** (decisão padrão; mudar só se pedido).
+  - **Rep:** empresa de **outro** rep não vira prospect de quem buscou (vai para "já na base", sem oportunidade nem cota); empresa **sem dono** passa a ser do rep que a descobriu. Achado da revisão: sem isso, a oportunidade caía na carteira de outro rep e burlava a cota de quem buscou.
+  - **Mesma busca:** dois lugares com a mesma chave (filiais com o mesmo site) viram um só, para não gerar 2 oportunidades/vagas de cota na mesma empresa.
+  - **Subdomínios de plataforma** (`m.facebook.com`, `l.instagram.com`) também não servem de chave (comparação por sufixo).
   - Empresas já conhecidas voltam numa lista própria ("já na base") no resultado, não em `rejected`.
 - **Cota diária** (`core/repository.py::count_geo_discoveries_today`) hoje conta `Company` criada hoje com fonte `google_maps`; com merge isso erra. Passa a contar `Opportunity` `type=geo-discovery` criada hoje pelo rep.
 - **Custo:** `places.websiteUri` na busca por proximidade muda a faixa de preço da Places API (Enterprise). A cota diária por rep limita o gasto, que sobe um pouco por busca.
@@ -53,6 +55,10 @@ Unit: `normalize_website` (válidos, sem esquema, `javascript:`, `data:`, userin
 
 ## Critério de sucesso
 
-- [ ] Rodar a busca duas vezes não duplica empresa nem oportunidade.
-- [ ] Nenhum esquema além de `http`/`https` chega à tela.
-- [ ] Site do Salesforce nunca é sobrescrito por um do Maps.
+- [x] Rodar a busca duas vezes não duplica empresa nem oportunidade.
+- [x] Nenhum esquema além de `http`/`https` chega à tela.
+- [x] Site do Salesforce nunca é sobrescrito por um do Maps.
+
+## Resíduos aceitos
+
+IP privado (`http://10.0.0.1`) é aceito como URL: só vira link, nada o busca (se um enriquecimento futuro buscar, precisa validar). `place_id` continua sem ser guardado.

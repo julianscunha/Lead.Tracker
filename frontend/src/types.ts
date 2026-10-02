@@ -48,6 +48,7 @@ export interface OpportunityRow {
   discoverySkipped?: boolean
   discoverySkipReason?: string | null
   discoveryPending?: boolean
+  companyWebsite?: string | null
 }
 
 export type ScopeNote = 'isolado' | 'parcial' | 'generalizado'

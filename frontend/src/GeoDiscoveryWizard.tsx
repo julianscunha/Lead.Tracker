@@ -180,6 +180,12 @@ export function GeoDiscoveryWizard() {
           )}
         </div>
 
+        {result.alreadyKnown.length > 0 && (
+          <p className="lt-hint">
+            {result.alreadyKnown.length} {result.alreadyKnown.length === 1 ? 'lugar já estava' : 'lugares já estavam'} na sua base e não {result.alreadyKnown.length === 1 ? 'foi' : 'foram'} duplicado{result.alreadyKnown.length === 1 ? '' : 's'}.
+          </p>
+        )}
+
         {result.promoted.length > 0 && (
           <div className="lt-source-grid">
             {result.promoted.map(item => <DiscoveryCard key={item.placeId} item={item} group="promoted" />)}

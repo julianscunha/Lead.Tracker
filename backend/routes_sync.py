@@ -37,7 +37,7 @@ from core.models import (
     SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
 from core.geo_discovery import GEO_DISCOVERY_OPPORTUNITY_TYPE, build_discovery_records, find_existing_match
-from core.normalization import merge_pair, normalize_website
+from core.normalization import dedup_key, merge_pair, normalize_website
 from core.geo_promotion import parse_promotion_daily_cap, parse_promotion_min_score, select_promotions
 from core.geo_scoring import category_matches, score_place_signal
 from core.icp import derive_icp_suggestion
@@ -814,12 +814,20 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
         match_by_place_id: dict[str, Company] = {}
         known: list[tuple[PlaceSignal, Company]] = []
         fresh_scored = []
+        seen_keys: set[str] = set()
         for signal, score in scored:
-            match = find_existing_match(
-                Company(name=signal.name, website=signal.website, sources=[SourceRef(type="google_maps")]),
-                existing_companies,
-            )
-            if match is not None and (match.is_customer or match.id in active_geo_by_company):
+            candidate = Company(name=signal.name, website=signal.website, sources=[SourceRef(type="google_maps")])
+            # Dois lugares da MESMA busca com a mesma chave (filiais com o mesmo site) viram um só:
+            # sem isso, as duas promoções gerariam 2 oportunidades/vagas de cota na mesma empresa.
+            key = dedup_key(candidate)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            match = find_existing_match(candidate, existing_companies)
+            # Empresa de OUTRO rep não vira prospect deste (a oportunidade cairia na carteira dele e a
+            # cota do rep que buscou não contaria): trata como já conhecida.
+            owned_by_other = match is not None and match.rep_id not in (None, body.rep_id)
+            if match is not None and (match.is_customer or owned_by_other or match.id in active_geo_by_company):
                 known.append((signal, match))
                 continue
             if match is not None:
@@ -847,7 +855,8 @@ async def run_geo_discovery(body: GeoDiscoveryRequest) -> GeoDiscoveryResultOut:
             )
             match = match_by_place_id.get(signal.place_id)
             if match is not None:
-                company = merge_pair(match, company)
+                # Empresa sem dono passa a ser do rep que a descobriu (a cota é contada por rep da empresa).
+                company = merge_pair(match, company).model_copy(update={"rep_id": match.rep_id or body.rep_id})
                 opportunity = opportunity.model_copy(update={"company_id": match.id})
             await save_company(session, company)
             await save_opportunity(session, opportunity)

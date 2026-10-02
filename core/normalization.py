@@ -72,7 +72,7 @@ def normalize_website(raw: str | None) -> str | None:
     if not raw:
         return None
     candidate = raw.strip()
-    if not candidate or len(candidate) > _MAX_WEBSITE_LEN or any(c.isspace() or ord(c) < 32 for c in candidate):
+    if not candidate or len(candidate) > _MAX_WEBSITE_LEN or any(c.isspace() or not c.isprintable() for c in candidate):
         return None
     if "://" not in candidate:
         if re.match(r"^[a-z][a-z0-9+.-]*:(?!\d)", candidate, re.I):
@@ -94,7 +94,7 @@ def dedup_key(company: Company) -> str:
     contra empresa já persistida de outra fonte, sem duplicar. Domínio de
     plataforma (`GENERIC_DOMAINS`) não conta como domínio da empresa."""
     domain = normalize_domain(company.website)
-    if domain and domain not in GENERIC_DOMAINS:
+    if domain and not any(domain == d or domain.endswith(f".{d}") for d in GENERIC_DOMAINS):
         return f"domain:{domain}"
     return f"name:{normalize_name(company.name)}"
 
