@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-02
+
 ### Alterado
 
 - **Interface reorganizada no fluxo de trabalho** — as abas agora são Dashboard
