@@ -1163,7 +1163,7 @@ def test_get_next_suggested_touch_returns_first_step_for_new_opportunity():
         assert resp.json() == {
             "state": "sugestao", "channel": "email", "reason_category": "continuidade_uso_atual",
             "silence_reason": None, "silence_days": None,
-            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None, "block_reason": None, "last_contact_blocked": False,
             "last_contact_id": None,
         }
 
@@ -1204,7 +1204,7 @@ def test_post_outreach_touch_then_next_suggestion_awaits_interval():
         assert resp.json() == {
             "state": "aguardando_intervalo", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
-            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None, "block_reason": None, "last_contact_blocked": False,
             "last_contact_id": None,
         }
 
@@ -1214,19 +1214,21 @@ def test_post_outreach_touch_persists_optional_contact_id():
         import asyncio
         company = Company(name="Aurora Sistemas", is_customer=True)
         opportunity = Opportunity(company_id=company.id, type="cross-sell", evidence=["veeam_vbr"])
+        contact = Contact(company_id=company.id, name="Joana Alves")
 
         async def seed():
             async with db.session_factory() as session:
                 await save_company(session, company)
+                await save_contact(session, contact)
                 await save_opportunity(session, opportunity)
         asyncio.run(seed())
 
         resp = client.post(
             f"/modules/lead_tracker/opportunities/{opportunity.id}/outreach-touches",
-            json={"rep_id": "rep-1", "contact_id": "contact-1", "channel": "ligação", "reason_label": "falei com o decisor"},
+            json={"rep_id": "rep-1", "contact_id": contact.id, "channel": "ligação", "reason_label": "falei com o decisor"},
         )
         assert resp.status_code == 200
-        assert resp.json()["contact_id"] == "contact-1"
+        assert resp.json()["contact_id"] == contact.id
 
 
 def test_post_outreach_touch_returns_friendly_404_for_unknown_opportunity():
@@ -1343,7 +1345,7 @@ def test_get_next_suggested_touch_reflects_daily_cap_reached():
         assert resp.json() == {
             "state": "cap_diario_atingido", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
-            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None, "block_reason": None, "last_contact_blocked": False,
             "last_contact_id": None,
         }
 
@@ -1394,7 +1396,7 @@ def test_get_next_suggested_touch_suppresses_silence_when_daily_cap_reached():
         assert resp.json() == {
             "state": "cap_diario_atingido", "channel": None, "reason_category": None,
             "silence_reason": None, "silence_days": None,
-            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None,
+            "threading_risk_reasons": [], "active_contact_count": None, "has_active_decisor": None, "block_reason": None, "last_contact_blocked": False,
             "last_contact_id": None,
         }
 
@@ -1471,7 +1473,7 @@ def test_get_company_contacts_returns_id_and_name():
 
         resp = client.get(f"/modules/lead_tracker/companies/{company.id}/contacts")
         assert resp.status_code == 200
-        assert resp.json() == [{"id": contact.id, "name": "Joana Alves"}]
+        assert resp.json() == [{"id": contact.id, "name": "Joana Alves", "do_not_contact": False}]
 
 
 def test_get_company_contacts_empty_for_company_without_contacts():

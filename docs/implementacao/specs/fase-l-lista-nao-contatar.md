@@ -6,7 +6,7 @@ tags: [lead-tracker, implementacao, spec]
 
 # Fase L — Lista de "não contatar"
 
-Item R2 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (furos do modelo e caminhos de escape), antes de decidir. Status: **proposta, aguardando confirmação do mapa de módulos**.
+Item R2 do [`roadmap`](../../roadmap.md). Consulta: `ecc:architect` (furos do modelo e caminhos de escape), antes de decidir. Status: **concluída** (4 módulos). Revisão de segurança (`ecc:security-reviewer`) aplicada.
 
 ## Problema
 
@@ -31,6 +31,8 @@ Não existe o conceito de "não contatar". Hoje o produto sugere o próximo toqu
 - bloqueio de **empresa inteira** (sem contato) da mesma `company_id`; contato novo que chega depois fica coberto automaticamente; ou
 - bloqueio de **contato** com o mesmo `contact_id`, **ou** o mesmo e-mail normalizado (vale globalmente, ignorando `company_id`: sobrevive a reimport do CRM com id novo e a empresa duplicada por mudança de chave de dedup). E-mail só é comparado quando os dois lados são não vazios (nunca `None == None`); e
 - canal: o do bloqueio é `None` (todos) ou igual ao canal consultado, ambos normalizados (sem acento, minúsculo, `strip`).
+
+**Endurecimento da revisão:** o canal é comparado sem acento, hífen nem espaço ("E-mail", "e mail" e "email" são o mesmo); o e-mail ignora `+tag` da parte local (`joao+crm@x.com` = `joao@x.com`; pontos do Gmail não são tratados); e **sem `contact_id`** na ação (rascunho ou toque) qualquer bloqueio ativo de contato da empresa, no canal, impede a ação até escolher o contato (antes, omitir o contato contornava o bloqueio).
 
 `ponytail:` canais são texto livre (core genérico, sem lista fechada): um sinônimo ("telefone" × "ligação") escapa de um bloqueio **por canal**. Mitigação: o padrão da UI é "todos os canais"; a UI oferece os canais que a cadência já usa. Upgrade: conjunto fechado de canais se isso virar problema real.
 
@@ -59,6 +61,10 @@ Unit: `find_active_block` (empresa inteira, contato por id, por e-mail com caixa
 
 ## Critério de sucesso
 
-- [ ] Nenhum caminho do backend sugere, redige ou registra contato com alvo bloqueado sem aviso explícito.
-- [ ] Bloqueio por e-mail sobrevive a reimport do contato com id novo.
-- [ ] Retirar um bloqueio nunca apaga o histórico.
+- [x] Nenhum caminho do backend sugere, redige ou registra contato com alvo bloqueado sem aviso explícito.
+- [x] Bloqueio por e-mail sobrevive a reimport do contato com id novo.
+- [x] Retirar um bloqueio nunca apaga o histórico.
+
+## Resíduos aceitos
+
+Sinônimo de canal ("telefone" × "ligação"); ponto do Gmail no e-mail; sem deduplicação na criação (dois bloqueios iguais pedem duas reativações); `rep_id` é texto livre (o produto ainda não tem autenticação, item R8 do roadmap).

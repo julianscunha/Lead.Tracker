@@ -603,3 +603,12 @@ def test_find_active_block_channel_none_means_all_and_comparison_ignores_case_an
     assert find_active_block([all_channels], "c1", None, None, "linkedin") is all_channels
     assert find_active_block([only_call], "c1", None, None, "ligacao") is only_call
     assert find_active_block([only_call], "c1", None, None, "email") is None
+
+
+def test_find_active_block_ignores_channel_hyphen_space_and_email_plus_tag():
+    from core.opportunity_engine import find_active_block
+    by_channel = _block(channel="E-mail")
+    assert find_active_block([by_channel], "c1", None, None, "email") is by_channel
+    assert find_active_block([_block(channel="e mail")], "c1", None, None, "EMAIL") is not None
+    by_email = _block(contact_id="p1", contact_email="joao@x.com")
+    assert find_active_block([by_email], "c9", "novo-id", "Joao+crm@X.com", None) is by_email

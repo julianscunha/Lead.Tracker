@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
-  exportBusinessCase, generateEmailDraft, getAiConfig, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
+  createDoNotContact, exportBusinessCase, generateEmailDraft, getAiConfig, liftDoNotContact, listDoNotContact, getCompanyContacts, getNextSuggestedTouch, markOutreachTouchSent, updateCompanyRenewalDate,
   updateOpportunityDiscovery, updateOpportunityQualification, updateOpportunityStatus,
-  type CompanyContact, type EmailDraft, type NextSuggestedTouch,
+  type CompanyContact, type DoNotContactEntry, type DoNotContactReason, type EmailDraft, type NextSuggestedTouch,
 } from './api'
 import { canExportBusinessCase, proseSourceMessage } from './businessCase'
 import { InfoHint } from './InfoHint'
@@ -434,6 +434,9 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
   const [marking, setMarking] = useState(false)
   const [contacts, setContacts] = useState<CompanyContact[]>([])
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  // Fase L: depois de um 422 por "não contatar", o rep pode confirmar que o contato realmente aconteceu.
+  const [acknowledgeBlock, setAcknowledgeBlock] = useState(false)
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null)
 
   const cacheKey = `${row.id}:${repId}`
 
@@ -510,6 +513,14 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
     </div>
   )
 
+  if (suggestion.state === 'bloqueado') {
+    return (
+      <p className="lt-advisory" role="alert">
+        Esta empresa está marcada como "não contatar" ({suggestion.blockReason ?? 'sem motivo informado'}), então não há
+        próxima ação sugerida. Se a situação mudou, reative na seção "Não contatar" abaixo.
+      </p>
+    )
+  }
   if (suggestion.state === 'aguardando_intervalo') {
     return (
       <>
@@ -549,7 +560,7 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
     setCopying(true)
     try {
       if (channel === 'email') {
-        const draft = await generateEmailDraft(row)
+        const draft = await generateEmailDraft(row, selectedContactId)
         await navigator.clipboard.writeText(`${draft.subject}\n\n${draft.greeting}\n\n${draft.body}\n\n${draft.cta}`)
       } else {
         await navigator.clipboard.writeText(phrase)
@@ -567,12 +578,20 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
   const markSent = async () => {
     setMarking(true)
     try {
-      await markOutreachTouchSent(row.id, repId, channel, phrase, selectedContactId)
+      await markOutreachTouchSent(row.id, repId, channel, phrase, selectedContactId, acknowledgeBlock)
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Falha ao registrar o contato.')
+      const message = err instanceof Error ? err.message : 'Falha ao registrar o contato.'
+      if (message.includes('não contatar')) {
+        setBlockedNotice(message)
+        setAcknowledgeBlock(true)
+      } else {
+        setLoadError(message)
+      }
       setMarking(false)
       return
     }
+    setBlockedNotice(null)
+    setAcknowledgeBlock(false)
     try {
       await load(true)
     } catch {
@@ -594,13 +613,21 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
     <div className="lt-panel">
       {silenceBanner}
       {threadingBanner}
+      {suggestion.lastContactBlocked && (
+        <p className="lt-advisory" role="alert">O último contato registrado está marcado como "não contatar". Escolha outro contato antes de seguir.</p>
+      )}
+      {blockedNotice && (
+        <p className="lt-alert" role="alert">
+          {blockedNotice} Clique em "Registrar mesmo assim" só se o contato realmente aconteceu.
+        </p>
+      )}
       <p className="lt-panel-text">{phrase}</p>
       <div className="lt-panel-row">
         <label className="lt-field">
           <span>Contato (opcional)</span>
           <select value={selectedContactId ?? ''} onChange={e => setSelectedContactId(e.target.value || null)}>
             <option value="">Não atribuído</option>
-            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.do_not_contact ? ' (não contatar)' : ''}</option>)}
           </select>
           <span className="lt-hint">Pra quem o rascunho de e-mail abaixo é endereçado.</span>
         </label>
@@ -612,10 +639,123 @@ function NextActionSuggestion({ row, repId, suggestionCache, contactsCache }: {
         {copyState === 'copied' && <span className="lt-hint">Copiado ✓</span>}
         {copyState === 'ready' && (
           <button type="button" className="lt-btn" onClick={markSent} disabled={marking}>
-            {marking ? 'Registrando…' : 'Marcar como enviado'}
+            {marking ? 'Registrando…' : acknowledgeBlock ? 'Registrar mesmo assim' : 'Marcar como enviado'}
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+const DNC_REASON_OPTIONS: { value: DoNotContactReason; label: string }[] = [
+  { value: 'requested_by_contact', label: 'O contato pediu para não ser contatado' },
+  { value: 'invalid_contact_data', label: 'Dados de contato inválidos' },
+  { value: 'rep_decision', label: 'Decisão do representante' },
+  { value: 'other', label: 'Outro motivo' },
+]
+
+function DoNotContactPanel({ row, repId }: { row: OpportunityRow; repId: string }) {
+  const [entries, setEntries] = useState<DoNotContactEntry[]>([])
+  const [contacts, setContacts] = useState<CompanyContact[]>([])
+  const [contactId, setContactId] = useState('')
+  const [channel, setChannel] = useState('')
+  const [reason, setReason] = useState<DoNotContactReason>('requested_by_contact')
+  const [comment, setComment] = useState('')
+  const [liftingId, setLiftingId] = useState<string | null>(null)
+  const [liftReason, setLiftReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = () => listDoNotContact(row.companyId).then(setEntries)
+
+  useEffect(() => {
+    reload().catch(err => setError(err instanceof Error ? err.message : 'Falha ao carregar a lista de não contatar.'))
+    getCompanyContacts(row.companyId).then(setContacts).catch(() => setContacts([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.companyId])
+
+  const add = async () => {
+    setError(null)
+    try {
+      await createDoNotContact(row.companyId, {
+        repId, contactId: contactId || null, channel: channel || null, reason, comment,
+      })
+      setComment('')
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao marcar como não contatar.')
+    }
+  }
+
+  const lift = async (id: string) => {
+    setError(null)
+    try {
+      await liftDoNotContact(id, repId, liftReason)
+      setLiftingId(null)
+      setLiftReason('')
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao reativar.')
+    }
+  }
+
+  const nameOf = (id: string | null) => (id ? contacts.find(c => c.id === id)?.name ?? 'Contato' : 'Empresa inteira')
+  const active = entries.filter(e => !e.lifted_at)
+
+  return (
+    <div className="lt-panel">
+      <strong>Não contatar</strong>
+      {!repId.trim() && <p className="lt-hint">Informe seu id de representante acima para marcar ou reativar.</p>}
+      {active.length === 0 && <p className="lt-hint">Nenhum bloqueio ativo nesta empresa.</p>}
+      {active.map(e => (
+        <div key={e.id} className="lt-panel-row">
+          <span className="lt-panel-text">
+            {nameOf(e.contact_id)} · {e.channel ?? 'todos os canais'} · {DNC_REASON_OPTIONS.find(o => o.value === e.reason)?.label}
+            {e.comment ? ` — ${e.comment}` : ''}
+          </span>
+          {liftingId === e.id ? (
+            <>
+              <label className="lt-field">
+                <span>Por que reativar? (opcional)</span>
+                <input value={liftReason} onChange={ev => setLiftReason(ev.target.value)} maxLength={500} />
+              </label>
+              <button type="button" className="lt-btn" onClick={() => lift(e.id)} disabled={!repId.trim()}>Confirmar reativação</button>
+            </>
+          ) : (
+            <button type="button" className="lt-btn" onClick={() => setLiftingId(e.id)}>Reativar</button>
+          )}
+        </div>
+      ))}
+      <div className="lt-panel-row">
+        <label className="lt-field">
+          <span>Quem</span>
+          <select value={contactId} onChange={e => setContactId(e.target.value)}>
+            <option value="">Empresa inteira</option>
+            {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label className="lt-field">
+          <span>Canal</span>
+          <select value={channel} onChange={e => setChannel(e.target.value)}>
+            <option value="">Todos os canais</option>
+            <option value="email">E-mail</option>
+            <option value="ligação">Ligação</option>
+            <option value="linkedin">LinkedIn</option>
+          </select>
+        </label>
+        <label className="lt-field">
+          <span>Motivo</span>
+          <select value={reason} onChange={e => setReason(e.target.value as DoNotContactReason)}>
+            {DNC_REASON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </label>
+        <label className="lt-field">
+          <span>Observação (opcional)</span>
+          <input value={comment} onChange={e => setComment(e.target.value)} maxLength={500} />
+          <span className="lt-hint">Fica só aqui: não vai para exportações nem para a IA.</span>
+        </label>
+        <button type="button" className="lt-btn" onClick={add} disabled={!repId.trim()}>Marcar como não contatar</button>
+      </div>
+      {error && <p className="lt-alert" role="alert">{error}</p>}
     </div>
   )
 }
@@ -716,6 +856,7 @@ function RowDetail({ row, repId, onRowUpdated, onRenewalDateUpdated, suggestionC
           {row.discoveryPrompt && (<><dt>Pergunta para o cliente</dt><dd>{row.discoveryPrompt}</dd></>)}
         </dl>
         <DiscoveryFields row={row} onUpdated={onRowUpdated} />
+        <DoNotContactPanel row={row} repId={repId} />
         <StatusTransition row={row} onUpdated={onRowUpdated} />
         <AccountHealthPanel row={row} onRenewalDateUpdated={onRenewalDateUpdated} />
         <SeverityQualification row={row} onUpdated={onRowUpdated} />

@@ -80,11 +80,13 @@ export interface EmailDraft {
   cta: string
 }
 
-export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraft> {
+export async function generateEmailDraft(row: OpportunityRow, contactId: string | null = null): Promise<EmailDraft> {
   const resp = await fetch(`${BASE}/email-draft`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      opportunity_id: row.id,
+      contact_id: contactId,
       company_name: row.companyName,
       opportunity_type: row.type,
       evidence: row.evidence,
@@ -96,7 +98,7 @@ export async function generateEmailDraft(row: OpportunityRow): Promise<EmailDraf
   return resp.json()
 }
 
-export type CadenceState = 'sugestao' | 'aguardando_intervalo' | 'cadencia_esgotada' | 'cap_diario_atingido'
+export type CadenceState = 'sugestao' | 'aguardando_intervalo' | 'cadencia_esgotada' | 'cap_diario_atingido' | 'bloqueado'
 export type SilenceReason = 'nunca_contatado' | 'cadencia_esgotada_silencio'
 export type ThreadingRiskReason = 'single_threaded_risk' | 'no_economic_buyer_contact'
 
@@ -110,6 +112,8 @@ export interface NextSuggestedTouch {
   activeContactCount: number | null
   hasActiveDecisor: boolean | null
   lastContactId: string | null
+  blockReason: string | null
+  lastContactBlocked: boolean
 }
 
 export async function getNextSuggestedTouch(opportunityId: string, repId: string): Promise<NextSuggestedTouch> {
@@ -123,16 +127,18 @@ export async function getNextSuggestedTouch(opportunityId: string, repId: string
     silenceReason: d.silence_reason, silenceDays: d.silence_days,
     threadingRiskReasons: d.threading_risk_reasons, activeContactCount: d.active_contact_count,
     hasActiveDecisor: d.has_active_decisor, lastContactId: d.last_contact_id,
+    blockReason: d.block_reason ?? null, lastContactBlocked: d.last_contact_blocked ?? false,
   }
 }
 
 export async function markOutreachTouchSent(
   opportunityId: string, repId: string, channel: string, reasonLabel: string, contactId: string | null,
+  acknowledgeBlock = false,
 ): Promise<void> {
   const resp = await fetch(`${BASE}/opportunities/${opportunityId}/outreach-touches`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rep_id: repId, contact_id: contactId, channel, reason_label: reasonLabel }),
+    body: JSON.stringify({ rep_id: repId, contact_id: contactId, channel, reason_label: reasonLabel, acknowledge_block: acknowledgeBlock }),
   })
   if (!resp.ok) throw new Error(await friendlyError(resp))
 }
@@ -140,6 +146,55 @@ export async function markOutreachTouchSent(
 export interface CompanyContact {
   id: string
   name: string
+  do_not_contact?: boolean
+}
+
+export type DoNotContactReason = 'requested_by_contact' | 'invalid_contact_data' | 'rep_decision' | 'other'
+
+export interface DoNotContactEntry {
+  id: string
+  company_id: string
+  contact_id: string | null
+  channel: string | null
+  reason: DoNotContactReason
+  comment: string | null
+  created_by: string
+  created_at: string
+  lifted_at: string | null
+  lifted_by: string | null
+  lift_reason: string | null
+}
+
+export async function listDoNotContact(companyId: string): Promise<DoNotContactEntry[]> {
+  const resp = await fetch(`${BASE}/companies/${companyId}/do-not-contact`)
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function createDoNotContact(
+  companyId: string,
+  body: { repId: string; contactId: string | null; channel: string | null; reason: DoNotContactReason; comment: string },
+): Promise<DoNotContactEntry> {
+  const resp = await fetch(`${BASE}/companies/${companyId}/do-not-contact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      rep_id: body.repId, contact_id: body.contactId, channel: body.channel, reason: body.reason,
+      comment: body.comment.trim() || null,
+    }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
+export async function liftDoNotContact(entryId: string, repId: string, liftReason: string): Promise<DoNotContactEntry> {
+  const resp = await fetch(`${BASE}/do-not-contact/${entryId}/lift`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rep_id: repId, lift_reason: liftReason.trim() || null }),
+  })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
 }
 
 export async function getCompanyContacts(companyId: string): Promise<CompanyContact[]> {

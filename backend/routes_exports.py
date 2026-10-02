@@ -32,7 +32,8 @@ from backend.http_errors import raise_http as _raise_http
 from core.business_case import assemble_business_case
 from core.dashboard_metrics import DashboardKPIs
 from core.errors import DomainError, ErrorCategory
-from core.repository import get_company, get_opportunity, get_product, get_service
+from backend.blocks import block_error, find_block
+from core.repository import get_company, get_opportunity, get_product, get_service, list_contacts
 from exports.excel import opportunities_excel
 from exports.pdf import business_case_pdf, executive_pdf, opportunities_pdf
 from exports.types import OpportunityExportRow
@@ -84,6 +85,9 @@ class ExecutivePdfRequest(BaseModel):
 
 
 class EmailDraftRequest(BaseModel):
+    # Fase L: o servidor carrega a oportunidade/empresa e checa "não contatar" — sem o id não há como checar.
+    opportunity_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    contact_id: str | None = Field(default=None, max_length=64)
     company_name: str
     opportunity_type: str
     evidence: list[str] = []
@@ -144,6 +148,22 @@ async def email_draft(body: EmailDraftRequest) -> dict:
             "IA não configurada.",
             "Configure a chave de IA na aba Configurações (seção Inteligência Artificial) para gerar rascunhos.",
         ))
+
+    try:
+        async with session_factory() as session:
+            opp = await get_opportunity(session, body.opportunity_id)
+            if opp is None:
+                raise _not_found("Oportunidade")
+            contact = None
+            if body.contact_id:
+                contact = next((c for c in await list_contacts(session, opp.company_id) if c.id == body.contact_id), None)
+                if contact is None:
+                    raise DomainError(ErrorCategory.INVALID_DATA, "Esse contato não pertence à empresa da oportunidade.")
+            block = await find_block(session, opp.company_id, contact, "email")
+        if block is not None:
+            raise block_error(block, "Não gere rascunho para esse alvo. Se a situação mudou, reative o contato primeiro.", contact)
+    except DomainError as exc:
+        _raise_http(exc)
 
     provider = create_ai_provider(env.get("AI_PROVIDER", ""), api_key, env.get("AI_MODEL", ""))
     try:

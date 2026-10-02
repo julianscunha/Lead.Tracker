@@ -32,7 +32,8 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, ICPProfile, Opportunity,
+    Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, DoNotContact,
+    DoNotContactReason, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
     SourceRef, StatusChangeRequiresJustificationError, Vendor,
 )
@@ -44,7 +45,9 @@ from core.icp import derive_icp_suggestion
 from core.opportunity_engine import (
     CADENCE_DAILY_CAP_REACHED, CadenceSuggestion, compute_account_health, compute_next_suggested_touch,
     compute_qbr_suggested_days, compute_severity_band, compute_silence_signal, compute_threading_risk_signal,
-    current_period_key, is_aging_opportunity, is_discovery_complete, parse_aging_sla_days, parse_discovery_gate_enabled, parse_rep_category_min_sample, rep_target_id,
+    current_period_key, find_active_block, is_aging_opportunity, is_discovery_complete, normalize_block_email,
+    normalize_channel,
+    parse_aging_sla_days, parse_discovery_gate_enabled, parse_rep_category_min_sample, rep_target_id,
 )
 from core.repository import (
     count_geo_discoveries_today, count_outreach_touches_today, delete_product, delete_rule, delete_service,
@@ -52,8 +55,10 @@ from core.repository import (
     list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
     list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
     save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
-    update_opportunity_discovery, update_opportunity_qualification, update_opportunity_status,
+    lift_do_not_contact, list_do_not_contact, save_do_not_contact, update_opportunity_discovery,
+    update_opportunity_qualification, update_opportunity_status,
 )
+from backend.blocks import REASON_LABEL, block_error, find_block
 from providers.base import ProviderError
 from providers.google_maps import GoogleMapsProvider, PlaceSignal
 
@@ -243,13 +248,66 @@ class ContactOut(BaseModel):
     falei" (nunca a tela de contatos completa, fora de escopo deste módulo)."""
     id: str
     name: str
+    do_not_contact: bool = False
 
 
 @router.get("/companies/{company_id}/contacts")
 async def get_company_contacts_route(company_id: str) -> list[ContactOut]:
     async with session_factory() as session:
         contacts = await list_contacts(session, company_id)
-    return [ContactOut(id=c.id, name=c.name) for c in contacts]
+        entries = await list_do_not_contact(session, active_only=True)
+    return [
+        ContactOut(id=c.id, name=c.name, do_not_contact=find_active_block(entries, company_id, c.id, c.email, None) is not None)
+        for c in contacts
+    ]
+
+
+class DoNotContactIn(BaseModel):
+    rep_id: str = Field(min_length=1, max_length=64)
+    contact_id: str | None = None
+    channel: str | None = Field(default=None, max_length=40)
+    reason: Literal["requested_by_contact", "invalid_contact_data", "rep_decision", "other"]
+    comment: str | None = Field(default=None, max_length=500)
+
+
+class DoNotContactLiftIn(BaseModel):
+    rep_id: str = Field(min_length=1, max_length=64)
+    lift_reason: str | None = Field(default=None, max_length=500)
+
+
+@router.get("/companies/{company_id}/do-not-contact")
+async def list_company_do_not_contact_route(company_id: str) -> list[DoNotContact]:
+    async with session_factory() as session:
+        return await list_do_not_contact(session, company_id=company_id)
+
+
+@router.post("/companies/{company_id}/do-not-contact")
+async def create_do_not_contact_route(company_id: str, body: DoNotContactIn) -> DoNotContact:
+    async with session_factory() as session:
+        if await get_company(session, company_id) is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa não encontrada."))
+        contact = None
+        if body.contact_id:
+            contact = next((c for c in await list_contacts(session, company_id) if c.id == body.contact_id), None)
+            if contact is None:
+                raise_http(DomainError(ErrorCategory.INVALID_DATA, "Esse contato não pertence à empresa."))
+        entry = DoNotContact(
+            company_id=company_id, contact_id=contact.id if contact else None,
+            contact_email=normalize_block_email(contact.email) if contact else None,
+            channel=normalize_channel(body.channel), reason=DoNotContactReason(body.reason),
+            comment=(body.comment or "").strip() or None, created_by=body.rep_id,
+        )
+        await save_do_not_contact(session, entry)
+    return entry
+
+
+@router.post("/do-not-contact/{entry_id}/lift")
+async def lift_do_not_contact_route(entry_id: str, body: DoNotContactLiftIn) -> DoNotContact:
+    async with session_factory() as session:
+        entry = await lift_do_not_contact(session, entry_id, body.rep_id, (body.lift_reason or "").strip() or None)
+    if entry is None:
+        raise_http(DomainError(ErrorCategory.NOT_FOUND, "Bloqueio não encontrado."))
+    return entry
 
 
 async def _account_health_map(
@@ -434,7 +492,7 @@ class NextSuggestedTouchOut(BaseModel):
     `silence_days` (módulo 8) são independentes do `state` acima — sinal de
     "essa oportunidade foi ficando quieta", nunca substitui a sugestão de
     toque, só soma um alerta pro rep decidir."""
-    state: Literal["sugestao", "aguardando_intervalo", "cadencia_esgotada", "cap_diario_atingido"]
+    state: Literal["sugestao", "aguardando_intervalo", "cadencia_esgotada", "cap_diario_atingido", "bloqueado"]
     channel: str | None = None
     reason_category: str | None = None
     silence_reason: Literal["nunca_contatado", "cadencia_esgotada_silencio"] | None = None
@@ -444,6 +502,9 @@ class NextSuggestedTouchOut(BaseModel):
     threading_risk_reasons: list[str] = Field(default_factory=list)
     active_contact_count: int | None = None
     has_active_decisor: bool | None = None
+    # Fase L — motivo em linguagem de negócio (nunca o comentário do bloqueio) e alerta sobre o último contato.
+    block_reason: str | None = None
+    last_contact_blocked: bool = False
     # Contato do último toque desta oportunidade — a UI pré-seleciona no
     # dropdown de "marcar como enviado" (decisão do Sales Engineer: rep só
     # reabre o dropdown quando quer trocar de pessoa).
@@ -455,6 +516,8 @@ class OutreachTouchIn(BaseModel):
     contact_id: str | None = None
     channel: str = Field(min_length=1)
     reason_label: str = Field(min_length=1)
+    # Fase L: confirma o registro mesmo com o alvo marcado como "não contatar" (fica marcado no toque).
+    acknowledge_block: bool = False
 
 
 @router.get("/opportunities/{opportunity_id}/next-suggested-touch")
@@ -482,7 +545,17 @@ async def get_next_suggested_touch_route(
             status=opportunity.status.value, touches=touches, first_detected_at=opportunity.first_detected_at,
             is_customer=company.is_customer, now=now, sla_days=aging_sla_days,
         )
-        contacts = await list_contacts(session, opportunity.company_id)
+        all_contacts = await list_contacts(session, opportunity.company_id)
+        block_entries = await list_do_not_contact(session, active_only=True)
+        # Bloqueio da empresa inteira (todos os canais) ou do canal sugerido: sem sugestão de toque.
+        company_block = next((
+            e for e in block_entries
+            if e.company_id == company.id and e.contact_id is None and e.contact_email is None and e.channel is None
+        ), None)
+        if company_block is None and isinstance(suggestion, CadenceSuggestion):
+            company_block = find_active_block(block_entries, company.id, None, None, suggestion.channel)
+        # Contato bloqueado não conta como cobertura (não dá pra acionar).
+        contacts = [c for c in all_contacts if find_active_block(block_entries, company.id, c.id, c.email, None) is None]
         threading_risk = compute_threading_risk_signal(
             status=opportunity.status.value, contacts=contacts, touches=touches, now=now,
         )
@@ -494,6 +567,9 @@ async def get_next_suggested_touch_route(
     # threading_risk nunca é mascarado por cap — é sobre COBERTURA de
     # stakeholder, não sobre "aja agora", não contradiz "espere até amanhã"
     # (decisão do Sales Engineer/reconciliação do módulo 3).
+    # Empresa bloqueada em todos os canais: silêncio e single-thread empurrariam o rep a contatar.
+    if company_block is not None and company_block.channel is None:
+        silence, threading_risk = None, None
     show_silence = silence is not None and suggestion != CADENCE_DAILY_CAP_REACHED
     silence_kwargs = {"silence_reason": silence.reason, "silence_days": silence.days_silent} if show_silence else {}
     threading_kwargs = {
@@ -503,12 +579,25 @@ async def get_next_suggested_touch_route(
     } if threading_risk else {}
     last_touch = max(touches, key=lambda t: t.sent_at) if touches else None
     last_contact_id = last_touch.contact_id if last_touch else None
+    last_contact = next((c for c in all_contacts if c.id == last_contact_id), None) if last_contact_id else None
+    last_contact_blocked = last_contact is not None and find_active_block(
+        block_entries, company.id, last_contact.id, last_contact.email, None,
+    ) is not None
+    if company_block is not None:
+        return NextSuggestedTouchOut(
+            state="bloqueado", block_reason=REASON_LABEL.get(company_block.reason.value),
+            last_contact_id=last_contact_id, last_contact_blocked=last_contact_blocked,
+        )
     if isinstance(suggestion, CadenceSuggestion):
         return NextSuggestedTouchOut(
             state="sugestao", channel=suggestion.channel, reason_category=suggestion.reason_category,
-            last_contact_id=last_contact_id, **silence_kwargs, **threading_kwargs,
+            last_contact_id=last_contact_id, last_contact_blocked=last_contact_blocked,
+            **silence_kwargs, **threading_kwargs,
         )
-    return NextSuggestedTouchOut(state=suggestion, last_contact_id=last_contact_id, **silence_kwargs, **threading_kwargs)
+    return NextSuggestedTouchOut(
+        state=suggestion, last_contact_id=last_contact_id, last_contact_blocked=last_contact_blocked,
+        **silence_kwargs, **threading_kwargs,
+    )
 
 
 @router.post("/opportunities/{opportunity_id}/outreach-touches")
@@ -517,12 +606,19 @@ async def create_outreach_touch_route(opportunity_id: str, body: OutreachTouchIn
         opportunity = await get_opportunity(session, opportunity_id)
         if opportunity is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
-        # contact_id não é validado contra Contact/company_id aqui de propósito
-        # (Fase H, módulo 1 — só a plumbing; a checagem de referência entra
-        # quando o sinal de single-threaded risk for implementado).
+        contact = None
+        if body.contact_id:
+            contact = next((c for c in await list_contacts(session, opportunity.company_id) if c.id == body.contact_id), None)
+            if contact is None:
+                raise_http(DomainError(ErrorCategory.INVALID_DATA, "Esse contato não pertence à empresa da oportunidade."))
+        block = await find_block(session, opportunity.company_id, contact, body.channel)
+        if block is not None and not body.acknowledge_block:
+            # Fato consumado nunca é recusado em silêncio (apagaria a evidência de que houve contato):
+            # exige confirmação explícita e fica marcado no toque.
+            raise_http(block_error(block, "Se o contato realmente aconteceu, confirme para registrar mesmo assim.", contact))
         touch = OutreachTouch(
             opportunity_id=opportunity_id, rep_id=body.rep_id, contact_id=body.contact_id,
-            channel=body.channel, reason_label=body.reason_label,
+            channel=body.channel, reason_label=body.reason_label, block_acknowledged=block is not None,
         )
         await save_outreach_touch(session, touch)
     return touch

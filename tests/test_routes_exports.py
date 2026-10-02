@@ -57,7 +57,7 @@ def test_export_executive_pdf_returns_valid_pdf():
 def test_email_draft_returns_503_without_api_key():
     # .env deste checkout não tem AI_API_KEY preenchida (nunca versionamos .env real)
     resp = client.post("/modules/lead_tracker/email-draft", json={
-        "company_name": "Aurora", "opportunity_type": "cross-sell", "evidence": ["veeam_vbr"],
+        "opportunity_id": "opp-1", "company_name": "Aurora", "opportunity_type": "cross-sell", "evidence": ["veeam_vbr"],
     })
     assert resp.status_code == 503
     assert "Configurações" in resp.json()["detail"]

@@ -4,6 +4,17 @@
 
 ### Adicionado
 
+- **Lista de "não contatar"** — dá para marcar uma empresa inteira, ou só um
+  contato, e escolher o canal (ou todos), com motivo e observação. Enquanto o
+  bloqueio estiver ativo, o sistema não sugere o próximo toque, não gera
+  rascunho de e-mail e pede confirmação explícita para registrar um contato
+  (que fica marcado para auditoria). O bloqueio de um contato vale mesmo se ele
+  for reimportado do CRM com outro id, e reativar nunca apaga o histórico. A
+  observação não vai para exportações nem para a IA.
+- Registrar um contato agora confere se a pessoa escolhida pertence à empresa
+  da oportunidade, e o rascunho de e-mail passa a depender da oportunidade
+  (antes recebia só o nome da empresa).
+
 - **Site da empresa nas oportunidades** — o link do site aparece no detalhe da
   oportunidade (só endereços http/https, abrindo em nova aba). A prospecção pelo
   Google Maps passa a trazer o site do lugar, e o site vindo do Salesforce é

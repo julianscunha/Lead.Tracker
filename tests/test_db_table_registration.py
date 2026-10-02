@@ -49,12 +49,13 @@ def test_init_db_creates_tables_even_without_explicit_db_models_import():
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
     table_count = int(result.stdout.strip())
-    # 15 tabelas: vendors, products, services, companies, contacts, opportunities,
+    # 16 tabelas: vendors, products, services, companies, contacts, opportunities,
     # portfolios, company_signals, opportunity_status_changes (Fase B),
     # correlation_rules (Fase C), opportunity_snapshots (Fase D módulos 2+3),
     # rep_targets (Fase D módulo 7), icp_profiles (Fase E módulo 1),
-    # field_mappings (Fase F módulo 3), outreach_touches (Fase G módulo 5).
-    assert table_count == 15, f"esperava 15 tabelas, criou {table_count} — regressão do bug de metadata vazio"
+    # field_mappings (Fase F módulo 3), outreach_touches (Fase G módulo 5),
+    # do_not_contact (Fase L módulo 1).
+    assert table_count == 16, f"esperava 16 tabelas, criou {table_count} — regressão do bug de metadata vazio"
 
 
 if __name__ == "__main__":

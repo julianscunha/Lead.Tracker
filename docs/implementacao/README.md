@@ -24,4 +24,5 @@ Tudo que **já foi construído**. O que falta está em [`../roadmap.md`](../road
 | I | Funil por representante × categoria | [`fase-i-funil-rep-categoria.md`](specs/fase-i-funil-rep-categoria.md) |
 | J | Gate de discovery completa antes de qualificar | [`fase-j-gate-discovery.md`](specs/fase-j-gate-discovery.md) |
 | K | URL da empresa (captura no Maps, reconciliação da promoção geo, link na tela) | [`fase-k-url-da-empresa.md`](specs/fase-k-url-da-empresa.md) |
+| L | Lista de "não contatar" (bloqueio por empresa/contato/canal, aplicado na sugestão, no toque e no rascunho) | [`fase-l-lista-nao-contatar.md`](specs/fase-l-lista-nao-contatar.md) |
 | — | Business case por oportunidade (PDF de 1 página) | [`business-case-por-oportunidade.md`](specs/business-case-por-oportunidade.md) |

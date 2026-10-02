@@ -195,6 +195,24 @@ def normalize_block_text(text: str | None) -> str | None:
     return folded or None
 
 
+def normalize_channel(text: str | None) -> str | None:
+    """Canal comparável: como `normalize_block_text`, e sem pontuação/espaço, pra
+    "E-mail", "e mail" e "email" serem o mesmo canal. ponytail: sinônimos
+    ("telefone" × "ligação") continuam diferentes; upgrade: lista fechada."""
+    base = normalize_block_text(text)
+    return "".join(c for c in base if c.isalnum()) or None if base else None
+
+
+def normalize_block_email(text: str | None) -> str | None:
+    """E-mail comparável: `normalize_block_text` e sem sufixo `+tag` da parte local
+    (joao+crm@x.com == joao@x.com). Pontos do Gmail não são tratados."""
+    base = normalize_block_text(text)
+    if not base or "@" not in base:
+        return base
+    local, _, domain = base.rpartition("@")
+    return f"{local.split('+', 1)[0]}@{domain}"
+
+
 def find_active_block(
     entries: list[DoNotContact], company_id: str, contact_id: str | None,
     contact_email: str | None, channel: str | None,
@@ -206,12 +224,12 @@ def find_active_block(
     só é comparado quando os dois lados são não vazios. Canal: bloqueio sem canal
     vale pra todos; com canal, só pro mesmo canal normalizado. Consulta com
     `channel=None` pergunta "há bloqueio nesse alvo em algum canal?"."""
-    email = normalize_block_text(contact_email)
-    wanted_channel = normalize_block_text(channel)
+    email = normalize_block_email(contact_email)
+    wanted_channel = normalize_channel(channel)
     for entry in entries:
         if entry.lifted_at is not None:
             continue
-        entry_channel = normalize_block_text(entry.channel)
+        entry_channel = normalize_channel(entry.channel)
         if wanted_channel is not None and entry_channel is not None and entry_channel != wanted_channel:
             continue
         company_wide = entry.contact_id is None and entry.contact_email is None
@@ -219,7 +237,7 @@ def find_active_block(
             return entry
         if contact_id is not None and entry.contact_id == contact_id and entry.company_id == company_id:
             return entry
-        if email is not None and normalize_block_text(entry.contact_email) == email:
+        if email is not None and normalize_block_email(entry.contact_email) == email:
             return entry
     return None
 
@@ -515,7 +533,7 @@ __all__ = [
     "compute_severity_band", "compute_silence_signal", "compute_threading_risk_signal", "current_period_key",
     "evaluate_rules", "field_mapping_id", "is_aging_opportunity", "is_zombie_opportunity", "parse_aging_sla_days",
     "REP_CATEGORY_MIN_SAMPLE_ENV_KEY", "DISCOVERY_GATE_ENV_KEY", "parse_discovery_gate_enabled", "find_active_block",
-    "normalize_block_text",
+    "normalize_block_text", "normalize_channel", "normalize_block_email",
     "is_valid_discovery_text", "is_discovery_complete", "requires_discovery_gate", "parse_rep_category_min_sample", "rep_target_id",
     "requires_status_change_justification",
 ]

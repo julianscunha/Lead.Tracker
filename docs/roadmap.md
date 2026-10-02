@@ -12,7 +12,6 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
-| R2 | Lista de "não contatar" | Alto: segurança do outreach e LGPD | P–M | — | Agora |
 | R3 | Registro de auditoria geral | Médio: rastro de edições, base de R7 e R8 | P | — | Agora |
 | R4 | Conflito entre fontes | Médio: qualidade do dado com 3+ fontes | M | — | Depois |
 | R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
@@ -25,11 +24,6 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 Dependências: `R3 → R7`; `R3 + autenticação → R8`; `R4 → R10` (recomendado). Os demais são independentes e podem andar em paralelo.
 
 ## Agora
-
-### R2. Lista de "não contatar"
-Spec em proposta: [`fase-l-lista-nao-contatar.md`](implementacao/specs/fase-l-lista-nao-contatar.md).
-
-Não existe hoje. Registro por contato ou empresa e por canal, com motivo (pedido do contato, e-mail inválido, decisão do vendedor), comentário e data, insert-only (padrão do `DoNotContact` do Mautic: `reason`, `channel`, `comments`, `dateAdded`). Quando ativo, sugestões de outreach daquele contato/canal são bloqueadas e a tela explica o porquê. Reforça o limite diário por rep e ajuda na conformidade com a LGPD.
 
 ### R3. Registro de auditoria geral
 Só a mudança de status tem histórico (`OpportunityStatusChange`). Falta registrar edições de qualificação, discovery, data de renovação e postura do contato: entidade, campo, valor anterior e novo, quando (e quem, após R8). Base de dado para R7. Ideia do `LeadEventLog` do Mautic; sem código copiado (Mautic é GPL).
