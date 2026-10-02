@@ -4,6 +4,6 @@ pydantic
 httpx
 fpdf2
 openpyxl
-sqlalchemy
+sqlalchemy[asyncio]
 aiosqlite
 alembic
