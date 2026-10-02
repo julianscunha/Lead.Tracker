@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-02
+
 ### Adicionado
 
 - **Discovery antes de qualificar** — para sair de "detectada" (ou reabrir uma
