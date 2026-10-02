@@ -42,14 +42,14 @@ e push por etapa.
 - [x] Teste de injeção de produto e valor passa (critério 1 da spec); degradação sem IA passa (critério 2)
 
 ## T4 — `business-case-pdf` (S)
-- [ ] `business_case_pdf(doc, generated_at)` em `exports/pdf.py`
+- [x] `business_case_pdf(doc, generated_at)` em `exports/pdf.py`
   - Acceptance: exatamente 1 página com 3 e com 6 evidências (`pdf.page == 1`); truncamento por palavras; marca "rascunho para revisão do vendedor; não enviado"
   - Verify: `python -m pytest tests/test_exports.py tests/test_business_case.py -q`
   - Files: `exports/pdf.py`, `tests/test_exports.py`
   - Depende de: T1–T3
 
 ### Checkpoint após T4
-- [ ] Teste de 1 página passa (critério 3 da spec)
+- [x] Teste de 1 página passa (critério 3 da spec)
 
 ## T5 — rota + botão (M)
 - [ ] `POST /exports/business-case` + `exportBusinessCase` em `api.ts` + botão em `OpportunityTable.tsx`
