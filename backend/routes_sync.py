@@ -32,7 +32,7 @@ from core.dashboard_metrics import (
 )
 from core.errors import DomainError, ErrorCategory
 from core.models import (
-    Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, DoNotContact,
+    AuditEntry, Company, CorrelationRule, DiscoveryRequiredError, DismissalReason, DismissalReasonRequiredError, DoNotContact,
     DoNotContactReason, ICPProfile, Opportunity,
     OpportunityStatus, OutreachTouch, PeriodType, Product, RepTarget, RuleError, Service,
     SourceRef, StatusChangeRequiresJustificationError, Vendor,
@@ -55,7 +55,7 @@ from core.repository import (
     list_contacts, list_latest_snapshot, list_opportunities, list_outreach_touches, list_products, list_rep_targets,
     list_rules, list_services, list_vendors, save_company, save_icp_profile, save_opportunity, save_outreach_touch,
     save_product, save_rep_target, save_rule, save_service, save_vendor, update_company_renewal_date,
-    lift_do_not_contact, list_do_not_contact, save_do_not_contact, update_opportunity_discovery,
+    lift_do_not_contact, list_audit_entries, list_do_not_contact, save_do_not_contact, update_opportunity_discovery,
     update_opportunity_qualification, update_opportunity_status,
 )
 from backend.blocks import REASON_LABEL, block_error, find_block
@@ -117,6 +117,8 @@ class OpportunityDiscoveryIn(BaseModel):
     root_cause_stated: str | None = Field(default=None, max_length=2000)
     trigger_event: str | None = Field(default=None, max_length=2000)
     champion_stake: str | None = Field(default=None, max_length=2000)
+    # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
+    rep_id: str | None = Field(default=None, max_length=64)
 
 
 class OpportunityQualificationIn(BaseModel):
@@ -127,10 +129,14 @@ class OpportunityQualificationIn(BaseModel):
     scope_note: Literal["isolado", "parcial", "generalizado"] | None = None
     criticality: Literal["nao_critico", "critico_interno", "critico_exposto"] | None = None
     severity_note: str | None = None
+    # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
+    rep_id: str | None = Field(default=None, max_length=64)
 
 
 class CompanyRenewalDateIn(BaseModel):
     renewal_date: datetime | None = None
+    # Fase M: autoria autodeclarada (o mesmo id que a tela já pede); ausente = "não identificado".
+    rep_id: str | None = Field(default=None, max_length=64)
 
 
 class OpportunityStatusIn(BaseModel):
@@ -411,7 +417,7 @@ async def update_opportunity_qualification_route(opportunity_id: str, body: Oppo
     aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         updated = await update_opportunity_qualification(
-            session, opportunity_id, body.scope_note, body.criticality, body.severity_note,
+            session, opportunity_id, body.scope_note, body.criticality, body.severity_note, actor=body.rep_id,
         )
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
@@ -428,7 +434,7 @@ async def update_opportunity_discovery_route(opportunity_id: str, body: Opportun
     aging_sla_days = parse_aging_sla_days(load_env(routes_settings._ENV_PATH))
     async with session_factory() as session:
         updated = await update_opportunity_discovery(
-            session, opportunity_id, body.root_cause_stated, body.trigger_event, body.champion_stake,
+            session, opportunity_id, body.root_cause_stated, body.trigger_event, body.champion_stake, actor=body.rep_id,
         )
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
@@ -438,6 +444,26 @@ async def update_opportunity_discovery_route(opportunity_id: str, body: Opportun
         health_map = await _account_health_map(session, [updated], companies)
 
     return _to_opportunity_out(updated, companies, products, services, health_map, aging_sla_days)
+
+
+@router.get("/opportunities/{opportunity_id}/audit")
+async def list_opportunity_audit_route(opportunity_id: str) -> list[AuditEntry]:
+    """Edições desta oportunidade + as da empresa dela e de seus contatos (não as de
+    outras oportunidades da mesma empresa). Mais recentes primeiro."""
+    async with session_factory() as session:
+        opportunity = await get_opportunity(session, opportunity_id)
+        if opportunity is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Oportunidade não encontrada."))
+        entries = await list_audit_entries(session, company_id=opportunity.company_id)
+    return [e for e in entries if e.entity_type != "opportunity" or e.entity_id == opportunity_id]
+
+
+@router.get("/companies/{company_id}/audit")
+async def list_company_audit_route(company_id: str) -> list[AuditEntry]:
+    async with session_factory() as session:
+        if await get_company(session, company_id) is None:
+            raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa não encontrada."))
+        return await list_audit_entries(session, company_id=company_id)
 
 
 @router.patch("/opportunities/{opportunity_id}/status")
@@ -479,7 +505,7 @@ async def update_opportunity_status_route(opportunity_id: str, body: Opportunity
 @router.patch("/companies/{company_id}/renewal-date")
 async def update_company_renewal_date_route(company_id: str, body: CompanyRenewalDateIn) -> Company:
     async with session_factory() as session:
-        updated = await update_company_renewal_date(session, company_id, body.renewal_date)
+        updated = await update_company_renewal_date(session, company_id, body.renewal_date, actor=body.rep_id)
         if updated is None:
             raise_http(DomainError(ErrorCategory.NOT_FOUND, "Empresa não encontrada."))
     return updated
