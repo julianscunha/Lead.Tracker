@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from providers.base import DataProvider
+from providers.enrichment_http import EnrichmentHttpProvider
 from providers.google_maps import GoogleMapsProvider
 from providers.salesforce import SalesforceProvider
 from providers.website import WebsiteProvider
@@ -89,6 +90,45 @@ SOURCES: list[SourceDescriptor] = [
             ),
         ],
         build=lambda env: WebsiteProvider(env.get("COMPANY_WEBSITE", "")),
+    ),
+    SourceDescriptor(
+        id="enrichment",
+        label="Enriquecimento de empresas (porte e setor)",
+        enabled_key="ENRICHMENT_ENABLED",
+        implemented=True,
+        fields=[
+            SourceField(
+                key="ENRICHMENT_URL_TEMPLATE",
+                label="Endereço da API (com {domain})",
+                help_text=(
+                    "Endereço da API de dados de empresas que você contratou, com {domain} no lugar do site da empresa. "
+                    "Ex.: https://api.exemplo.com/v1/companies?domain={domain}. A API deve responder JSON."
+                ),
+            ),
+            SourceField(
+                key="ENRICHMENT_AUTH_HEADER",
+                label="Nome do cabeçalho de autenticação",
+                help_text="Cabeçalho onde a chave é enviada. Ex.: Authorization ou X-Api-Key. Deixe vazio se a API não pede chave.",
+            ),
+            SourceField(
+                key="ENRICHMENT_API_KEY",
+                label="Chave da API",
+                help_text="Enviada só em https e só no cabeçalho acima. Se a API pede um prefixo, inclua-o. Ex.: Bearer abc123.",
+                secret=True,
+            ),
+            SourceField(
+                key="ENRICHMENT_MAP_EMPLOYEES",
+                label="Onde está o número de funcionários na resposta",
+                help_text="Caminho com pontos dentro do JSON. Ex.: metrics.employees. Só números exatos valem; faixas (51-200) são ignoradas.",
+            ),
+            SourceField(
+                key="ENRICHMENT_MAP_INDUSTRY",
+                label="Onde está o setor na resposta",
+                help_text="Caminho com pontos dentro do JSON. Ex.: category.industry.",
+            ),
+        ],
+        # Não participa do /sync: só o botão "Completar porte e setor" (Entrada de dados) a usa.
+        build=lambda env: EnrichmentHttpProvider.from_env(env),
     ),
     SourceDescriptor(
         id="google_maps",

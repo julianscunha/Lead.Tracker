@@ -599,6 +599,19 @@ export async function triggerSync(): Promise<SyncResult[]> {
   }))
 }
 
+export interface EnrichmentResult {
+  enriquecidas: number
+  sem_dado: number
+  conflitos: number
+  erros: string[]
+}
+
+export async function runEnrichment(limit = 50): Promise<EnrichmentResult> {
+  const resp = await fetch(`${BASE}/enrichment/run?limit=${limit}`, { method: 'POST' })
+  if (!resp.ok) throw new Error(await friendlyError(resp))
+  return resp.json()
+}
+
 export interface FunnelReachStage {
   stage: string
   reachCount: number

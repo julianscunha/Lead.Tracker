@@ -27,6 +27,7 @@ from core.field_mapping import detect_broken_mappings
 from core.repository import list_field_mappings
 from backend.db_session import DB_PATH as _DB_PATH, engine as _engine, session_factory
 from backend.routes_csv_import import router as csv_import_router
+from backend.routes_enrichment import router as enrichment_router
 from backend.routes_exports import router as exports_router
 from backend.routes_settings import router as settings_router
 from backend.routes_portfolio_suggest import router as portfolio_suggest_router
@@ -43,12 +44,13 @@ router.include_router(exports_router)
 router.include_router(settings_router)
 router.include_router(sync_router)
 router.include_router(portfolio_suggest_router)
+router.include_router(enrichment_router)
 
 
 @router.get("/ping")
 async def ping():
     sdk.logger.info("ping called")
-    return {"module": "lead_tracker", "status": "ok", "version": "1.3.0"}
+    return {"module": "lead_tracker", "status": "ok", "version": "1.4.0"}
 
 
 async def _check_field_mappings_health() -> list:
@@ -92,7 +94,7 @@ class LeadTrackerModule(ModuleContract):
         return ModuleMetadata(
             id="lead_tracker",
             name="Lead.Tracker",
-            version="1.3.0",
+            version="1.4.0",
             category="Sales",
             vendor="TechForge",
             author="TechForge Team",

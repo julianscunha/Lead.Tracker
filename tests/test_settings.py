@@ -99,7 +99,7 @@ def test_list_settings_returns_all_sources_with_defaults():
         assert resp.status_code == 200
         body = resp.json()
         ids = {s["id"] for s in body}
-        assert ids == {"salesforce", "website", "google_maps"}
+        assert ids == {"salesforce", "website", "enrichment", "google_maps"}
 
         salesforce = next(s for s in body if s["id"] == "salesforce")
         assert salesforce["enabled"] is False

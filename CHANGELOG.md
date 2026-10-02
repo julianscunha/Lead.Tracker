@@ -2,8 +2,18 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-02
+
 ### Adicionado
 
+- **Completar porte e setor por API de dados de empresas** — em Entrada de dados, uma
+  nova fonte "Enriquecimento de empresas" aceita a API (JSON) que você contratou: informe
+  o endereço com `{domain}`, o cabeçalho e a chave, e onde estão setor e número de
+  funcionários na resposta. O botão "Completar porte e setor (até 50 empresas)" preenche
+  só o que está vazio; se a API discordar de um valor vindo de outra fonte, vira um
+  conflito para você resolver, nunca uma troca silenciosa. Faixas de funcionários
+  ("51-200") são ignoradas e nenhum dado de pessoa é lido. A chave só vai no cabeçalho,
+  em https.
 - **Valor típico informado na regra** — cada regra aceita um valor típico em R$
   (opcional, maior que zero). O sistema só copia esse número para as oportunidades
   da regra, junto com a origem ("Valor típico informado na regra «X»: R$ N"); nunca

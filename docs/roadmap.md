@@ -12,7 +12,6 @@ Só o que **ainda falta**, na ordem sugerida de execução. O que já foi entreg
 
 | # | Item | Valor | Esforço | Depende de | Horizonte |
 |---|---|---|---|---|---|
-| R5 | Provider de enriquecimento | Médio | M | — (R1, URL da empresa, já entregue) | Depois |
 | R6 | Visões salvas na lista | Médio: produtividade do vendedor | P–M | — | Depois |
 | R7 | Forecast por conversão histórica | Alto, mas só com dado | G | volume de histórico (R3, auditoria, já entregue) | Condicionado |
 | R8 | Autenticação e autoria confiável | Baixo hoje | M | — | Condicionado |
@@ -24,9 +23,6 @@ Sem dependências abertas entre os itens: todos podem andar em paralelo.
 ## Agora
 
 ## Depois
-
-### R5. Provider de enriquecimento
-Completar a empresa a partir do domínio (porte, setor, site) por API externa, como os plugins Clearbit e FullContact do Mautic. Provider só coleta e normaliza, como os demais.
 
 ### R6. Visões salvas na lista de oportunidades
 O vendedor guarda combinações de filtro com nome ("renovação em 60 dias + severidade alta") e reabre com um clique; pode exportar pelo PDF/Excel que já existe. Ideia dos segmentos do Mautic. Só leitura e filtro: nada dispara sozinho.

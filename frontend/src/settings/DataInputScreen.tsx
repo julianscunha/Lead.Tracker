@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listSettings, triggerSync, type SourceStatus, type SyncResult } from '../api'
+import { listSettings, runEnrichment, triggerSync, type EnrichmentResult, type SourceStatus, type SyncResult } from '../api'
 import { GeoDiscoveryWizard } from '../GeoDiscoveryWizard'
 import { InfoHint } from '../InfoHint'
 import { CsvImportSection } from './CsvImportSection'
@@ -14,6 +14,11 @@ export function summarizeSync(results: SyncResult[]): string {
   return errors.length > 0 ? `${base} Alguns erros: ${errors.join('; ')}` : base
 }
 
+export function summarizeEnrichment(r: EnrichmentResult): string {
+  const base = `${r.enriquecidas} empresa(s) completada(s), ${r.sem_dado} sem dado novo, ${r.conflitos} divergência(s) para resolver em Oportunidades.`
+  return r.erros.length > 0 ? `${base} Avisos: ${r.erros.join('; ')}` : base
+}
+
 // Porta de entrada ÚNICA de dado: conectar fontes, importar planilha, atualizar e prospectar. O que se
 // faz com o dado depois (qualificar, resolver conflito, agir) fica em Oportunidades; o que calibra o
 // sistema (portfólio, regras, IA, limites) fica em Configurações.
@@ -22,6 +27,8 @@ export function DataInputScreen({ repId, onNavigate }: { repId: string; onNaviga
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichMessage, setEnrichMessage] = useState<string | null>(null)
 
   useEffect(() => {
     listSettings()
@@ -38,6 +45,18 @@ export function DataInputScreen({ repId, onNavigate }: { repId: string; onNaviga
       setSyncMessage(err instanceof Error ? err.message : 'Falha ao sincronizar.')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleEnrich = async () => {
+    setEnriching(true)
+    setEnrichMessage(null)
+    try {
+      setEnrichMessage(summarizeEnrichment(await runEnrichment(50)))
+    } catch (err) {
+      setEnrichMessage(err instanceof Error ? err.message : 'Falha ao completar porte e setor.')
+    } finally {
+      setEnriching(false)
     }
   }
 
@@ -65,6 +84,13 @@ export function DataInputScreen({ repId, onNavigate }: { repId: string; onNaviga
           )}
         </div>
         {syncMessage && <p className="lt-hint" role="status">{syncMessage}</p>}
+        <div className="lt-toolbar">
+          <button type="button" className="lt-btn" onClick={handleEnrich} disabled={enriching} aria-busy={enriching}>
+            {enriching ? 'Completando…' : 'Completar porte e setor (até 50 empresas)'}
+          </button>
+          <InfoHint text="Usa a API de dados de empresas que você configurou na fonte Enriquecimento de empresas. Só preenche o que está vazio; se a API discordar de um valor que já veio de outra fonte, vira uma divergência para você resolver em Oportunidades. Não lê dados de pessoas." />
+        </div>
+        {enrichMessage && <p className="lt-hint" role="status">{enrichMessage}</p>}
       </section>
 
       <section aria-labelledby="lt-input-sources">

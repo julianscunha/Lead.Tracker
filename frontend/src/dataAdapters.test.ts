@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { derivePriority } from './api'
+import { summarizeEnrichment } from './settings/DataInputScreen'
 import { summarizeSync } from './settings/SettingsScreen'
 
 describe('derivePriority', () => {
@@ -42,5 +43,14 @@ describe('summarizeSync', () => {
       { sourceId: 'salesforce', companiesSynced: 0, contactsSynced: 0, errors: ['Falha de autenticação.'] },
     ])
     expect(msg).toContain('Falha de autenticação.')
+  })
+})
+
+describe('summarizeEnrichment', () => {
+  it('resume contagens e lista avisos amigáveis', () => {
+    expect(summarizeEnrichment({ enriquecidas: 2, sem_dado: 1, conflitos: 1, erros: [] })).toBe(
+      '2 empresa(s) completada(s), 1 sem dado novo, 1 divergência(s) para resolver em Oportunidades.',
+    )
+    expect(summarizeEnrichment({ enriquecidas: 0, sem_dado: 0, conflitos: 0, erros: ['A API recusou a chave.'] })).toContain('Avisos: A API recusou a chave.')
   })
 })

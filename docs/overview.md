@@ -43,6 +43,9 @@ otimização de custos — sempre com motivo e evidência, nunca um palpite.
   passo por oportunidade (canal, motivo, cadência) — sempre uma sugestão
   que você confirma copiando e marcando como enviado, nunca um disparo
   automático.
+- **Completa porte e setor das empresas** — a API de dados de empresas que você
+  configurar em Entrada de dados preenche setor e número de funcionários só onde
+  estão vazios; se discordar de outra fonte, vira conflito para você resolver.
 - **Monta o portfólio a partir do seu site** — a IA sugere fabricantes, produtos
   e serviços lendo o site da sua empresa (endereço informado em Configurações),
   cada sugestão com o trecho do site que a comprova; só entra no portfólio o que
@@ -78,7 +81,7 @@ O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → c
   meta por representante e demais indicadores ficam recolhidos; exportação
   executiva em PDF.
 - **Entrada de dados** — porta de entrada única: atualizar dados das fontes,
-  conectar Salesforce, Google Maps e o site da empresa, importar planilha CSV e
+  conectar Salesforce, Google Maps, o site da empresa e uma API de enriquecimento, importar planilha CSV e
   fazer a prospecção geográfica (assistente guiado: produto de referência →
   raio → revisão do critério sugerido → confirmar).
 - **Oportunidades** — lapidar e agir: a lista viva de tudo que o motor

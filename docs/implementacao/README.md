@@ -29,4 +29,5 @@ Tudo que **já foi construído**. O que falta está em [`../roadmap.md`](../road
 | N | Conflito entre fontes (valor da mesma fonte atualiza com rastro; outra fonte que discorda abre conflito para o usuário escolher) | [`fase-n-conflito-entre-fontes.md`](specs/fase-n-conflito-entre-fontes.md) |
 | O | Valor típico informado na regra (o usuário digita, o sistema só copia; nunca calcula) | [`fase-o-valor-tipico-da-regra.md`](specs/fase-o-valor-tipico-da-regra.md) |
 | P | Portfólio a partir do site da própria empresa (coleta segura, sugestão por IA validada contra o texto, revisão antes de valer) | [`fase-p-portfolio-do-site.md`](specs/fase-p-portfolio-do-site.md) |
+| Q | Enriquecimento de porte e setor por API HTTP JSON configurável (sob demanda, preenche só o vazio, divergência vira conflito) | [`fase-q-enriquecimento.md`](specs/fase-q-enriquecimento.md) |
 | — | Business case por oportunidade (PDF de 1 página) | [`business-case-por-oportunidade.md`](specs/business-case-por-oportunidade.md) |

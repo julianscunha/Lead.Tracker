@@ -61,6 +61,9 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
   ativo, aparece a sugestão de abrir um segundo.
 - **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
   vindo de dado real.
+- **Completa porte e setor das empresas** — em Entrada de dados, ligue a API de dados
+  de empresas que você contratou e clique em "Completar porte e setor": só o que está
+  vazio é preenchido; divergência com outra fonte vira conflito para você resolver.
 - **Monta o portfólio a partir do seu site** — informe o endereço do site da sua
   empresa em Configurações e clique em "Ler meu site": a IA sugere fabricantes,
   produtos e serviços, cada um com o trecho do site que o comprova. Você marca o
@@ -92,7 +95,7 @@ O fluxo segue a ordem de trabalho: ver → trazer dados → lapidar e agir → c
 | Aba | O que você faz ali |
 |---|---|
 | **Dashboard** | Visão executiva: o que pede decisão hoje (cada número leva à lista já filtrada), valor do pipeline e funil. Cobertura de meta por representante, matriz por categoria e demais indicadores ficam recolhidos. |
-| **Entrada de dados** | A porta de entrada única: atualizar os dados das fontes, conectar Salesforce, Google Maps e o site da sua empresa, importar planilha CSV e fazer a prospecção geográfica (assistente guiado). |
+| **Entrada de dados** | A porta de entrada única: atualizar os dados das fontes, conectar Salesforce, Google Maps, o site da sua empresa e uma API de enriquecimento (porte e setor), importar planilha CSV e fazer a prospecção geográfica (assistente guiado). |
 | **Oportunidades** | Lapidar e agir: a lista viva do que o motor encontrou, com status e saúde da conta, filtros, conflitos de dados entre fontes (quando houver), e em cada linha o status, a próxima ação sugerida, "não contatar", rascunho de e-mail, business case, discovery, qualificação e histórico de alterações. Exporta PDF e Excel do que está na tela. |
 | **Configurações** | Calibragem de uso mais raro, em seções recolhíveis: portfólio (inclui "Ler meu site"), regras, mapeamento de campos do Salesforce, IA, limites e prazos e metas por representante. |
 

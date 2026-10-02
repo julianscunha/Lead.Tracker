@@ -255,3 +255,25 @@ def test_all_validated_ips_failing_to_connect_is_a_friendly_error():
     with pytest.raises(SafeFetchError) as exc:
         _run(net, "https://good.com")
     assert exc.value.reason == "sem_conexao"
+
+
+def test_extra_headers_go_to_first_host_but_not_to_a_redirect_to_another_host_name():
+    def handler(request):
+        if request.headers["host"] == "good.com":
+            return httpx.Response(301, headers={"location": "https://www.good.com/home"})
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="ok")
+    net = _Net(handler=handler)
+    _run(net, "https://good.com", extra_headers={"X-Api-Key": "segredo"})
+    assert net.requests[0].headers["x-api-key"] == "segredo"
+    assert "x-api-key" not in net.requests[1].headers  # host diferente (www): o segredo não acompanha
+
+
+def test_extra_headers_cannot_override_host_and_stay_on_same_host_redirects():
+    def handler(request):
+        if request.url.path == "/a":
+            return httpx.Response(302, headers={"location": "/b"})
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="ok")
+    net = _Net(handler=handler)
+    _run(net, "https://good.com/a", extra_headers={"X-Api-Key": "segredo", "Host": "evil.com"})
+    assert [r.headers["host"] for r in net.requests] == ["good.com", "good.com"]
+    assert all(r.headers["x-api-key"] == "segredo" for r in net.requests)

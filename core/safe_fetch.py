@@ -1,12 +1,15 @@
-"""Fase P — única porta de rede para dado externo NÃO confiável: o site da própria empresa do
-operador (COMPANY_WEBSITE). O resto do produto nunca busca URL de lead/Maps/CRM (Fase K).
+"""Única porta de rede para dado externo NÃO confiável: o site da própria empresa do operador
+(COMPANY_WEBSITE, Fase P) e a API HTTP JSON de enriquecimento que o operador configurou (Fase Q;
+a URL vem da configuração, o único trecho variável é o domínio, validado antes). O resto do produto
+nunca busca URL de lead/Maps/CRM (Fase K).
 
 Defesas (docs/implementacao/specs/fase-p-portfolio-do-site.md): só http/https nas portas 80/443,
 sem userinfo, host precisa ser nome de domínio (nenhum IP literal, nem forma ofuscada); o DNS é
 resolvido AQUI e TODOS os IPs precisam ser públicos; a conexão vai no IP já validado (sem nova
 resolução: DNS rebinding) com `Host` e SNI do nome original; redirects são seguidos à mão (máx. 3,
 mesmo site, https→http bloqueado) revalidando tudo a cada salto; leitura em stream com teto de bytes
-DECODIFICADOS, só text/html e text/plain, prazo total, sem proxy do ambiente, sem cookies.
+DECODIFICADOS, só text/html e text/plain, prazo total, sem proxy do ambiente, sem cookies. `extra_headers` (ex.: chave de API) só vai ao host EXATO da
+primeira URL: nunca num redirect para outro host (nem para o par www/sem www).
 
 O usuário nunca vê o motivo técnico da recusa (não revela IP nem o que foi bloqueado): a mensagem é
 sempre a mesma; o motivo vai só para o log, sem URL completa nem conteúdo."""
@@ -157,9 +160,11 @@ async def fetch_page(
     url: str, *, client: httpx.AsyncClient | None = None, resolver: Resolver = default_resolver,
     max_bytes: int = MAX_BYTES, deadline: float = TOTAL_DEADLINE, expect_ok: bool = True,
     origin_host: str | None = None, content_types: tuple[str, ...] = _DEFAULT_TYPES,
+    extra_headers: dict[str, str] | None = None,
 ) -> Page:
     """Busca UMA página com todas as defesas acima. `expect_ok=False` devolve também 4xx (robots.txt).
-    `origin_host`: site de origem (para seguir redirects/links só dentro dele); padrão = o do próprio `url`."""
+    `origin_host`: site de origem (para seguir redirects/links só dentro dele); padrão = o do próprio `url`.
+    `extra_headers`: cabeçalhos a mais (segredo) só para o host da primeira URL; nunca vão em log."""
     first = validate_url(url)
     origin = origin_host or first.host
     if not _same_site(origin, first.host):
@@ -170,7 +175,9 @@ async def fetch_page(
     )
     try:
         async with asyncio.timeout(deadline):
-            return await _fetch_following(first, http, resolver, max_bytes, expect_ok, origin, content_types)
+            return await _fetch_following(
+                first, http, resolver, max_bytes, expect_ok, origin, content_types, extra_headers or {},
+            )
     except SafeFetchError as exc:
         log.warning("safe_fetch recusou: %s", exc.reason)
         raise
@@ -184,14 +191,17 @@ async def fetch_page(
 
 async def _fetch_following(
     target: Target, http: httpx.AsyncClient, resolver: Resolver, max_bytes: int, expect_ok: bool,
-    origin: str, content_types: tuple[str, ...],
+    origin: str, content_types: tuple[str, ...], extra_headers: dict[str, str],
 ) -> Page:
+    first_host = target.host
     for hop in range(MAX_REDIRECTS + 1):
         addresses = await resolver(target.host, target.port)
         if not addresses:
             raise SafeFetchError("dns_vazio")
         validated = [ensure_public_ip(a) for a in addresses]  # um IP privado entre os resolvidos já recusa tudo
         headers = {
+            # segredo nunca acompanha um redirect para outro host; os cabeçalhos fixos abaixo prevalecem
+            **(extra_headers if target.host == first_host else {}),
             "Host": target.host, "User-Agent": USER_AGENT, "Accept": ", ".join(content_types),
             "Accept-Encoding": "identity",  # sem compressão: bomba de descompressão
         }
