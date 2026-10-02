@@ -35,6 +35,10 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 - **Acompanha o funil de ponta a ponta** — status auditável (detectada →
   qualificada → revisada → contatada → oportunidade, ou descartada com
   motivo categorizado), com histórico completo de quando e por quê.
+- **Garante discovery antes de qualificar** — pra avançar uma oportunidade,
+  o vendedor responde com as palavras do cliente por que isso acontece hoje,
+  por que agora e o que o contato ganha ou perde. Sem tempo? "Qualificar sem
+  discovery" com justificativa registrada. Dá pra desligar em Configurações.
 - **Cuida da carteira, não só de leads novos** — saúde de conta e sugestão
   de quando revisar cada cliente (baseado em renovação + saúde, nunca
   aleatório), alerta de oportunidade parada há tempo demais.
@@ -49,6 +53,12 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
   parecido" sem caso real), sugestão de próximo passo por cliente/prospect
   (canal, motivo, cadência) — sempre uma sugestão pra você confirmar,
   nunca um disparo automático.
+- **Monta o business case** — documento de 1 página por oportunidade
+  (situação, gap, custo de não agir, estado futuro) em PDF, só com o que o
+  motor já calculou; a IA, se ligada, apenas escreve a prosa.
+- **Avisa quando a conta depende de uma pessoa só** — cobertura de contatos
+  por oportunidade: sem decisor tocado recentemente ou com um único contato
+  ativo, aparece a sugestão de abrir um segundo.
 - **Mostra o panorama** — dashboard executivo com KPIs e gráficos, tudo
   vindo de dado real.
 - **Poupa seu tempo** — exporta PDF/Excel com um clique em toda tela de
@@ -61,7 +71,7 @@ Módulo instalável do [Tech.Forge](https://github.com/julianscunha/Tech.Forge).
 
 | Aba | O que você faz ali |
 |---|---|
-| **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante. |
+| **Dashboard** | Visão executiva: KPIs, funil, distribuição por fabricante/serviço, oportunidades paradas, cobertura de meta por representante e onde as oportunidades estão hoje por representante e categoria. |
 | **Oportunidades** | A lista viva de tudo que o motor encontrou — filtra, ordena, qualifica severidade, muda status, gera rascunho de e-mail e vê a próxima ação sugerida por oportunidade. |
 | **Prospecção** | Assistente guiado de descoberta geográfica (Google Maps) — define raio/produto de referência e recebe uma lista de prospects pontuados. |
 | **Configurações** | Fontes de dado (Salesforce, Google Maps), importação de empresas + portfólio por CSV em lote, cadastro de fabricante/produto/serviço/regra (com remoção), mapeamento de campo personalizado, IA, metas por representante. |
